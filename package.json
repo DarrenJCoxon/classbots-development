@@ -1,0 +1,45 @@
+{
+  "name": "classbots-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@pinecone-database/pinecone": "^5.1.2",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "dotenv": "^16.5.0",
+    "mammoth": "^1.9.0",
+    "multer": "^1.4.5-lts.2",
+    "nanoid": "^5.1.5",
+    "next": "15.3.1",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.3",
+    "openai": "^4.97.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "resend": "^4.5.1",
+    "styled-components": "^6.1.17",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/node": "^20",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/styled-components": "^5.1.34",
+    "babel-plugin-styled-components": "^2.1.4",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "typescript": "^5"
+  }
+}
