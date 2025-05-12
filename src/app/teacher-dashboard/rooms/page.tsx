@@ -3,14 +3,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Button, Alert, Card } from '@/styles/StyledComponents';
+// No longer need useRouter if not used directly on this page for navigation
+// import { useRouter } from 'next/navigation';
+import { Button, Alert, Card, Container } from '@/styles/StyledComponents';
 import RoomList from '@/components/teacher/RoomList';
 import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
 import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const PageWrapper = styled.div``; // This can be a simple div or your main page layout container
+const PageWrapper = styled.div``;
 
 const PageHeader = styled.div`
   display: flex;
@@ -27,14 +29,84 @@ const Title = styled.h1`
   margin: 0;
 `;
 
-// This ContentCard will wrap the main content (loading state or RoomList)
-// and will receive the accent color.
-const ContentCard = styled(Card)`
-  /* Base Card styles are inherited. 
-     The $accentColor prop passed to it will be handled by the base Card definition 
-     in StyledComponents.ts (e.g., for border-top). 
-  */
+// Styled components for DeleteModal
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: ${({ theme }) => theme.spacing.md};
 `;
+
+const ModalContent = styled(Card)`
+  width: 100%;
+  max-width: 450px;
+  margin: 20px;
+  position: relative;
+  text-align: center;
+  border-top: none !important;
+`;
+
+const ModalTitle = styled.h3`
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const ModalText = styled.p`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  color: ${({ theme }) => theme.colors.textLight};
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  justify-content: center;
+`;
+
+interface DeleteModalProps {
+  isOpen: boolean;
+  itemType: 'Room';
+  itemName: string;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  isDeleting: boolean;
+}
+
+function DeleteModal({ isOpen, itemType, itemName, onConfirm, onCancel, isDeleting }: DeleteModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <ModalOverlay>
+      <ModalContent>
+        <ModalTitle>Delete {itemType}</ModalTitle>
+        <ModalText>
+          Are you sure you want to delete the {itemType.toLowerCase()} &quot;
+          <strong>{itemName}</strong>
+          &quot;? This action cannot be undone and may affect associated data (e.g., student memberships, chat history).
+        </ModalText>
+        <ModalActions>
+          <Button variant="outline" onClick={onCancel} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+             variant="danger"
+             onClick={onConfirm}
+             disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : `Yes, Delete ${itemType}`}
+          </Button>
+        </ModalActions>
+      </ModalContent>
+    </ModalOverlay>
+  );
+}
+
 
 export default function ManageRoomsPage() {
   const [rooms, setRooms] = useState<TeacherRoom[]>([]);
@@ -43,7 +115,16 @@ export default function ManageRoomsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<BaseRoom | null>(null);
-  const theme = useTheme(); // To access theme.colors for the accent
+  const theme = useTheme();
+  // const router = useRouter(); // Removed if not used
+
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    type: 'Room';
+    id: string | null;
+    name: string;
+  }>({ isOpen: false, type: 'Room', id: null, name: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -51,7 +132,7 @@ export default function ManageRoomsPage() {
     try {
       const [roomsResponse, chatbotsResponse] = await Promise.all([
         fetch('/api/teacher/rooms'),
-        fetch('/api/teacher/chatbots') 
+        fetch('/api/teacher/chatbots')
       ]);
 
       if (!roomsResponse.ok) {
@@ -65,7 +146,7 @@ export default function ManageRoomsPage() {
 
       const roomsData: TeacherRoom[] = await roomsResponse.json();
       const chatbotsData: Chatbot[] = await chatbotsResponse.json();
-      
+
       setRooms(roomsData);
       setChatbots(chatbotsData);
     } catch (err) {
@@ -83,68 +164,93 @@ export default function ManageRoomsPage() {
   const handleRoomCreatedOrUpdated = () => {
     setShowRoomForm(false);
     setEditingRoom(null);
-    fetchData(); 
+    fetchData();
   };
 
-  const handleDeleteRoom = async (room: BaseRoom) => {
-     if (window.confirm(`Are you sure you want to delete room "${room.room_name}"? This will also delete associated student memberships and chat history.`)) {
-        setIsLoading(true); // Indicate general loading for the page during delete
-        setError(null);
-        try {
-            const response = await fetch(`/api/teacher/rooms/${room.room_id}`, { method: 'DELETE' });
-            if (!response.ok) {
-                const errData = await response.json().catch(()=>({ error: 'Failed to parse delete error response' }));
-                throw new Error(errData.error || 'Failed to delete room');
-            }
-            // Success, re-fetch data to update the list
-            // No need for alert here if fetchData updates UI correctly
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to delete room.');
-        } finally {
-            fetchData(); // Always refetch data, isLoading will be handled by fetchData
+  const openDeleteModal = (room: BaseRoom) => {
+    setDeleteModal({ isOpen: true, type: 'Room', id: room.room_id, name: room.room_name });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ isOpen: false, type: 'Room', id: null, name: '' });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.id) return;
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+        const response = await fetch(`/api/teacher/rooms/${deleteModal.id}`, { method: 'DELETE' });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to delete room`);
         }
+
+        console.log(`Room ${deleteModal.id} deleted successfully.`);
+        closeDeleteModal();
+        fetchData();
+    } catch (error) {
+        console.error(`Error deleting Room:`, error);
+        setError(error instanceof Error ? error.message : `Failed to delete Room.`);
+    } finally {
+        setIsDeleting(false);
     }
   };
 
+  const handleEditRoom = (room: BaseRoom) => {
+    setEditingRoom(room);
+  };
+
+  const handleCloseEditRoom = () => {
+    setEditingRoom(null);
+  };
+
+  const handleRoomEditSuccess = () => {
+    setEditingRoom(null);
+    fetchData();
+  };
+
+
   return (
     <PageWrapper>
-      <PageHeader>
-        <Title>Classroom Rooms</Title>
-        <Button 
-          onClick={() => setShowRoomForm(true)}
-          disabled={chatbots.length === 0 && !isLoading} 
-          title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
-        >
-          + Create New Room
-        </Button>
-      </PageHeader>
-      
-      {/* Informational alert if no chatbots exist, shown only when not loading */}
-      {chatbots.length === 0 && !isLoading && !error && ( // Also check for no error
-        <Alert variant='info' style={{marginBottom: '16px'}}>
-            You need to create at least one chatbot before you can create a classroom room.
-        </Alert>
-      )}
+      <Container>
+        <PageHeader>
+          <Title>Classroom Rooms</Title>
+          <Button
+            onClick={() => setShowRoomForm(true)}
+            disabled={chatbots.length === 0 && !isLoading}
+            title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
+          >
+            + Create New Room
+          </Button>
+        </PageHeader>
 
-      {/* Display error if any */}
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+        {chatbots.length === 0 && !isLoading && !error && (
+          <Alert variant='info' style={{marginBottom: '16px'}}>
+              You need to create at least one chatbot before you can create a classroom room.
+          </Alert>
+        )}
 
-      {/* Main content area with accent color */}
-      <ContentCard $accentColor={theme.colors.blue} $accentSide="top">
+        {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Card style={{ textAlign: 'center', padding: '40px' }}>
             <LoadingSpinner /> Loading rooms...
-          </div>
-        ) : error ? null : ( // If there's an error, the Alert above handles it, don't render RoomList
+          </Card>
+        ) : error ? null : (
           <RoomList
             rooms={rooms}
-            onUpdate={fetchData} 
-            onEditRoom={setEditingRoom} 
-            onDeleteRoom={handleDeleteRoom}
-            // No accentColor prop needed for RoomList itself now
+            onUpdate={fetchData}
+            onEditRoom={handleEditRoom}
+            onDeleteRoom={openDeleteModal}
+            // 👇 CORRECTED: Pass the blue (skolrCyan) color from the theme
+            accentColor={theme.colors.blue}
           />
         )}
-      </ContentCard>
+      </Container>
 
       {showRoomForm && (
         <RoomForm
@@ -158,10 +264,19 @@ export default function ManageRoomsPage() {
         <EditRoomModal
           room={editingRoom}
           chatbots={chatbots}
-          onClose={() => setEditingRoom(null)}
-          onSuccess={handleRoomCreatedOrUpdated}
+          onClose={handleCloseEditRoom}
+          onSuccess={handleRoomEditSuccess}
         />
       )}
+
+      <DeleteModal
+        isOpen={deleteModal.isOpen}
+        itemType={deleteModal.type}
+        itemName={deleteModal.name}
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isDeleting={isDeleting}
+      />
     </PageWrapper>
   );
 }
