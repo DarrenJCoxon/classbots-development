@@ -1,13 +1,14 @@
 // src/app/chat/[roomId]/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Alert } from '@/styles/StyledComponents';
-import Chat from '@/components/shared/Chat';
+import { Container, Alert } from '@/styles/StyledComponents';
+import Chat from '@/components/shared/Chat'; 
 import type { Chatbot } from '@/types/database.types';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.lg} 0;
@@ -27,7 +28,7 @@ const RoomInfo = styled.div`
     margin-bottom: ${({ theme }) => theme.spacing.sm};
     font-size: 1.75rem;
   }
-  
+
   p {
     color: ${({ theme }) => theme.colors.textLight};
   }
@@ -44,7 +45,7 @@ const BackButton = styled.button`
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
-  
+
   &:hover {
     background: ${({ theme }) => theme.colors.backgroundDark};
   }
@@ -52,9 +53,11 @@ const BackButton = styled.button`
 
 const LoadingContainer = styled.div`
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 50vh;
+  gap: ${({ theme }) => theme.spacing.md};
 `;
 
 interface RoomQueryResult {
@@ -62,9 +65,10 @@ interface RoomQueryResult {
   room_name: string;
   room_code: string;
   teacher_id: string;
-  school_id: string;
+  school_id: string | null;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
   room_chatbots: {
     chatbots: Chatbot;
   }[] | null;
@@ -75,141 +79,133 @@ export default function ChatPage() {
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const params = useParams();
   const searchParams = useSearchParams();
-  const roomId = params?.roomId as string;
-  const chatbotId = searchParams.get('chatbot');
   const router = useRouter();
   const supabase = createClient();
 
+  const roomId = params?.roomId as string;
+  const chatbotIdFromUrl = searchParams.get('chatbot');
+  const initialFetchDoneRef = useRef(false);
+
+  useEffect(() => {
+    console.log('[ChatPage] Initializing/Params Update. Room ID:', roomId, 'Chatbot ID:', chatbotIdFromUrl);
+    if (initialFetchDoneRef.current && (params?.roomId !== roomId || searchParams.get('chatbot') !== chatbotIdFromUrl)) {
+        initialFetchDoneRef.current = false;
+    }
+  }, [roomId, chatbotIdFromUrl, params?.roomId, searchParams]);
+
   const fetchRoomData = useCallback(async () => {
+    if (!roomId || !chatbotIdFromUrl) {
+      console.warn("[ChatPage] fetchRoomData: Aborting fetch - RoomID or ChatbotID is missing.", { roomId, chatbotIdFromUrl });
+      if (roomId && chatbotIdFromUrl === null) {
+          setError("Chatbot ID is required in the URL (e.g., ?chatbot=...).");
+      } else if (!roomId && chatbotIdFromUrl){
+          setError("Room ID is missing from the URL path.");
+      } else if (!roomId && !chatbotIdFromUrl) {
+          setError("Both Room ID and Chatbot ID are missing from the URL.");
+      }
+      setLoading(false);
+      return;
+    }
+    console.log(`[ChatPage] fetchRoomData: Attempting fetch. RoomID: ${roomId}, ChatbotID: ${chatbotIdFromUrl}`);
+    setLoading(true);
+    setError(null);
+    // initialFetchDoneRef.current = true; // Moved to after successful fetch
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) {
+        initialFetchDoneRef.current = false; 
+        throw new Error('Not authenticated');
+      }
 
-      // Get user role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
+      const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
+      if (!profile) {
+        initialFetchDoneRef.current = false; 
+        throw new Error('User profile not found');
+      }
 
-      if (!profile) throw new Error('User profile not found');
-
-      // Fetch room data with chatbots
-      const { data: roomData, error: roomError } = await supabase
-        .from('rooms')
+      const { data: roomData, error: roomError } = await supabase.from('rooms')
         .select(`
-          *,
-          room_chatbots!left(
+          *, 
+          room_chatbots!inner(
             chatbots!inner(
-              chatbot_id,
-              name,
-              description,
-              system_prompt,
-              model,
-              max_tokens,
-              temperature
+              chatbot_id, 
+              name, 
+              description, 
+              system_prompt, 
+              model, 
+              max_tokens, 
+              temperature, 
+              enable_rag, 
+              bot_type, 
+              assessment_criteria_text
             )
           )
         `)
         .eq('room_id', roomId)
+        .eq('room_chatbots.chatbot_id', chatbotIdFromUrl)
         .single();
 
       if (roomError) {
-        console.error('Room error:', roomError);
-        throw new Error('Room not found');
+        initialFetchDoneRef.current = false;
+        throw new Error(roomError.message || 'Data not found. Check room/chatbot association or permissions.');
       }
-
       if (!roomData) {
-        throw new Error('Room not found');
+        initialFetchDoneRef.current = false;
+        throw new Error('No data returned for room/chatbot. Check IDs and permissions.');
       }
 
-      // Check access permissions
       if (profile.role === 'student') {
-        const { data: membership } = await supabase
-          .from('room_memberships')
-          .select('room_id')
-          .eq('room_id', roomId)
-          .eq('student_id', user.id)
-          .single();
-
+        const { data: membership } = await supabase.from('room_memberships').select('room_id').eq('room_id', roomId).eq('student_id', user.id).single();
         if (!membership) {
-          throw new Error('You do not have access to this room');
+            initialFetchDoneRef.current = false;
+            throw new Error('You do not have access to this room');
         }
       } else if (profile.role === 'teacher') {
-        if (roomData.teacher_id !== user.id) {
-          throw new Error('You do not own this room');
+        const typedRoomData = roomData as RoomQueryResult;
+        if (typedRoomData.teacher_id !== user.id) {
+            initialFetchDoneRef.current = false;
+            throw new Error('You do not own this room');
         }
       }
 
       const typedRoomData = roomData as RoomQueryResult;
       setRoom(typedRoomData);
-
-      // Extract chatbot data
-      const fetchedChatbots = (typedRoomData.room_chatbots
-        ?.map(rc => rc.chatbots)
-        .filter(Boolean)) as Chatbot[];
-      
-      // Find the specific chatbot if chatbotId is provided
-      if (chatbotId && fetchedChatbots) {
-        const selectedChatbot = fetchedChatbots.find(cb => cb.chatbot_id === chatbotId);
-        if (selectedChatbot) {
-          setChatbot(selectedChatbot);
-        } else {
-          throw new Error('Chatbot not found in this room');
-        }
-      } else if (fetchedChatbots?.length > 0 && !chatbotId) {
-        // No chatbot specified, redirect to room page
-        router.replace(`/room/${roomId}`);
-        return;
+      if (typedRoomData.room_chatbots && typedRoomData.room_chatbots.length > 0 && typedRoomData.room_chatbots[0].chatbots) {
+        setChatbot(typedRoomData.room_chatbots[0].chatbots);
+      } else { 
+        initialFetchDoneRef.current = false;
+        throw new Error('Chatbot details missing in fetched room data.'); 
       }
+      initialFetchDoneRef.current = true; // Mark as done only on full success
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load room');
+      initialFetchDoneRef.current = false; // Allow retry on error
+      setError(err instanceof Error ? err.message : 'Failed to load chat page data');
+      setChatbot(null); setRoom(null);
     } finally {
       setLoading(false);
     }
-  }, [roomId, chatbotId, router, supabase]);
+  }, [roomId, chatbotIdFromUrl, supabase]); // router removed from deps
 
   useEffect(() => {
-    if (roomId) {
+    if (roomId && chatbotIdFromUrl && !initialFetchDoneRef.current) {
       fetchRoomData();
     }
-  }, [roomId, fetchRoomData]);
+  }, [roomId, chatbotIdFromUrl, fetchRoomData]);
 
-  const handleBack = () => {
-    // Always go back to the room page, regardless of user role
-    router.push(`/room/${roomId}`);
-  };
+  const handleBack = () => { if (roomId) router.push(`/room/${roomId}`); else router.push('/'); };
 
-  if (loading) {
-    return (
-      <PageWrapper>
-        <Container>
-          <LoadingContainer>
-            <Card>Loading...</Card>
-          </LoadingContainer>
-        </Container>
-      </PageWrapper>
-    );
+  if (loading && !initialFetchDoneRef.current) {
+    return <PageWrapper><Container><LoadingContainer><LoadingSpinner size="large" /><p>Loading chat environment...</p></LoadingContainer></Container></PageWrapper>;
   }
-
   if (error) {
-    return (
-      <PageWrapper>
-        <Container>
-          <Alert variant="error">{error}</Alert>
-          <BackButton onClick={handleBack}>
-            ← Back to Room
-          </BackButton>
-        </Container>
-      </PageWrapper>
-    );
+    return <PageWrapper><Container><Alert variant="error">{error}</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back to Room'}</BackButton></Container></PageWrapper>;
   }
-
   if (!room || !chatbot) {
-    return null;
+    return <PageWrapper><Container><Alert variant="info">Chatbot or room information is unavailable. Ensure Chatbot ID is in URL.</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back to Room'}</BackButton></Container></PageWrapper>;
   }
 
   return (
@@ -218,17 +214,14 @@ export default function ChatPage() {
         <Header>
           <RoomInfo>
             <h1>{room.room_name}</h1>
-            <p>Chatting with {chatbot.name}</p>
+            <p>Chatting with: <strong>{chatbot.name}</strong></p>
+            {chatbot.bot_type === 'assessment' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>This is an Assessment Bot.</p>}
           </RoomInfo>
           <BackButton onClick={handleBack}>
-            ← Back to Room
+            {'< Back to Room'}
           </BackButton>
         </Header>
-        
-        <Chat 
-          roomId={roomId}
-          chatbot={chatbot}
-        />
+        <Chat roomId={roomId} chatbot={chatbot} />
       </Container>
     </PageWrapper>
   );

@@ -62,42 +62,65 @@ const FeatureCard = styled(Card)`
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false); // Keep this to manage loading UI
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
     const checkUserAndRedirect = async () => {
+      setLoading(true); // Set loading true at the start of the check
+      setIsRedirecting(false); // Reset redirecting flag
+
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        const { data: { user: currentUser } } = await supabase.auth.getUser(); // Renamed to avoid conflict
+        setUser(currentUser);
         
-        if (user) {
-          setIsRedirecting(true);
+        if (currentUser) {
+          setIsRedirecting(true); // Indicate redirection will occur
           
           // Get user profile to check role
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('role')
-            .eq('user_id', user.id)
+            .eq('user_id', currentUser.id)
             .single();
+
+          if (profileError) {
+            console.error('Error fetching profile on homepage:', profileError.message);
+            // If profile fetch fails, don't redirect, let them stay on homepage or handle error
+            setIsRedirecting(false); 
+            setLoading(false);
+            return;
+          }
           
           if (profile?.role === 'teacher') {
+            console.log('[Homepage] Redirecting teacher to /teacher-dashboard');
             router.push('/teacher-dashboard');
           } else if (profile?.role === 'student') {
-            router.push('/student');
+            console.log('[Homepage] Redirecting student to /student/dashboard');
+            router.push('/student/dashboard'); // <<< MODIFIED LINE
+          } else {
+            // No specific role or profile not found, stop redirecting and show homepage
+            console.log(`[Homepage] User ${currentUser.id} has role: ${profile?.role} or no profile. Staying on homepage.`);
+            setIsRedirecting(false);
           }
         }
       } catch (error) {
-        console.error('Error checking user:', error);
+        console.error('Error in checkUserAndRedirect on homepage:', error);
+        // In case of any other error, stop trying to redirect
+        setIsRedirecting(false);
       } finally {
         setLoading(false);
+        // isRedirecting will be false if push didn't happen or was completed
+        // For a cleaner UX, if router.push is called, the component might unmount before setIsRedirecting(false) is effective.
+        // The setLoading(false) is key here.
       }
     };
 
     checkUserAndRedirect();
   }, [router, supabase]);
 
+  // Show loading UI only if actively loading or if a redirect is in progress
   if (loading || isRedirecting) {
     return (
       <HomePage>
@@ -117,6 +140,7 @@ export default function Home() {
           <Title>ClassBots AI</Title>
           <Subtitle>AI-powered chatbots for modern classrooms</Subtitle>
           
+          {/* CTA buttons are only shown if user is null (after loading and not redirecting) */}
           {!user && (
             <CTAButtons>
               <Button size="large" onClick={() => router.push('/auth')}>

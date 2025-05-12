@@ -3,14 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
-import { initialConcernCheck, verifyConcern } from '@/lib/safety/monitoring';
-import { sendTeacherAlert } from '@/lib/safety/alerts';
-import type { Database, ChatMessage, Room } from '@/types/database.types'; // Removed unused Profile
-import { SupabaseClient } from '@supabase/supabase-js';
-import { createAdminClient } from '@/lib/supabase/admin';
+
+// ONLY import what is DIRECTLY CALLED by THIS file.
+// checkMessageSafety is the function we call from monitoring.ts.
+// initialConcernCheck and verifyConcern are used INTERNALLY by checkMessageSafety.
+import { checkMessageSafety } from '@/lib/safety/monitoring';
+
+// Import specific types needed in THIS file.
+import type { ChatMessage, Room } from '@/types/database.types';
+// Database and SupabaseClient types are generally not needed if the supabase client instance is not explicitly typed here.
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const CONCERN_THRESHOLD = 3;
+// CONCERN_THRESHOLD is defined and used within 'src/lib/safety/monitoring.ts', so it's not needed here.
+
+// These constants WILL BE USED when we re-integrate assessment logic.
+// For now, to avoid "unused var" errors while we stabilize, we can comment them out
+// or keep them if we are immediately moving to re-add assessment logic after this fix.
+// Let's keep them for now, anticipating the next step.
+const ASSESSMENT_TRIGGER_COMMAND = "/assess";
+const ASSESSMENT_CONTEXT_MESSAGE_COUNT = 5;
 
 const isTeacherTestRoom = (roomId: string) => roomId.startsWith('teacher_test_room_for_');
 
@@ -29,20 +40,17 @@ export async function GET(request: NextRequest) {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-        // If it's not a teacher test room, validate room existence and access
         if (!isTeacherTestRoom(roomId)) {
-            const { data: room, error: roomError } = await supabase
-                .from('rooms') // Assumes 'rooms' table exists for non-test rooms
+            const { data: roomResult, error: roomError } = await supabase
+                .from('rooms')
                 .select('room_id')
                 .eq('room_id', roomId)
-                .maybeSingle(); // Check if room exists
-            // Further access check for students/teachers for this room would go here
-            if (roomError || !room) {
+                .maybeSingle();
+            if (roomError || !roomResult) {
                 console.warn(`[API Chat GET] Room ${roomId} not found or access denied for user ${user.id}.`);
                 return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 });
             }
         }
-        // For teacher test rooms, we don't need to check 'rooms' table, teacher owns their test chat
 
         let query = supabase.from('chat_messages').select('*').eq('room_id', roomId).eq('user_id', user.id);
         if (chatbotIdFilter) query = query.filter('metadata->>chatbotId', 'eq', chatbotIdFilter);
@@ -63,13 +71,14 @@ export async function GET(request: NextRequest) {
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
   let userMessageId: string | null = null;
+  const supabase = await createServerSupabaseClient(); // User-context client
+
   try {
     const pathname = request.nextUrl.pathname;
     const segments = pathname.split('/');
     const roomId = segments.length > 0 ? segments[segments.length - 1] : null;
     if (!roomId) return NextResponse.json({ error: 'Room ID is required' }, { status: 400 });
 
-    const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
 
@@ -84,19 +93,27 @@ export async function POST(request: NextRequest) {
     const isTeacher = userProfile.role === 'teacher';
 
     const { content, chatbot_id, model: requestedModel } = await request.json();
-    // ... (content and chatbot_id validation) ...
     const trimmedContent = content?.trim();
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
 
+    // Fetch full chatbot config, including bot_type for assessment logic
+    const { data: chatbotConfig, error: chatbotFetchError } = await supabase
+        .from('chatbots')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text')
+        .eq('chatbot_id', chatbot_id)
+        .single();
 
-    let roomForSafetyCheck: Room | null = null; // For safety check context
+    if (chatbotFetchError || !chatbotConfig) {
+        console.warn(`[API Chat POST] Error fetching chatbot ${chatbot_id} config:`, chatbotFetchError?.message);
+        return NextResponse.json({ error: 'Chatbot configuration not found.' }, { status: 404 });
+    }
 
+    let roomForSafetyCheck: Room | null = null;
     if (!isTeacherTestRoom(roomId)) {
-        // For actual rooms, fetch room data
         const { data: roomData, error: roomFetchError } = await supabase
-            .from('rooms') // Assumes 'rooms' table exists for non-test rooms
-            .select('room_id, teacher_id, room_name')
+            .from('rooms')
+            .select('room_id, teacher_id, room_name') // Ensure all fields needed by checkMessageSafety are here
             .eq('room_id', roomId)
             .single();
         if (roomFetchError || !roomData) { 
@@ -104,40 +121,78 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 }); 
         }
         roomForSafetyCheck = roomData as Room;
-        // TODO: Add access validation here for students (member of room) or teachers (owner of room)
     } else if (isTeacherTestRoom(roomId) && !isTeacher) {
-        // If it's a test room, only the teacher should be posting
         return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
     }
 
-
-    // Store User Message (same as before)
     const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string } } = {
       room_id: roomId, user_id: user.id, role: 'user' as const, content: trimmedContent, metadata: { chatbotId: chatbot_id }
     };
-    const { data: savedUserMessageData, error: userMessageError } = await supabase.from('chat_messages').insert(userMessageToStore).select('message_id').single();
+    const { data: savedUserMessageData, error: userMessageError } = await supabase.from('chat_messages').insert(userMessageToStore).select('message_id, created_at').single();
     if (userMessageError || !savedUserMessageData) { console.error('Error storing user message:', userMessageError); return NextResponse.json({ error: 'Failed to store message' }, { status: 500 }); }
     userMessageId = savedUserMessageData.message_id;
+    const userMessageCreatedAt = savedUserMessageData.created_at; // Will be used when re-adding assessment trigger
     
-    // Safety Check Trigger (only for students in actual rooms)
+    // Safety Check Trigger
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        console.log(`[API Chat POST] Triggering checkMessageSafety for student ${user.id}, message ${userMessageId}`);
+        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}`);
+        // Call the imported function. The 'supabase' here is the user-context client.
         checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck)
             .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
     } else {
         console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}`);
     }
 
-    // ... (Fetch Context Messages - this should be fine as it's scoped to user_id and room_id) ...
-    // ... (Prepare and Call LLM API - this logic is fine) ...
-    // ... (RAG Logic - this is fine) ...
-    // ... (Stream Response Back - this logic is fine) ...
+    // --- ASSESSMENT TRIGGER LOGIC ---
+    // This is where the assessment trigger logic, which uses ASSESSMENT_TRIGGER_COMMAND and ASSESSMENT_CONTEXT_MESSAGE_COUNT,
+    // and userMessageCreatedAt will be re-inserted.
+    if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
+        console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
+        
+        const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
+            .from('chat_messages')
+            .select('message_id')
+            .eq('room_id', roomId)
+            .eq('user_id', user.id) 
+            .eq('metadata->>chatbotId', chatbot_id)
+            .lt('created_at', userMessageCreatedAt) // Use the timestamp of the "/assess" command
+            .order('created_at', { ascending: false })
+            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); // Fetch enough to get varied turns
 
-    // The rest of the POST handler (fetching context, calling LLM, streaming) can largely remain the same.
-    // The crucial part was handling the room data fetch conditionally.
+        if (contextMsgsError) {
+            console.error(`[API Chat POST] Error fetching message IDs for assessment context: ${contextMsgsError.message}`);
+            // Not returning error, assessment might proceed with less context
+        }
+        
+        const messageIdsToAssess = (contextMessagesForAssessment || []).map(m => m.message_id).reverse();
+        
+        const assessmentPayload = {
+            student_id: user.id,
+            chatbot_id: chatbot_id,
+            room_id: roomId,
+            message_ids_to_assess: messageIdsToAssess,
+        };
 
-    // --- Placeholder for the rest of the POST logic ---
-    // Fetch Context Messages
+        console.log(`[API Chat POST] Asynchronously calling /api/assessment/process.`);
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+        fetch(`${baseUrl}/api/assessment/process`, { // This is the call to the new dedicated assessment API
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(assessmentPayload),
+        }).catch(fetchError => {
+            console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError);
+        });
+
+        return NextResponse.json({
+            type: "assessment_pending",
+            message: "Your responses are being submitted for assessment. Feedback will appear here shortly."
+        });
+    }
+    // --- END OF ASSESSMENT TRIGGER LOGIC ---
+
+
+    // Regular Chat Logic (RAG, LLM Call, Streaming)
+    // This part will only execute if it's NOT an assessment trigger.
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
       .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
@@ -145,14 +200,18 @@ export async function POST(request: NextRequest) {
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
-    let { system_prompt: systemPrompt = "You are a helpful AI assistant.", model: modelToUse = 'x-ai/grok-3-mini-beta', temperature = 0.7, max_tokens: maxTokens = 1000, enable_rag: enableRag = false } = {};
-    const { data: chatbotData, error: chatbotFetchError } = await supabase.from('chatbots')
-      .select('system_prompt, model, temperature, max_tokens, enable_rag').eq('chatbot_id', chatbot_id).single();
-    if (chatbotFetchError) console.warn(`Error fetching chatbot ${chatbot_id} config:`, chatbotFetchError.message);
-    else if (chatbotData) ({ system_prompt: systemPrompt = systemPrompt, model: modelToUse = requestedModel || chatbotData.model || modelToUse, temperature = chatbotData.temperature ?? temperature, max_tokens: maxTokens = chatbotData.max_tokens ?? maxTokens, enable_rag: enableRag = chatbotData.enable_rag ?? false } = chatbotData);
+    const { 
+        system_prompt: systemPromptToUse = "You are a helpful AI assistant.",
+        model: modelToUseFromConfig = 'x-ai/grok-3-mini-beta', 
+        temperature: temperatureToUse = 0.7, 
+        max_tokens: maxTokensToUse = 1000, 
+        enable_rag: enableRagFromConfig = false 
+    } = chatbotConfig;
+    
+    const finalModelToUse = requestedModel || modelToUseFromConfig;
 
     let ragContextText = '';
-    if (enableRag) { 
+    if (enableRagFromConfig && chatbotConfig.bot_type === 'learning') { 
         try {
             const queryEmbedding = await generateEmbedding(trimmedContent);
             const searchResults = await queryVectors(queryEmbedding, chatbot_id, 3);
@@ -169,12 +228,12 @@ export async function POST(request: NextRequest) {
         } catch (ragError) { console.warn(`[RAG] Error:`, ragError); }
     }
 
-    const enhancedSystemPrompt = `${systemPrompt}${ragContextText ? `\n\n${ragContextText}\n\nRemember to cite sources by their number (e.g., [1], [2]) if you use their information.` : ''}`;
+    const enhancedSystemPrompt = `${systemPromptToUse}${ragContextText ? `\n\n${ragContextText}\n\nRemember to cite sources by their number (e.g., [1], [2]) if you use their information.` : ''}`;
     const messagesForAPI = [ { role: 'system', content: enhancedSystemPrompt }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
         method: 'POST', headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.OPENROUTER_SITE_URL || 'http://localhost:3000', 'X-Title': 'ClassBots AI', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: modelToUse, messages: messagesForAPI, temperature, max_tokens: maxTokens, stream: true }),
+        body: JSON.stringify({ model: finalModelToUse, messages: messagesForAPI, temperature: temperatureToUse, max_tokens: maxTokensToUse, stream: true }),
     });
 
     if (!openRouterResponse.ok || !openRouterResponse.body) {
@@ -184,6 +243,7 @@ export async function POST(request: NextRequest) {
         throw new Error(errorMessage);
     }
 
+    // Streaming logic...
     let fullResponseContent = ''; const encoder = new TextEncoder(); let assistantMessageId: string | null = null;
     const stream = new ReadableStream({
         async start(controller) {
@@ -219,7 +279,6 @@ export async function POST(request: NextRequest) {
         }
     });
     return new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Content-Type-Options': 'nosniff' } });
-    // --- End of placeholder for POST logic ---
 
   } catch (error) { 
       console.error('Error in POST /api/chat/[roomId]:', error); 
@@ -227,82 +286,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// checkMessageSafety function (keep as is, but ensure 'room' param is handled if it can be null)
-async function checkMessageSafety(
-    supabase: SupabaseClient<Database>,
-    messageContent: string,
-    messageId: string,
-    studentId: string,
-    room: Room // This is now 'Room | null' conceptually from the caller
-): Promise<void> {
-    // ... (Safety check logic - ensure it handles cases where room might not be a "real" room if called for test chats,
-    // though currently we only call it for students in actual rooms)
-    // For now, the existing logic should be fine as it's only called if roomForSafetyCheck is not null.
-    console.log(`[Safety Check] START - Checking message ID: ${messageId} for student ${studentId} in room ${room.room_id}`);
-    console.log(`[Safety Check] Message Content Being Checked: "${messageContent}"`);
-    try {
-        const adminClient = createAdminClient();
-        const { data: flaggedMessageData, error: fetchMsgError } = await supabase
-            .from('chat_messages').select('metadata, created_at').eq('message_id', messageId).single();
-
-        if (fetchMsgError || !flaggedMessageData) {
-             console.error(`[Safety Check] Failed to fetch flagged message ${messageId} for context query:`, fetchMsgError);
-             return;
-        }
-        const flaggedMessageChatbotId = flaggedMessageData.metadata?.chatbotId || null;
-        const flaggedMessageCreatedAt = flaggedMessageData.created_at || new Date().toISOString();
-        const { hasConcern, concernType } = initialConcernCheck(messageContent);
-        console.log(`[Safety Check] Initial Check Result: hasConcern=${hasConcern}, concernType=${concernType}`);
-
-        if (hasConcern && concernType) {
-            console.log(`[Safety Check] Initial concern FOUND: ${concernType}. Fetching context...`);
-            const { data: contextMessagesData, error: contextError } = await supabase
-                .from('chat_messages').select('role, content')
-                .eq('room_id', room.room_id).eq('user_id', studentId)
-                .filter('metadata->>chatbotId', flaggedMessageChatbotId ? 'eq' : 'is', flaggedMessageChatbotId || null)
-                .lt('created_at', flaggedMessageCreatedAt).order('created_at', { ascending: false }).limit(2);
-
-             if (contextError) console.warn(`[Safety Check] Error fetching context for msg ${messageId}:`, contextError.message);
-             const recentMessagesForSafetyCheck = (contextMessagesData || [])
-                .map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
-
-            console.log(`[Safety Check] Calling verifyConcern LLM...`);
-            const { isRealConcern, concernLevel, analysisExplanation } = await verifyConcern(
-                messageContent, concernType, recentMessagesForSafetyCheck.reverse()
-            );
-             console.log(`[Safety Check] verifyConcern Result: isReal=${isRealConcern}, level=${concernLevel}, explanation=${analysisExplanation}`);
-
-            if (isRealConcern && concernLevel >= CONCERN_THRESHOLD) {
-                console.log(`[Safety Check] THRESHOLD MET! Level ${concernLevel} >= ${CONCERN_THRESHOLD}. Flagging...`);
-                const { data: teacherProfileData } = await supabase
-                    .from('profiles').select('email').eq('user_id', room.teacher_id).single();
-                const { data: studentProfileData } = await supabase
-                    .from('profiles').select('full_name').eq('user_id', studentId).single();
-                const teacherEmail = teacherProfileData?.email;
-                const studentName = studentProfileData?.full_name || `Student (${studentId.substring(0,6)}...)`;
-
-                console.log(`[Safety Check] Inserting flag into DB for message ${messageId} using ADMIN client...`);
-                const { data: insertedFlag, error: flagError } = await adminClient
-                    .from('flagged_messages').insert({
-                        message_id: messageId, student_id: studentId, teacher_id: room.teacher_id, 
-                        room_id: room.room_id, concern_type: concernType, concern_level: concernLevel, 
-                        analysis_explanation: analysisExplanation, status: 'pending',
-                    }).select('flag_id').single();
-
-                if (flagError || !insertedFlag) {
-                    console.error(`[Safety Check] FAILED to insert flag for message ${messageId} with ADMIN client:`, flagError);
-                } else {
-                    const newFlagId = insertedFlag.flag_id;
-                    console.log(`[Safety Check] Flag ${newFlagId} inserted successfully for message ${messageId}.`);
-                    if (teacherEmail) {
-                        console.log(`[Safety Check] Attempting to send alert to ${teacherEmail} for flag ${newFlagId}...`);
-                        const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${newFlagId}`;
-                        const alertSent = await sendTeacherAlert( teacherEmail, studentName, room.room_name, concernType, concernLevel, messageContent, viewUrl );
-                         console.log(`[Safety Check] Alert sent status for flag ${newFlagId}: ${alertSent}`);
-                    } else { console.warn(`[Safety Check] Teacher email not found. Cannot send alert for flag ${newFlagId}.`); }
-                }
-            } else { console.log(`[Safety Check] Concern level ${concernLevel} did NOT meet threshold ${CONCERN_THRESHOLD} or was not deemed real.`); }
-        } else { console.log(`[Safety Check] No initial concern detected.`); }
-    } catch (error) { console.error(`[Safety Check] UNCAUGHT ERROR in checkMessageSafety for message ID ${messageId}:`, error); }
-     console.log(`[Safety Check] END - Checked message ID: ${messageId}`);
-}
+// NO LOCAL DEFINITION OF checkMessageSafety, initialConcernCheck, or verifyConcern HERE.
+// They are handled by the import from '@/lib/safety/monitoring.ts'.

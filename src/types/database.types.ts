@@ -7,7 +7,7 @@ export interface BaseTable {
 }
 
 // User roles enum
-export type UserRole = 'teacher' | 'student';
+export type UserRole = 'teacher' | 'student' | 'school_admin';
 
 // Concern status enum/type
 export type ConcernStatus = 'pending' | 'reviewing' | 'resolved' | 'false_positive';
@@ -17,121 +17,144 @@ export type DocumentType = 'pdf' | 'docx' | 'txt';
 export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error';
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
+// Bot Type Enum
+export type BotTypeEnum = 'learning' | 'assessment';
+
+// Assessment Status Enum
+export type AssessmentStatusEnum = 'ai_processing' | 'ai_completed' | 'teacher_reviewed';
+
 
 // --- Table Interfaces ---
 
-// Schools table
 export interface School extends BaseTable {
   school_id: string;
-  name: string; // Name of the school
+  name: string;
   magic_link_token?: string;
   token_expires_at?: string;
 }
 
-// Chatbots table
 export interface Chatbot extends BaseTable {
   chatbot_id: string;
-  name: string; // Name of the chatbot
+  name: string;
   description?: string;
   system_prompt: string;
-  teacher_id: string; // FK to profiles.user_id
+  teacher_id: string;
   model?: string;
-  max_tokens?: number;
-  temperature?: number;
+  max_tokens?: number | null;
+  temperature?: number | null;
   enable_rag?: boolean;
+  bot_type?: BotTypeEnum;
+  assessment_criteria_text?: string | null;
 }
 
-// Rooms table
 export interface Room extends BaseTable {
   room_id: string;
   room_name: string;
   room_code: string;
-  teacher_id: string; // FK to profiles.user_id
-  school_id?: string | null; // FK to schools.school_id (can be null)
+  teacher_id: string;
+  school_id?: string | null;
   is_active: boolean;
 }
 
-// Room to Chatbot mapping table
 export interface RoomChatbot extends BaseTable {
-  room_id: string; // FK to rooms.room_id
-  chatbot_id: string; // FK to chatbots.chatbot_id
+  room_id: string;
+  chatbot_id: string;
 }
 
-// Room memberships table (join table)
 export interface RoomMembership extends BaseTable {
-  room_id: string; // FK to rooms.room_id
-  student_id: string; // FK to profiles.user_id
+  room_id: string;
+  student_id: string;
   joined_at: string;
 }
 
-// Chat messages table
 export interface ChatMessage extends BaseTable {
     message_id: string;
-    room_id: string; // FK to rooms.room_id
-    user_id: string; // FK to profiles.user_id
+    room_id: string;
+    user_id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
     tokens_used?: number;
     metadata?: {
-        chatbotId?: string | null; // The specific chatbot being interacted with
-        error?: unknown; // Potential error storing/sending message (used on client-side)
-        [key: string]: unknown; // Allow other arbitrary metadata
+        chatbotId?: string | null;
+        error?: unknown;
+        isAssessmentFeedback?: boolean;
+        isAssessmentPlaceholder?: boolean;
+        assessmentId?: string | null;
+        [key: string]: unknown;
     } | null;
 }
 
-// User profiles table
 export interface Profile extends BaseTable {
-  user_id: string; // Primary Key, links to auth.users.id
-  // name: string; // REMOVED - Assuming full_name is the primary field now
-  full_name?: string; // ADDED - Likely populated from auth signup metadata. Make required (string;) if your trigger guarantees it.
-  email: string; // Usually unique, managed by auth
-  role: UserRole; // 'teacher' or 'student'
-  school_id?: string | null; // FK to schools.school_id (optional)
+  user_id: string;
+  full_name?: string;
+  email: string;
+  role: UserRole;
+  school_id?: string | null;
 }
 
-// Knowledge Base Documents table
 export interface Document extends BaseTable {
   document_id: string;
-  chatbot_id: string; // FK to chatbots.chatbot_id
+  chatbot_id: string;
   file_name: string;
-  file_path: string; // Path in Supabase Storage
+  file_path: string;
   file_type: DocumentType;
   file_size: number;
   status: DocumentStatus;
   error_message?: string;
 }
 
-// Knowledge Base Document Chunks table
 export interface DocumentChunk extends BaseTable {
   chunk_id: string;
-  document_id: string; // FK to documents.document_id
+  document_id: string;
   chunk_index: number;
   chunk_text: string;
   token_count: number;
   status: ChunkStatus;
-  embedding_id?: string; // Reference to the vector ID in Pinecone (often same as chunk_id)
+  embedding_id?: string;
 }
 
-// Flagged Messages table
 export interface FlaggedMessage extends BaseTable {
   flag_id: string;
-  message_id: string; // FK to chat_messages.message_id
-  student_id: string; // FK to profiles.user_id
-  teacher_id: string; // FK to profiles.user_id
-  room_id: string; // FK to rooms.room_id
+  message_id: string;
+  student_id: string;
+  teacher_id: string;
+  room_id: string;
   concern_type: string;
-  concern_level: number; // 0-5
+  concern_level: number;
   analysis_explanation?: string;
-  context_messages?: Record<string, unknown>; // JSONB - Consider a more specific type if structure is known
+  context_messages?: Record<string, unknown>;
   status: ConcernStatus;
   reviewed_at?: string;
-  reviewer_id?: string | null; // FK to profiles.user_id
+  reviewer_id?: string | null;
   notes?: string;
+}
+
+export interface StudentAssessment extends BaseTable {
+    assessment_id: string;
+    student_id: string;
+    chatbot_id: string;
+    room_id: string;
+    assessed_message_ids?: string[];
+    teacher_id?: string | null;
+    teacher_assessment_criteria_snapshot?: string | null;
+    ai_feedback_student?: string | null;
+    ai_assessment_details_raw?: string | null;
+    ai_grade_raw?: string | null;
+    ai_assessment_details_teacher?: {
+        summary?: string;
+        strengths?: string[];
+        areas_for_improvement?: string[];
+        grading_rationale?: string;
+        [key: string]: unknown;
+    } | null;
+    teacher_override_grade?: string | null;
+    teacher_override_notes?: string | null;
+    status?: AssessmentStatusEnum;
+    assessed_at: string;
 }
 
 
 // --- Database Schema Type ---
-// Combines all table interfaces for Supabase client typing
 export interface Database {
   schools: School;
   profiles: Profile;
@@ -143,6 +166,7 @@ export interface Database {
   documents: Document;
   document_chunks: DocumentChunk;
   flagged_messages: FlaggedMessage;
+  student_assessments: StudentAssessment;
 }
 
 // --- API Payload Types ---
@@ -155,9 +179,11 @@ export interface CreateChatbotPayload {
   description?: string;
   system_prompt: string;
   model?: string;
-  max_tokens?: number;
-  temperature?: number;
+  max_tokens?: number | null;
+  temperature?: number | null;
   enable_rag?: boolean;
+  bot_type?: BotTypeEnum;
+  assessment_criteria_text?: string | null;
 }
 
 export interface CreateRoomPayload {
@@ -179,25 +205,66 @@ export interface SendMessagePayload {
   chatbot_id: string;
 }
 
+// Payload for updating an assessment (teacher review)
+export interface UpdateAssessmentPayload {
+    teacher_override_grade?: string | null;
+    teacher_override_notes?: string | null;
+    status?: AssessmentStatusEnum;
+}
+
+
 // --- API Response Detail Types ---
 
-// Type for joined concern details (used in API response)
 export interface FlaggedConcernDetails extends FlaggedMessage {
-    student_name: string | null; // Joined from profiles.full_name
-    room_name: string | null;    // Joined from rooms.room_name
-    message_content: string | null; // Joined from chat_messages.content
+    student_name: string | null;
+    room_name: string | null;
+    message_content: string | null;
 }
 
-// Type for rooms listed for students (includes joined chatbot info)
 export interface StudentRoom extends Room {
-  joined_at: string; // From room_memberships
-  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description'>[]; // Joined via room_chatbots
+  joined_at: string;
+  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type'>[];
 }
 
-// Type for rooms listed for teachers (includes joined chatbot info)
-// This structure matches the API response from /api/teacher/rooms
 export interface TeacherRoom extends Room {
    room_chatbots: {
-       chatbots: Pick<Chatbot, 'chatbot_id' | 'name'> | null;
+       chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'bot_type'> | null;
    }[] | null;
 }
+
+// For single student assessment detail API
+export interface DetailedAssessmentResponse extends StudentAssessment {
+    student_name?: string | null;
+    student_email?: string | null;
+    chatbot_name?: string | null;
+    assessed_conversation?: ChatMessage[]; // Changed DbChatMessage to ChatMessage for consistency
+}
+
+// For the list of assessments for a teacher
+export interface AssessmentListSummary extends Pick<
+    StudentAssessment,
+    'assessment_id' | 'student_id' | 'chatbot_id' | 'room_id' | 'teacher_id' |
+    'assessed_at' | 'ai_grade_raw' | 'teacher_override_grade' | 'status'
+> {
+    student_name?: string | null;
+    chatbot_name?: string | null;
+    room_name?: string | null;
+}
+
+// For the paginated response of assessment lists
+export interface PaginatedAssessmentsResponse {
+    assessments: AssessmentListSummary[];
+    pagination: {
+        currentPage: number;
+        pageSize: number;
+        totalCount: number;
+        totalPages: number;
+    };
+}
+
+// This might be redundant if DetailedAssessmentResponse is sufficient.
+// If used, ensure ChatMessage is defined or imported as DbChatMessage
+// export interface StudentAssessmentDetails extends StudentAssessment {
+//     chatbot_name?: string;
+//     room_name?: string; 
+// }

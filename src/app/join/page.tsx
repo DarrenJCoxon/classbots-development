@@ -53,35 +53,45 @@ function JoinPageContent() {
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // Added for better loading UI
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
 
   const checkAuthentication = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setIsAuthenticated(true);
-      
-      // Get user role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (profile) {
-        setUserRole(profile.role);
-      }
+    setIsCheckingAuth(true); // Start auth check
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setIsAuthenticated(true);
+          
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (profile) {
+            setUserRole(profile.role);
+          }
+        } else {
+            setIsAuthenticated(false);
+            setUserRole(null);
+        }
+    } catch (e) {
+        console.error("Error during auth check on join page:", e);
+        setIsAuthenticated(false); // Assume not authenticated on error
+        setUserRole(null);
+    } finally {
+        setIsCheckingAuth(false); // End auth check
     }
   }, [supabase]);
 
   useEffect(() => {
-    // Get room code from URL parameter
     const codeFromUrl = searchParams?.get('code');
     if (codeFromUrl) {
       setRoomCode(codeFromUrl.toUpperCase());
     }
-    
     checkAuthentication();
   }, [searchParams, checkAuthentication]);
 
@@ -93,7 +103,6 @@ function JoinPageContent() {
     const formattedCode = roomCode.toUpperCase();
 
     try {
-      // Check if the room exists first
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .select('room_id, is_active')
@@ -101,63 +110,74 @@ function JoinPageContent() {
         .single();
 
       if (roomError || !room) {
-        throw new Error('Room not found');
+        throw new Error('Room not found. Please check the code and try again.');
       }
 
       if (!room.is_active) {
-        throw new Error('Room is inactive');
+        throw new Error('This room is currently inactive. Please contact your teacher.');
       }
 
       if (isAuthenticated && userRole === 'student') {
-        // If already authenticated as student, try to join directly
         const response = await fetch('/api/student/join-room', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ room_code: formattedCode }),
         });
-
         const data = await response.json();
-
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to join room');
+          throw new Error(data.error || 'Failed to join room. You might already be a member or the room is full.');
         }
-
         // Redirect to student dashboard
-        router.push('/student');
+        console.log('[Join Page] Student joined successfully, redirecting to /student/dashboard');
+        router.push('/student/dashboard'); // <<< MODIFIED LINE
+        router.refresh(); // Ensure page reloads to reflect new state if needed
       } else if (!isAuthenticated) {
-        // If not authenticated, redirect to student signup with room code
+        console.log('[Join Page] User not authenticated, redirecting to student signup.');
+        // The redirect param ensures they come back here with the code after signup/login
         router.push(`/auth?type=student&redirect=/join?code=${formattedCode}`);
+      } else if (isAuthenticated && userRole !== 'student') {
+         throw new Error('Only student accounts can join rooms this way. Please log in with a student account.');
       } else {
-        // If authenticated but not a student, show error
-        throw new Error('You need to log in with a student account to join this room.');
+        // This case should ideally not be hit if logic is correct (e.g. authenticated but no role yet)
+        // Prompt to re-authenticate or re-check role
+        setError('Authentication issue. Please try logging out and back in, or contact support if this persists.');
+        console.warn('[Join Page] Unexpected auth state:', {isAuthenticated, userRole});
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join room');
+      setError(err instanceof Error ? err.message : 'An unknown error occurred while trying to join the room.');
     } finally {
       setIsLoading(false);
     }
   };
+  
+  // Loading UI while checking authentication
+  if (isCheckingAuth) {
+    return (
+        <PageWrapper><Container><JoinCard><Title>Loading...</Title></JoinCard></Container></PageWrapper>
+    );
+  }
 
+
+  // If not authenticated, show simplified "Create Account" view
   if (!isAuthenticated) {
     return (
       <PageWrapper>
         <Container>
           <JoinCard>
             <Title>Join Your Class</Title>
-            <Text>You need to create a student account to join this classroom.</Text>
-            
+            <Text>
+              To join the room with code <strong>{roomCode || '...'}</strong>, you&apos;ll need a student account.
+            </Text>
             <Button 
               onClick={() => router.push(`/auth?type=student&redirect=/join?code=${roomCode}`)}
               style={{ width: '100%' }}
+              size="large"
             >
-              Create Student Account
+              Create or Log In to Student Account
             </Button>
-            
             {roomCode && (
               <Text style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-                Room code: <strong>{roomCode}</strong>
+                You are trying to join room: <strong>{roomCode}</strong>
               </Text>
             )}
           </JoinCard>
@@ -166,12 +186,13 @@ function JoinPageContent() {
     );
   }
 
+  // If authenticated (and presumably as a student, though `handleSubmit` re-checks role)
   return (
     <PageWrapper>
       <Container>
         <JoinCard>
           <Title>Join Your Class</Title>
-          <Text>Enter the room code your teacher provided</Text>
+          <Text>Enter the room code your teacher provided, or confirm the code from the link.</Text>
           
           {error && <Alert variant="error">{error}</Alert>}
           
@@ -184,7 +205,7 @@ function JoinPageContent() {
               maxLength={6}
               required
             />
-            <Button type="submit" disabled={isLoading} style={{ width: '100%' }}>
+            <Button type="submit" disabled={isLoading} style={{ width: '100%' }} size="large">
               {isLoading ? 'Joining...' : 'Join Class'}
             </Button>
           </Form>
@@ -196,7 +217,7 @@ function JoinPageContent() {
 
 export default function JoinPage() {
   return (
-    <Suspense fallback={<LoadingFallback>Loading...</LoadingFallback>}>
+    <Suspense fallback={<LoadingFallback>Loading join page...</LoadingFallback>}>
       <JoinPageContent />
     </Suspense>
   );

@@ -1,9 +1,11 @@
 // src/app/api/teacher/chatbots/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { CreateChatbotPayload } from '@/types/database.types'; // Ensure this type is correct
+import { createAdminClient } from '@/lib/supabase/admin';
+import { deleteChatbotVectors } from '@/lib/pinecone/utils';
+import type { CreateChatbotPayload } from '@/types/database.types';
 
-// GET Handler to fetch chatbots
+// GET Handler (from your working version - content-reply-027)
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
@@ -44,8 +46,8 @@ export async function GET() {
   }
 }
 
-// POST Handler to create a new chatbot
-export async function POST(request: Request) {
+// POST Handler (from your working version, adapted in content-reply-027, ensure it has bot_type and criteria)
+export async function POST(request: NextRequest) { // Changed from Request to NextRequest
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -65,44 +67,137 @@ export async function POST(request: Request) {
     }
 
     const body: CreateChatbotPayload = await request.json();
+    console.log("[API POST /teacher/chatbots] Received payload for creation:", body);
 
     if (!body.name || !body.system_prompt) {
         return NextResponse.json({ error: 'Name and system prompt are required' }, { status: 400 });
     }
+    if (body.bot_type === 'assessment' && (!body.assessment_criteria_text || body.assessment_criteria_text.trim() === '')) {
+        return NextResponse.json({ error: 'Assessment criteria are required for assessment bots.' }, { status: 400 });
+    }
+
+    const chatbotDataToInsert = {
+      name: body.name,
+      description: body.description,
+      system_prompt: body.system_prompt,
+      teacher_id: user.id,
+      model: body.model || 'x-ai/grok-3-mini-beta', // Default if not provided
+      max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
+      temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
+      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false, // RAG only for learning, default false
+      bot_type: body.bot_type || 'learning', // Default to 'learning'
+      assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
+    };
 
     const { data: newChatbot, error: insertError } = await supabase
       .from('chatbots')
-      .insert({
-        name: body.name,
-        description: body.description,
-        system_prompt: body.system_prompt,
-        teacher_id: user.id,
-        model: body.model || 'x-ai/grok-3-mini-beta',
-        max_tokens: body.max_tokens || 1000,
-        temperature: body.temperature || 0.7,
-        enable_rag: body.enable_rag || false,
-        // created_at and updated_at have defaults
-      })
-      .select()
+      .insert(chatbotDataToInsert)
+      .select() // Select all fields of the newly created bot
       .single();
 
     if (insertError) {
       console.error('Error creating chatbot:', insertError);
+      if (insertError.code === '23505') {
+         return NextResponse.json({ error: 'A chatbot with this name might already exist or another unique constraint was violated.' }, { status: 409 });
+      }
       throw insertError;
     }
 
     return NextResponse.json(newChatbot, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/teacher/chatbots:', error);
-    // Check for specific Supabase error codes if needed
-    if (error && typeof error === 'object' && 'code' in error) {
-        if (error.code === '23505') { // Unique violation
-             return NextResponse.json({ error: 'A chatbot with this name might already exist or another unique constraint was violated.' }, { status: 409 });
-        }
-    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create chatbot' },
       { status: 500 }
     );
   }
+}
+
+
+// NEW DELETE Handler for this collection route
+export async function DELETE(request: NextRequest) {
+    const { searchParams } = new URL(request.url);
+    const chatbotId = searchParams.get('chatbotId'); // Expect chatbotId as a query parameter
+
+    if (!chatbotId) {
+        return NextResponse.json({ error: 'Chatbot ID is required as a query parameter for deletion' }, { status: 400 });
+    }
+    console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Request received.`);
+
+    const supabase = await createServerSupabaseClient();
+    const adminSupabase = createAdminClient();
+
+    try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        }
+
+        // 1. Verify teacher owns the chatbot
+        const { data: chatbot, error: fetchError } = await supabase
+            .from('chatbots')
+            .select('teacher_id, name')
+            .eq('chatbot_id', chatbotId)
+            .single();
+
+        if (fetchError) {
+            console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error fetching chatbot: ${fetchError.message}`);
+            if (fetchError.code === 'PGRST116') return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Failed to fetch chatbot details' }, { status: 500 });
+        }
+        if (!chatbot) { // Should be caught by fetchError.code PGRST116, but as a safeguard
+            return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+        }
+        if (chatbot.teacher_id !== user.id) {
+            return NextResponse.json({ error: 'Not authorized to delete this chatbot' }, { status: 403 });
+        }
+        console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] User ${user.id} authorized to delete chatbot "${chatbot.name}".`);
+
+        // 2. Delete associated documents from Supabase Storage
+        const documentsFolderPath = `${user.id}/${chatbotId}/`;
+        console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Listing files in storage path: ${documentsFolderPath}`);
+        const { data: filesInStorage, error: listError } = await adminSupabase.storage
+            .from('documents')
+            .list(documentsFolderPath);
+
+        if (listError) {
+            console.warn(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error listing files in storage for cleanup: ${listError.message}`);
+        } else if (filesInStorage && filesInStorage.length > 0) {
+            const filePathsToRemove = filesInStorage.map(file => `${documentsFolderPath}${file.name}`);
+            if (filePathsToRemove.length > 0) {
+                console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Removing ${filePathsToRemove.length} files from storage.`);
+                const { error: removeFilesError } = await adminSupabase.storage.from('documents').remove(filePathsToRemove);
+                if (removeFilesError) console.warn(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error removing files from storage: ${removeFilesError.message}`);
+                else console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Successfully removed files from storage.`);
+            }
+        }
+
+        // 3. Delete chatbot record from database (cascades should apply)
+        console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting chatbot record from database.`);
+        const { error: deleteChatbotError } = await adminSupabase
+            .from('chatbots')
+            .delete()
+            .eq('chatbot_id', chatbotId); // Ensure this uses the admin client
+
+        if (deleteChatbotError) {
+            console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error deleting chatbot from database: ${deleteChatbotError.message}`);
+            throw deleteChatbotError;
+        }
+        console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Chatbot record deleted from database.`);
+
+        // 4. Delete vectors from Pinecone
+        try {
+            console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting vectors from Pinecone.`);
+            await deleteChatbotVectors(chatbotId);
+            console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Pinecone vectors deletion initiated/completed.`);
+        } catch (pineconeError) {
+            console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error deleting vectors from Pinecone:`, pineconeError);
+        }
+
+        return NextResponse.json({ success: true, message: `Chatbot "${chatbot.name}" and associated data deleted.` });
+
+    } catch (error) {
+        console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] General error:`, error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to delete chatbot' }, { status: 500 });
+    }
 }

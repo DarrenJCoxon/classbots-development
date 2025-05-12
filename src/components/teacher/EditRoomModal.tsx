@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { Card, Button, Alert } from '@/styles/StyledComponents';
 import type { Room, Chatbot } from '@/types/database.types';
 
+// ... (styled components remain the same)
 const Overlay = styled.div`
   position: fixed;
   top: 0;
@@ -91,6 +92,7 @@ const Footer = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
+
 interface EditRoomModalProps {
   room: Room;
   chatbots: Chatbot[];
@@ -105,23 +107,34 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch current chatbots for this room
     const fetchRoomChatbots = async () => {
+      setIsLoading(true); // Ensure loading state is true at the start
+      setError(null);
       try {
-        const response = await fetch(`/api/teacher/rooms/${room.room_id}/chatbots`);
-        if (!response.ok) throw new Error('Failed to fetch room chatbots');
+        // MODIFIED API CALL
+        const response = await fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Failed to parse error from fetchRoomChatbots' }));
+            throw new Error(errorData.error || 'Failed to fetch room chatbots');
+        }
         
         const data = await response.json();
         setSelectedChatbots(data.map((rc: { chatbot_id: string }) => rc.chatbot_id));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load chatbots');
+        console.error("EditRoomModal fetchRoomChatbots error:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load current chatbots for this room.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchRoomChatbots();
-  }, [room.room_id]);
+    if (room?.room_id) { // Ensure room_id is present
+        fetchRoomChatbots();
+    } else {
+        setError("Room information is missing.");
+        setIsLoading(false);
+    }
+  }, [room.room_id]); // Depend only on room.room_id
 
   const handleToggleChatbot = (chatbotId: string) => {
     setSelectedChatbots(prev => 
@@ -136,7 +149,8 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
     setError(null);
 
     try {
-      const response = await fetch(`/api/teacher/rooms/${room.room_id}/chatbots`, {
+      // MODIFIED API CALL
+      const response = await fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -145,13 +159,25 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update room chatbots');
+        // Attempt to parse error JSON, but handle cases where it might not be JSON
+        let errorMsg = 'Failed to update room chatbots';
+        try {
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorMsg;
+        } catch {
+            // If response is not JSON, use status text or a generic message
+            errorMsg = `Failed to update room chatbots (status: ${response.status} ${response.statusText})`;
+            console.error("PUT request failed with non-JSON response:", await response.text());
+        }
+        throw new Error(errorMsg);
       }
-
+      // If you expect JSON on successful PUT, parse it here. Otherwise, just call onSuccess.
+      // const successData = await response.json(); 
+      // console.log("Room chatbots updated:", successData);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update room chatbots');
+      console.error("EditRoomModal handleSubmit error:", err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred while saving changes.');
     } finally {
       setIsSubmitting(false);
     }
@@ -162,30 +188,35 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
       <FormCard>
         <Header>
           <Title>Edit Room: {room.room_name}</Title>
-          <CloseButton onClick={onClose}>&times;</CloseButton>
+          <CloseButton onClick={onClose}>×</CloseButton>
         </Header>
 
-        {error && <Alert variant="error">{error}</Alert>}
+        {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
         <Section>
           <SectionTitle>Select Chatbots for this Room</SectionTitle>
           {isLoading ? (
-            <div>Loading chatbots...</div>
+            <div style={{textAlign: 'center', padding: '20px'}}>Loading chatbots...</div>
+          ) : chatbots.length === 0 ? (
+            <p>No chatbots available to assign. Please create a chatbot first.</p>
           ) : (
             <ChatbotList>
               {chatbots.map(chatbot => (
                 <ChatbotItem key={chatbot.chatbot_id}>
                   <Checkbox
                     type="checkbox"
+                    id={`cb-edit-${chatbot.chatbot_id}`}
                     checked={selectedChatbots.includes(chatbot.chatbot_id)}
                     onChange={() => handleToggleChatbot(chatbot.chatbot_id)}
                   />
-                  {chatbot.name}
-                  {chatbot.description && (
-                    <span style={{ marginLeft: '8px', color: '#888' }}>
-                      - {chatbot.description}
-                    </span>
-                  )}
+                  <label htmlFor={`cb-edit-${chatbot.chatbot_id}`} style={{cursor: 'pointer', flexGrow: 1}}>
+                    {chatbot.name}
+                    {chatbot.description && (
+                      <span style={{ marginLeft: '8px', color: '#777', fontSize: '0.9em' }}>
+                        - {chatbot.description.length > 50 ? chatbot.description.substring(0, 50) + '...' : chatbot.description}
+                      </span>
+                    )}
+                  </label>
                 </ChatbotItem>
               ))}
             </ChatbotList>
@@ -193,13 +224,15 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
         </Section>
 
         <Footer>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button 
             type="button" 
             onClick={handleSubmit} 
-            disabled={isSubmitting || selectedChatbots.length === 0}
+            disabled={isSubmitting || isLoading || (chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading) }
+            // Disable save if loading, submitting, or if chatbots are available but none are selected (unless still loading initial selection)
+            title={chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading ? "Select at least one chatbot" : undefined}
           >
             {isSubmitting ? 'Saving...' : 'Save Changes'}
           </Button>
