@@ -1,7 +1,7 @@
 // src/app/teacher-dashboard/concerns/page.tsx
 'use client';
 
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components'; // Import useTheme
 import ConcernsList from '@/components/teacher/ConcernsList';
 import { Container } from '@/styles/StyledComponents';
 
@@ -15,12 +15,15 @@ const Title = styled.h1`
 `;
 
 export default function ConcernsPage() {
+  const theme = useTheme(); // Get the theme object
+
   return (
     <Container>
       <PageHeader>
         <Title>Student Welfare Concerns</Title>
       </PageHeader>
-      <ConcernsList />
+      {/* Pass the desired accent color to ConcernsList */}
+      <ConcernsList accentColor={theme.colors.green} /> 
     </Container>
   );
 }

@@ -19,6 +19,7 @@ declare module 'styled-components' {
       green: string;
       red: string;
       blue: string;
+      magenta: string; // <<< ADDED THIS LINE
       border: string;
       borderDark: string;
       focus: string;

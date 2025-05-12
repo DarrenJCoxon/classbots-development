@@ -1,36 +1,68 @@
 // src/styles/theme.ts
 import { DefaultTheme } from 'styled-components';
 
+// New Skolr Brand Colors (defined for clarity and easy reference)
+const skolrPurple = '#985DD7';
+const skolrCyan = '#4CBEF3';
+const skolrMagenta = '#C848AF';
+const skolrGreen = '#7BBC44';
+const skolrCoral = '#FE4372';
+const skolrOrange = '#FFB612';
+
+// Helper function to generate lighter/darker shades (basic example, you might use a tool)
+// This is a very simplistic way to generate shades. For best results, pick them manually or use a color tool.
+const lighten = (color: string, percent: number): string => {
+  const num = parseInt(color.replace("#",""), 16),
+    amt = Math.round(2.55 * percent),
+    R = (num >> 16) + amt,
+    G = (num >> 8 & 0x00FF) + amt,
+    B = (num & 0x0000FF) + amt;
+  return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+};
+
+const darken = (color: string, percent: number): string => {
+  const num = parseInt(color.replace("#",""), 16),
+    amt = Math.round(2.55 * percent),
+    R = (num >> 16) - amt,
+    G = (num >> 8 & 0x00FF) - amt,
+    B = (num & 0x0000FF) - amt;
+  return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+};
+
+
 const theme: DefaultTheme = {
   colors: {
-    // Primary colors - inspired by Canva's purple
-    primary: '#6B50B7', // Canva-like purple
-    primaryLight: '#9B8DD4', // Lighter purple
-    primaryDark: '#4A3889', // Darker purple
+    // Primary colors
+    primary: skolrPurple, 
+    primaryLight: lighten(skolrPurple, 15), // Lighter purple (e.g., #b589e0)
+    primaryDark: darken(skolrPurple, 15),  // Darker purple (e.g., #7a4bb5)
     
-    // Secondary colors - accent colors
-    secondary: '#FFB849', // Warm accent orange
-    secondaryLight: '#FFC978',
-    secondaryDark: '#E5A03D',
+    // Secondary colors
+    secondary: skolrOrange, 
+    secondaryLight: lighten(skolrOrange, 10), // Lighter orange (e.g., #ffc74e)
+    secondaryDark: darken(skolrOrange, 10),  // Darker orange (e.g., #e5a000)
     
-    // Neutral colors
-    background: '#FFFFFF', // Clean white
-    backgroundDark: '#F5F5F5', // Light gray
-    backgroundCard: '#F9FAFB', // Card background
-    text: '#1A1E2E', // Deep dark blue
-    textLight: '#5E6C7A', // Muted blue-gray
-    textMuted: '#9CA3AF', // Light gray text
+    // Neutral colors (keeping these as the base for a light theme)
+    background: '#FFFFFF', 
+    backgroundDark: '#F5F5F5', 
+    backgroundCard: '#F9FAFB', 
+    text: '#1A1E2E', 
+    textLight: '#5E6C7A', 
+    textMuted: '#9CA3AF', 
     
-    // Accent colors
-    green: '#4BCE97', // Success green
-    red: '#F87F7F', // Error red/pink
-    blue: '#4A9FFF', // Info blue
+    // Accent/Status colors
+    green: skolrGreen, 
+    red: skolrCoral, 
+    blue: skolrCyan, // Using Cyan for info/blue context
+    
+    // Additional brand accent color
+    magenta: skolrMagenta,
     
     // UI colors
-    border: '#E5E7EB', // Light border
-    borderDark: '#D1D5DB', // Darker border
-    focus: '#6B50B7', // Focus ring color
-    shadow: '0, 0, 0', // Shadow RGB
+    border: '#E5E7EB', 
+    borderDark: '#D1D5DB', 
+    focus: skolrPurple, // Focus ring color now matches new primary
+    shadow: '0, 0, 0', 
   },
   
   fonts: {
@@ -49,10 +81,10 @@ const theme: DefaultTheme = {
   },
   
   borderRadius: {
-    small: '6px', // Slightly bigger for modern look
+    small: '6px',
     medium: '8px',
     large: '12px',
-    xl: '16px', // Extra large for cards
+    xl: '16px',
     round: '50%',
   },
   
@@ -64,8 +96,8 @@ const theme: DefaultTheme = {
   },
   
   gradients: {
-    primary: 'linear-gradient(135deg, #6B50B7, #8A74C5)',
-    secondary: 'linear-gradient(135deg, #FFB849, #FFC978)',
+    primary: `linear-gradient(135deg, ${skolrPurple}, ${lighten(skolrPurple, 20)})`, // Updated
+    secondary: `linear-gradient(135deg, ${skolrOrange}, ${lighten(skolrOrange, 15)})`, // Updated
   },
   
   breakpoints: {

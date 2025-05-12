@@ -4,16 +4,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { Card, Alert, Button, Badge, Select as StyledSelect } from '@/styles/StyledComponents'; // Import Select
-import LoadingSpinner from '@/components/shared/LoadingSpinner'; // Import LoadingSpinner
-import type { ConcernStatus, FlaggedMessage } from '@/types/database.types'; // Import base types
+import { Card, Alert, Button, Badge, Select as StyledSelect } from '@/styles/StyledComponents';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import type { ConcernStatus, FlaggedMessage } from '@/types/database.types';
 
 // --- Styled Components ---
-const ListContainer = styled(Card)`
+const ListContainer = styled(Card)` // This is the Card we want to pass the accent to
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+  /* The $accentColor prop will be handled by the base Card component */
 `;
 
-const Title = styled.h2` // Changed from h3 for better hierarchy potentially
+const Title = styled.h2`
   margin-bottom: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.text};
 `;
@@ -33,19 +34,13 @@ const TableContainer = styled.div`
 
 const Table = styled.table`
   width: 100%;
-  min-width: 800px; /* Ensure enough space for columns */
+  min-width: 800px; 
   border-collapse: collapse;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    /* Hide table on mobile/tablet if using mobile list */
-    /* display: none; */
-    /* OR, make it the primary view if MobileList isn't implemented fully */
-  }
 `;
 
 const TableHeader = styled.th`
   text-align: left;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md}; /* Slightly less padding */
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md}; 
   border-bottom: 2px solid ${({ theme }) => theme.colors.border};
   color: ${({ theme }) => theme.colors.textLight};
   font-size: 0.8rem;
@@ -65,7 +60,7 @@ const TableCell = styled.td`
 `;
 
 const MessagePreview = styled.div`
-  max-width: 200px; /* Limit width */
+  max-width: 200px; 
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -73,29 +68,27 @@ const MessagePreview = styled.div`
   font-style: italic;
 `;
 
-// Interface for props passed to ConcernBadge
 interface ConcernBadgeProps {
-  $level: number; // Use transient prop syntax ($)
+  $level: number; 
 }
 
 const ConcernBadge = styled(Badge)<ConcernBadgeProps>`
   background: ${({ theme, $level }) => {
-    if ($level >= 4) return theme.colors.red + '20'; // Use alpha hex
+    if ($level >= 4) return theme.colors.red + '20'; 
     if ($level >= 3) return theme.colors.secondary + '20';
-    return theme.colors.blue + '20'; // Use blue for moderate/minor
+    return theme.colors.blue + '20'; 
   }};
 
   color: ${({ theme, $level }) => {
     if ($level >= 4) return theme.colors.red;
-    if ($level >= 3) return theme.colors.secondaryDark; // Use darker secondary for contrast
+    if ($level >= 3) return theme.colors.secondaryDark; 
     return theme.colors.blue;
   }};
   font-weight: 500;
 `;
 
-// Interface for props passed to StatusBadge
 interface StatusBadgeProps {
-  $status: ConcernStatus; // Use transient prop syntax ($)
+  $status: ConcernStatus; 
 }
 
 const StatusBadge = styled(Badge)<StatusBadgeProps>`
@@ -135,7 +128,7 @@ const LoadingState = styled.div`
   align-items: center;
   justify-content: center;
   gap: ${({ theme }) => theme.spacing.md};
-  min-height: 100px; /* Give it some height */
+  min-height: 100px; 
 `;
 
 const PaginationControls = styled.div`
@@ -146,14 +139,12 @@ const PaginationControls = styled.div`
     gap: ${({ theme }) => theme.spacing.md};
 `;
 
-// --- Data Interface (Matching API Response) ---
 interface ConcernDetails extends FlaggedMessage {
     student_name: string | null;
     room_name: string | null;
     message_content: string | null;
 }
 
-// --- Helper Functions ---
 function getConcernTypeText(type: string): string {
     if (!type) return 'Unknown';
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -177,30 +168,32 @@ function getStatusText(status: ConcernStatus): string {
         default: return status || 'Unknown';
     }
 }
-// -----------------------
 
+// --- MODIFIED Props Interface ---
 interface ConcernsListProps {
-  limit?: number; // Optional limit for dashboard preview
+  limit?: number; 
+  accentColor?: string; // Added optional accentColor prop
 }
 
-export default function ConcernsList({ limit }: ConcernsListProps) {
+// --- MODIFIED Component Signature to accept accentColor ---
+export default function ConcernsList({ limit, accentColor }: ConcernsListProps) {
     const [concerns, setConcerns] = useState<ConcernDetails[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [statusFilter, setStatusFilter] = useState<string>('pending'); // Default to pending
+    const [statusFilter, setStatusFilter] = useState<string>('pending'); 
     const [pagination, setPagination] = useState({ currentPage: 0, hasMore: false, totalCount: 0 });
     const router = useRouter();
 
     const fetchConcerns = useCallback(async (page = 0, filter = statusFilter, isNewFilter = false) => {
-        setLoading(true); // Show loading indicator on fetch
+        setLoading(true); 
         if (isNewFilter) {
-             setConcerns([]); // Clear existing concerns when filter changes
-             setPagination(prev => ({ ...prev, currentPage: 0, hasMore: false })); // Reset pagination
+             setConcerns([]); 
+             setPagination(prev => ({ ...prev, currentPage: 0, hasMore: false })); 
         }
         setError(null);
 
         try {
-            const itemsPerPage = limit || 10; // Use prop limit or default to 10 for full view
+            const itemsPerPage = limit || 10; 
             const url = new URL('/api/teacher/concerns', window.location.origin);
             url.searchParams.append('page', page.toString());
             url.searchParams.append('limit', itemsPerPage.toString());
@@ -216,7 +209,6 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
             }
 
             const data = await response.json();
-            // Append if loading more, replace if it's a new filter or first page
             setConcerns(prev => (page > 0 && !isNewFilter) ? [...prev, ...(data.concerns || [])] : (data.concerns || []));
             setPagination({
                  currentPage: data.pagination?.currentPage ?? 0,
@@ -225,17 +217,16 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error loading concerns');
-            setConcerns([]); // Clear concerns on error
-            setPagination({ currentPage: 0, hasMore: false, totalCount: 0 }); // Reset pagination on error
+            setConcerns([]); 
+            setPagination({ currentPage: 0, hasMore: false, totalCount: 0 }); 
         } finally {
             setLoading(false);
         }
-    }, [limit, statusFilter]); // statusFilter is now a dependency
+    }, [limit, statusFilter]); 
 
     useEffect(() => {
-        // Initial fetch when component mounts
-        fetchConcerns(0, statusFilter, true); // isNewFilter = true on initial load
-    }, [fetchConcerns, statusFilter]); // Fetch when filter changes
+        fetchConcerns(0, statusFilter, true); 
+    }, [fetchConcerns, statusFilter]); 
 
 
     const handleViewConversation = (concern: ConcernDetails) => {
@@ -245,18 +236,16 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
     const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newFilter = e.target.value;
         setStatusFilter(newFilter);
-        // Fetch will be triggered by useEffect dependency change
     };
 
     const handleLoadMore = () => {
         if (!loading && pagination.hasMore) {
-            fetchConcerns(pagination.currentPage + 1, statusFilter, false); // isNewFilter = false
+            fetchConcerns(pagination.currentPage + 1, statusFilter, false); 
         }
     };
 
-    // Render Logic
     const renderContent = () => {
-        if (loading && concerns.length === 0) { // Show loading only on initial load
+        if (loading && concerns.length === 0) { 
             return <LoadingState><LoadingSpinner /> Loading concerns...</LoadingState>;
         }
 
@@ -326,14 +315,7 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
                     </Table>
                 </TableContainer>
 
-                {/* Add Mobile List View Here if needed */}
-                {/*
-                <MobileList>
-                   ... Mobile card rendering ...
-                </MobileList>
-                */}
-
-                {!limit && pagination.hasMore && ( // Only show load more if not limited by prop
+                {!limit && pagination.hasMore && ( 
                  <PaginationControls>
                      <Button onClick={handleLoadMore} variant="outline" disabled={loading}>
                          {loading ? 'Loading...' : 'Load More Concerns'}
@@ -345,14 +327,13 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
     };
 
     return (
-        <ListContainer>
-            {/* Render Title and Filters only if not limited (i.e., it's the full list view) */}
+        <ListContainer $accentColor={accentColor} $accentSide="top"> {/* MODIFIED: Passed props to Card */}
             {!limit && (
                 <>
                     <Title>Student Welfare Concerns</Title>
                     <FilterControls>
                         <label htmlFor="status-filter">Filter by status:</label>
-                        <StyledSelect // Use the imported styled Select
+                        <StyledSelect 
                             id="status-filter"
                             value={statusFilter}
                             onChange={handleFilterChange}
@@ -368,7 +349,6 @@ export default function ConcernsList({ limit }: ConcernsListProps) {
                     </FilterControls>
                  </>
             )}
-            {/* Render the main content (table/loading/empty/error) */}
             {renderContent()}
         </ListContainer>
     );

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
 import { Card, Button, Badge } from '@/styles/StyledComponents';
-import type { Room as BaseRoom } from '@/types/database.types'; // Import base Room type
+import type { Room as BaseRoom } from '@/types/database.types';
 
 // --- Styled Components ---
 const TableContainer = styled.div`
@@ -13,7 +13,7 @@ const TableContainer = styled.div`
   overflow-x: auto;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: none; // Hide table on smaller screens
+    display: none; 
   }
 `;
 
@@ -76,10 +76,11 @@ const RoomNameLink = styled(Link)`
   }
 `;
 
-const EmptyState = styled(Card)`
+const EmptyState = styled(Card)` // EmptyState is a Card
   text-align: center;
   padding: ${({ theme }) => theme.spacing.xxl};
   color: ${({ theme }) => theme.colors.textLight};
+  /* The $accentColor prop will be passed here from the main return */
 
   h3 {
     margin-bottom: ${({ theme }) => theme.spacing.md};
@@ -111,6 +112,7 @@ const ModalContent = styled(Card)`
   margin: 20px;
   position: relative;
   text-align: center;
+  border-top: none !important; // Ensure modal doesn't get section accent
 `;
 
 const ModalTitle = styled.h3`
@@ -129,34 +131,36 @@ const ModalActions = styled.div`
   justify-content: center;
 `;
 
-// --- Mobile view styled components ---
 const MobileCardList = styled.div`
-  display: none; // Hidden by default
+  display: none; 
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: flex; // Show on smaller screens
+    display: flex; 
     flex-direction: column;
     gap: ${({ theme }) => theme.spacing.md};
+    /* Add padding if Card wrapper is removed from return */
+    padding: ${({ theme }) => theme.spacing.lg}; 
   }
 `;
 
-const MobileRoomCard = styled(Card)` // Renamed to avoid conflict
+const MobileRoomCard = styled(Card)` 
   padding: ${({ theme }) => theme.spacing.lg};
+  border-top: 1px solid ${({ theme }) => theme.colors.border} !important; // Override section accent for individual mobile cards
 `;
 
 const RoomCardHeader = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: flex-start; /* Align items to start for better badge placement */
+  align-items: flex-start; 
   margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
-const RoomCardTitle = styled(Link)` // Make it a link
+const RoomCardTitle = styled(Link)` 
   color: ${({ theme }) => theme.colors.text};
   text-decoration: none;
   font-weight: 600;
   font-size: 1.2rem;
-  margin-right: ${({ theme }) => theme.spacing.sm}; // Space for badge
+  margin-right: ${({ theme }) => theme.spacing.sm}; 
 
   &:hover {
     color: ${({ theme }) => theme.colors.primary};
@@ -165,7 +169,7 @@ const RoomCardTitle = styled(Link)` // Make it a link
 
 const RoomCardDetails = styled.div`
   display: grid;
-  grid-template-columns: auto 1fr; // Label and value
+  grid-template-columns: auto 1fr; 
   gap: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.md};
   font-size: 0.9rem;
@@ -178,33 +182,33 @@ const DetailItem = styled.div`
   }
   .value {
     color: ${({ theme }) => theme.colors.text};
-    word-break: break-word; /* Prevent long codes from breaking layout */
+    word-break: break-word; 
   }
 `;
 
 const MobileActions = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); // Responsive buttons
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); 
   gap: ${({ theme }) => theme.spacing.sm};
   margin-top: ${({ theme }) => theme.spacing.md};
 `;
-// --- End Mobile view styled components ---
-
 
 interface RoomWithChatbots extends BaseRoom {
-  room_chatbots: {
-    chatbots: {
+  room_chatbots: { 
+    chatbots: { 
       chatbot_id: string;
       name: string;
-    } | null;
-  }[] | null;
+    } | null; 
+  }[] | null; 
 }
 
+// MODIFIED Props Interface
 interface RoomListProps {
-  rooms: RoomWithChatbots[];
+  rooms: RoomWithChatbots[]; 
   onUpdate: () => void;
-  onEditRoom: (room: BaseRoom) => void;
-  onDeleteRoom: (room: BaseRoom) => void;
+  onEditRoom: (room: BaseRoom) => void; 
+  onDeleteRoom: (room: BaseRoom) => void; 
+  accentColor?: string; // Added optional accentColor prop
 }
 
 interface DeleteModalProps {
@@ -212,7 +216,7 @@ interface DeleteModalProps {
   roomName: string;
   onConfirm: () => void;
   onCancel: () => void;
-  isDeleting: boolean;
+  isDeleting: boolean; 
 }
 
 function DeleteModal({ isOpen, roomName, onConfirm, onCancel, isDeleting }: DeleteModalProps) {
@@ -229,8 +233,7 @@ function DeleteModal({ isOpen, roomName, onConfirm, onCancel, isDeleting }: Dele
             Cancel
           </Button>
           <Button
-            variant="secondary"
-            style={{ backgroundColor: '#F87F7F', color: 'white' }}
+            variant="magenta" 
             onClick={onConfirm}
             disabled={isDeleting}
           >
@@ -242,14 +245,15 @@ function DeleteModal({ isOpen, roomName, onConfirm, onCancel, isDeleting }: Dele
   );
 }
 
-export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom }: RoomListProps) {
+// MODIFIED Component Signature
+export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, accentColor }: RoomListProps) {
   const [loadingState, setLoadingState] = useState<{ [key: string]: boolean }>({});
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     roomId: string | null;
     roomName: string;
   }>({ isOpen: false, roomId: null, roomName: '' });
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false); 
 
   const toggleRoomStatus = async (roomId: string, currentStatus: boolean) => {
     setLoadingState(prev => ({ ...prev, [roomId]: true }));
@@ -300,15 +304,15 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom }: 
 
   const handleDeleteRoomConfirm = async () => {
     if (!deleteModal.roomId) return;
-    setIsDeleting(true);
+    setIsDeleting(true); 
     try {
       await onDeleteRoom({ room_id: deleteModal.roomId, room_name: deleteModal.roomName } as BaseRoom);
-      closeDeleteModal();
+      closeDeleteModal(); 
     } catch (error) {
       console.error('Error during delete confirmation:', error);
       alert(`Failed to delete room: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsDeleting(false);
+      setIsDeleting(false); 
     }
   };
 
@@ -320,8 +324,9 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom }: 
   };
 
   if (rooms.length === 0) {
+    // Pass $accentColor to EmptyState Card
     return (
-      <EmptyState>
+      <EmptyState $accentColor={accentColor} $accentSide="top"> 
         <h3>No Rooms Created</h3>
         <p>Create your first classroom room to get started!</p>
       </EmptyState>
@@ -330,174 +335,111 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom }: 
 
   return (
     <>
-      {/* Desktop Table View */}
-      <TableContainer>
-        <Table>
-          <thead>
-            <tr>
-              <Th>Room Name</Th>
-              <Th>Room Code</Th>
-              <Th>Chatbots</Th>
-              <Th>Status</Th>
-              <Th>Created</Th>
-              <Th>Actions</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rooms.map((room) => {
-              const chatbotCount = getChatbotCount(room);
-              const isLoading = loadingState[room.room_id] || false;
+      {/* The outermost element IS a Card, pass $accentColor and $accentSide to it */}
+      <Card $accentColor={accentColor} $accentSide="top"> 
+        <TableContainer>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Room Name</Th>
+                <Th>Room Code</Th>
+                <Th>Chatbots</Th>
+                <Th>Status</Th>
+                <Th>Created</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rooms.map((room) => {
+                const chatbotCount = getChatbotCount(room);
+                const isLoading = loadingState[room.room_id] || false; 
 
-              return (
-                <tr key={room.room_id}>
-                  <Td>
-                    <RoomNameLink href={`/teacher-dashboard/rooms/${room.room_id}`} title={`View details for room: ${room.room_name}`}>
+                return (
+                  <tr key={room.room_id}>
+                    <Td>
+                      <RoomNameLink href={`/teacher-dashboard/rooms/${room.room_id}`} title={`View details for room: ${room.room_name}`}>
+                        {room.room_name}
+                      </RoomNameLink>
+                    </Td>
+                    <Td>
+                      <RoomCode onClick={() => copyRoomCode(room.room_code)} title="Click to copy room code">
+                        {room.room_code}
+                      </RoomCode>
+                    </Td>
+                    <Td>
+                      {chatbotCount > 0 ? `${chatbotCount} Attached` : 'None'}
+                    </Td>
+                    <Td>
+                      <Badge variant={room.is_active ? 'success' : 'default'}>
+                        {room.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      {new Date(room.created_at).toLocaleDateString()}
+                    </Td>
+                    <Td>
+                      <ActionButtons>
+                        <Button size="small" onClick={() => onEditRoom(room)} disabled={isLoading} title="Edit Chatbots for this Room">Edit</Button>
+                        <Button size="small" variant="outline" onClick={() => generateMagicLink(room.room_id, room.room_code)} disabled={isLoading} title="Copy Student Join Link">Join Link</Button>
+                        <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading} title={room.is_active ? 'Deactivate Room' : 'Activate Room'}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
+                        <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading} title="Delete Room">Delete</Button>
+                      </ActionButtons>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </TableContainer>
+
+        <MobileCardList>
+          {rooms.map((room) => {
+             const chatbotCount = getChatbotCount(room);
+             const isLoading = loadingState[room.room_id] || false;
+             return (
+                <MobileRoomCard key={`mobile-${room.room_id}`}> 
+                  <RoomCardHeader>
+                    <RoomCardTitle href={`/teacher-dashboard/rooms/${room.room_id}`} title={`View details for room: ${room.room_name}`}>
                       {room.room_name}
-                    </RoomNameLink>
-                  </Td>
-                  <Td>
-                    <RoomCode onClick={() => copyRoomCode(room.room_code)} title="Click to copy room code">
-                      {room.room_code}
-                    </RoomCode>
-                  </Td>
-                  <Td>
-                    {chatbotCount > 0 ? `${chatbotCount} Attached` : 'None'}
-                  </Td>
-                  <Td>
+                    </RoomCardTitle>
                     <Badge variant={room.is_active ? 'success' : 'default'}>
                       {room.is_active ? 'Active' : 'Inactive'}
                     </Badge>
-                  </Td>
-                  <Td>
-                    {new Date(room.created_at).toLocaleDateString()}
-                  </Td>
-                  <Td>
-                    <ActionButtons>
-                      <Button
-                        size="small"
-                        onClick={() => onEditRoom(room)}
-                        disabled={isLoading}
-                        title="Edit Chatbots for this Room"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outline"
-                        onClick={() => generateMagicLink(room.room_id, room.room_code)}
-                        disabled={isLoading}
-                        title="Copy Student Join Link"
-                      >
-                        Join Link
-                      </Button>
-                      <Button
-                        size="small"
-                        variant={room.is_active ? 'secondary' : 'primary'}
-                        onClick={() => toggleRoomStatus(room.room_id, room.is_active)}
-                        disabled={isLoading}
-                        title={room.is_active ? 'Deactivate Room' : 'Activate Room'}
-                      >
-                        {isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="secondary"
-                         style={{ backgroundColor: '#F87F7F', color: 'white', borderColor: '#F87F7F' }}
-                        onClick={() => openDeleteModal(room)}
-                        disabled={isLoading}
-                        title="Delete Room"
-                      >
-                        Delete
-                      </Button>
-                    </ActionButtons>
-                  </Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-      </TableContainer>
-
-      {/* Mobile Card View */}
-      <MobileCardList>
-        {rooms.map((room) => {
-          const chatbotCount = getChatbotCount(room);
-          const isLoading = loadingState[room.room_id] || false;
-          return (
-            <MobileRoomCard key={`mobile-${room.room_id}`}>
-              <RoomCardHeader>
-                <RoomCardTitle href={`/teacher-dashboard/rooms/${room.room_id}`} title={`View details for room: ${room.room_name}`}>
-                  {room.room_name}
-                </RoomCardTitle>
-                <Badge variant={room.is_active ? 'success' : 'default'}>
-                  {room.is_active ? 'Active' : 'Inactive'}
-                </Badge>
-              </RoomCardHeader>
-              <RoomCardDetails>
-                <DetailItem>
-                  <span className="label">Code:</span>
-                  <RoomCode className="value" onClick={() => copyRoomCode(room.room_code)} title="Click to copy room code">
-                    {room.room_code}
-                  </RoomCode>
-                </DetailItem>
-                <DetailItem>
-                  <span className="label">Chatbots:</span>
-                  <span className="value">{chatbotCount > 0 ? `${chatbotCount} Attached` : 'None'}</span>
-                </DetailItem>
-                <DetailItem>
-                  <span className="label">Created:</span>
-                  <span className="value">{new Date(room.created_at).toLocaleDateString()}</span>
-                </DetailItem>
-              </RoomCardDetails>
-              <MobileActions>
-                <Button
-                  size="small"
-                  onClick={() => onEditRoom(room)}
-                  disabled={isLoading}
-                  title="Edit Chatbots for this Room"
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="small"
-                  variant="outline"
-                  onClick={() => generateMagicLink(room.room_id, room.room_code)}
-                  disabled={isLoading}
-                  title="Copy Student Join Link"
-                >
-                  Join Link
-                </Button>
-                <Button
-                  size="small"
-                  variant={room.is_active ? 'secondary' : 'primary'}
-                  onClick={() => toggleRoomStatus(room.room_id, room.is_active)}
-                  disabled={isLoading}
-                  title={room.is_active ? 'Deactivate Room' : 'Activate Room'}
-                >
-                  {isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}
-                </Button>
-                 <Button
-                    size="small"
-                    variant="secondary"
-                    style={{ backgroundColor: '#F87F7F', color: 'white', borderColor: '#F87F7F' }} // Danger style
-                    onClick={() => openDeleteModal(room)}
-                    disabled={isLoading}
-                    title="Delete Room"
-                  >
-                    Delete
-                  </Button>
-              </MobileActions>
-            </MobileRoomCard>
-          );
-        })}
-      </MobileCardList>
+                  </RoomCardHeader>
+                  <RoomCardDetails>
+                    <DetailItem>
+                      <span className="label">Code:</span>
+                      <RoomCode className="value" onClick={() => copyRoomCode(room.room_code)} title="Click to copy room code">
+                        {room.room_code}
+                      </RoomCode>
+                    </DetailItem>
+                    <DetailItem>
+                      <span className="label">Chatbots:</span>
+                      <span className="value">{chatbotCount > 0 ? `${chatbotCount} Attached` : 'None'}</span>
+                    </DetailItem>
+                    <DetailItem>
+                      <span className="label">Created:</span>
+                      <span className="value">{new Date(room.created_at).toLocaleDateString()}</span>
+                    </DetailItem>
+                  </RoomCardDetails>
+                  <MobileActions>
+                    <Button size="small" onClick={() => onEditRoom(room)} disabled={isLoading}>Edit</Button>
+                    <Button size="small" variant="outline" onClick={() => generateMagicLink(room.room_id, room.room_code)} disabled={isLoading}>Join Link</Button>
+                    <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
+                    <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading}>Delete</Button>
+                  </MobileActions>
+                </MobileRoomCard>
+             );
+          })}
+        </MobileCardList>
+      </Card>
 
       <DeleteModal
         isOpen={deleteModal.isOpen}
         roomName={deleteModal.roomName}
         onConfirm={handleDeleteRoomConfirm}
         onCancel={closeDeleteModal}
-        isDeleting={isDeleting}
+        isDeleting={isDeleting} 
       />
     </>
   );
