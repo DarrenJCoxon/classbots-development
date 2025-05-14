@@ -6,20 +6,12 @@ import { queryVectors } from '@/lib/pinecone/utils';
 
 // ONLY import what is DIRECTLY CALLED by THIS file.
 // checkMessageSafety is the function we call from monitoring.ts.
-// initialConcernCheck and verifyConcern are used INTERNALLY by checkMessageSafety.
 import { checkMessageSafety } from '@/lib/safety/monitoring';
 
 // Import specific types needed in THIS file.
 import type { ChatMessage, Room } from '@/types/database.types';
-// Database and SupabaseClient types are generally not needed if the supabase client instance is not explicitly typed here.
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// CONCERN_THRESHOLD is defined and used within 'src/lib/safety/monitoring.ts', so it's not needed here.
-
-// These constants WILL BE USED when we re-integrate assessment logic.
-// For now, to avoid "unused var" errors while we stabilize, we can comment them out
-// or keep them if we are immediately moving to re-add assessment logic after this fix.
-// Let's keep them for now, anticipating the next step.
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
 const ASSESSMENT_CONTEXT_MESSAGE_COUNT = 5;
 
@@ -71,7 +63,7 @@ export async function GET(request: NextRequest) {
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
   let userMessageId: string | null = null;
-  const supabase = await createServerSupabaseClient(); // User-context client
+  const supabase = await createServerSupabaseClient(); 
 
   try {
     const pathname = request.nextUrl.pathname;
@@ -97,10 +89,9 @@ export async function POST(request: NextRequest) {
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
 
-    // Fetch full chatbot config, including bot_type for assessment logic
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -113,7 +104,7 @@ export async function POST(request: NextRequest) {
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
             .from('rooms')
-            .select('room_id, teacher_id, room_name') // Ensure all fields needed by checkMessageSafety are here
+            .select('room_id, teacher_id, room_name, school_id') 
             .eq('room_id', roomId)
             .single();
         if (roomFetchError || !roomData) { 
@@ -131,68 +122,66 @@ export async function POST(request: NextRequest) {
     const { data: savedUserMessageData, error: userMessageError } = await supabase.from('chat_messages').insert(userMessageToStore).select('message_id, created_at').single();
     if (userMessageError || !savedUserMessageData) { console.error('Error storing user message:', userMessageError); return NextResponse.json({ error: 'Failed to store message' }, { status: 500 }); }
     userMessageId = savedUserMessageData.message_id;
-    const userMessageCreatedAt = savedUserMessageData.created_at; // Will be used when re-adding assessment trigger
+    const userMessageCreatedAt = savedUserMessageData.created_at;
     
     // Safety Check Trigger
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}`);
-        // Call the imported function. The 'supabase' here is the user-context client.
-        checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck)
+        let teacherCountryCode: string | null = null;
+        try {
+            if (roomForSafetyCheck.teacher_id) {
+                const { data: teacherProfileData, error: teacherProfileError } = await supabase
+                    .from('profiles')
+                    .select('country_code')
+                    .eq('user_id', roomForSafetyCheck.teacher_id)
+                    .single();
+
+                if (teacherProfileError) {
+                    console.warn(`[API Chat POST] Error fetching teacher profile for safety check (teacher_id: ${roomForSafetyCheck.teacher_id}):`, teacherProfileError.message);
+                } else if (teacherProfileData) {
+                    teacherCountryCode = teacherProfileData.country_code || null;
+                }
+            } else {
+                console.warn(`[API Chat POST] Teacher ID not found in roomForSafetyCheck object. Cannot fetch country for safety check.`);
+            }
+        } catch (countryFetchError) {
+            console.warn(`[API Chat POST] Exception while trying to fetch teacher's country for safety check:`, countryFetchError);
+        }
+
+        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
+        // *** CORRECTED CALL: Added teacherCountryCode as the 6th argument ***
+        checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
             .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
     } else {
-        console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}`);
+        console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}, roomForSafetyCheck: ${!!roomForSafetyCheck}`);
     }
 
     // --- ASSESSMENT TRIGGER LOGIC ---
-    // This is where the assessment trigger logic, which uses ASSESSMENT_TRIGGER_COMMAND and ASSESSMENT_CONTEXT_MESSAGE_COUNT,
-    // and userMessageCreatedAt will be re-inserted.
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
-        
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
             .from('chat_messages')
             .select('message_id')
             .eq('room_id', roomId)
             .eq('user_id', user.id) 
             .eq('metadata->>chatbotId', chatbot_id)
-            .lt('created_at', userMessageCreatedAt) // Use the timestamp of the "/assess" command
+            .lt('created_at', userMessageCreatedAt)
             .order('created_at', { ascending: false })
-            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); // Fetch enough to get varied turns
-
+            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); 
         if (contextMsgsError) {
             console.error(`[API Chat POST] Error fetching message IDs for assessment context: ${contextMsgsError.message}`);
-            // Not returning error, assessment might proceed with less context
         }
-        
         const messageIdsToAssess = (contextMessagesForAssessment || []).map(m => m.message_id).reverse();
-        
-        const assessmentPayload = {
-            student_id: user.id,
-            chatbot_id: chatbot_id,
-            room_id: roomId,
-            message_ids_to_assess: messageIdsToAssess,
-        };
-
+        const assessmentPayload = { student_id: user.id, chatbot_id: chatbot_id, room_id: roomId, message_ids_to_assess: messageIdsToAssess };
         console.log(`[API Chat POST] Asynchronously calling /api/assessment/process.`);
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-        fetch(`${baseUrl}/api/assessment/process`, { // This is the call to the new dedicated assessment API
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(assessmentPayload),
-        }).catch(fetchError => {
-            console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError);
-        });
-
-        return NextResponse.json({
-            type: "assessment_pending",
-            message: "Your responses are being submitted for assessment. Feedback will appear here shortly."
-        });
+        fetch(`${baseUrl}/api/assessment/process`, { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assessmentPayload),
+        }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
+        return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
     // --- END OF ASSESSMENT TRIGGER LOGIC ---
 
-
     // Regular Chat Logic (RAG, LLM Call, Streaming)
-    // This part will only execute if it's NOT an assessment trigger.
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
       .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
@@ -243,7 +232,6 @@ export async function POST(request: NextRequest) {
         throw new Error(errorMessage);
     }
 
-    // Streaming logic...
     let fullResponseContent = ''; const encoder = new TextEncoder(); let assistantMessageId: string | null = null;
     const stream = new ReadableStream({
         async start(controller) {
@@ -285,6 +273,3 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to process message' }, { status: 500 }); 
   }
 }
-
-// NO LOCAL DEFINITION OF checkMessageSafety, initialConcernCheck, or verifyConcern HERE.
-// They are handled by the import from '@/lib/safety/monitoring.ts'.

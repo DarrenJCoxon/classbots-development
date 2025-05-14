@@ -1,0 +1,63 @@
+{
+  "US": [
+    { "name": "Childhelp USA", "phone": "1-800-422-4453", "website": "childhelp.org", "short_desc": "Child abuse prevention & treatment" },
+    { "name": "National Suicide & Crisis Lifeline", "phone": "988", "website": "988lifeline.org", "short_desc": "24/7 crisis support" },
+    { "name": "Crisis Text Line", "text_to": "741741", "text_msg": "HOME", "short_desc": "Text support for any crisis" },
+    { "name": "The Trevor Project", "phone": "1-866-488-7386", "website": "thetrevorproject.org", "short_desc": "For LGBTQ youth" }
+  ],
+  "CA": [
+    { "name": "Kids Help Phone", "phone": "1-800-668-6868", "website": "kidshelpphone.ca", "short_desc": "24/7 youth support (text CONNECT to 686868)" },
+    { "name": "Talk Suicide Canada", "phone": "1-833-456-4566", "website": "talksuicide.ca", "short_desc": "Suicide prevention & support (text 45645)" },
+    { "name": "Canadian Centre for Child Protection", "website": "protectchildren.ca", "short_desc": "Child safety resources" }
+  ],
+  "GB": [
+    { "name": "Childline", "phone": "0800 1111", "website": "childline.org.uk", "short_desc": "Support for children & young people" },
+    { "name": "NSPCC Helpline", "phone": "0808 800 5000", "website": "nspcc.org.uk", "short_desc": "If you're worried about a child" },
+    { "name": "Samaritans", "phone": "116 123", "website": "samaritans.org", "short_desc": "Emotional support, 24/7" },
+    { "name": "Papyrus HOPELINEUK", "phone": "0800 068 4141", "website": "papyrus-uk.org", "short_desc": "Suicide prevention for under 35s" }
+  ],
+  "IE": [
+    { "name": "Childline (ISPCC)", "phone": "1800 66 66 66", "website": "childline.ie", "short_desc": "24/7 support for children (text 'LIST' to 50101)" },
+    { "name": "Samaritans Ireland", "phone": "116 123", "website": "samaritans.org/ireland/", "short_desc": "Emotional support, 24/7" },
+    { "name": "Pieta House", "phone": "1800 247247", "website": "pieta.ie", "short_desc": "Suicide & self-harm crisis centre (text HELP to 51444)" }
+  ],
+  "FR": [
+    { "name": "Allo Enfance en Danger", "phone": "119", "website": "allo119.gouv.fr", "short_desc": "National child protection helpline (24/7)" },
+    { "name": "Suicide Écoute", "phone": "01 45 39 40 00", "website": "suicide-ecoute.fr", "short_desc": "Suicide prevention helpline" },
+    { "name": "Net Ecoute (e-Enfance)", "phone": "3018", "website": "e-enfance.org/numero-3018/", "short_desc": "Protection for children online (cyberbullying, etc.)" }
+  ],
+  "ES": [
+    { "name": "ANAR (Ayuda a Niños y Adolescentes en Riesgo)", "phone": "900 20 20 10", "website": "anar.org", "short_desc": "Help for children & adolescents at risk (24/7)" },
+    { "name": "Teléfono de la Esperanza", "phone": "717 003 717", "website": "telefonodelaesperanza.org", "short_desc": "Crisis support line" }
+  ],
+  "IT": [
+    { "name": "Telefono Azzurro", "phone": "19696", "website": "azzurro.it", "short_desc": "Child helpline (24/7)" },
+    { "name": "Telefono Amico Italia", "phone": "02 2327 2327", "website": "telefonoamico.it", "short_desc": "Emotional support helpline (check hours)" }
+  ],
+  "PT": [
+    { "name": "SOS Criança (IAC)", "phone": "116 111", "website": "iacrianca.pt", "short_desc": "Child helpline (check hours)" },
+    { "name": "Voz de Apoio", "phone": "225 50 60 70", "website": "vozdeapoio.pt", "short_desc": "Emotional support helpline (check hours)" }
+  ],
+  "DE": [
+    { "name": "Nummer gegen Kummer (Kinder- und Jugendtelefon)", "phone": "116 111", "website": "nummergegenkummer.de", "short_desc": "Helpline for children & youth (Mon-Sat)" },
+    { "name": "TelefonSeelsorge", "phone": "0800 111 0 111", "website": "telefonseelsorge.de", "short_desc": "Crisis support (24/7)" }
+  ],
+  "GR": [
+    { "name": "The Smile of the Child (National Helpline for Children SOS)", "phone": "1056", "website": "hamogelo.gr", "short_desc": "Child helpline (24/7)" },
+    { "name": "KLIMAKA (Suicide Prevention)", "phone": "1018", "website": "klimaka.org.gr", "short_desc": "24/7 suicide prevention line" }
+  ],
+  "AU": [
+    { "name": "Kids Helpline", "phone": "1800 55 1800", "website": "kidshelpline.com.au", "short_desc": "Counselling for young people 5-25 (24/7)" },
+    { "name": "Lifeline Australia", "phone": "13 11 14", "website": "lifeline.org.au", "short_desc": "24/7 crisis support & suicide prevention" },
+    { "name": "eSafety Commissioner", "website": "esafety.gov.au", "short_desc": "Online safety help & reporting" }
+  ],
+  "AE": [
+    { "name": "Child Protection Centre (Ministry of Interior)", "phone": "116111", "website": "moi-cpc.ae", "short_desc": "Child protection helpline" },
+    { "name": "Dubai Foundation for Women and Children", "phone": "800111", "website": "dfwac.ae", "short_desc": "Support for women & children (violence/abuse)" }
+  ],
+  "DEFAULT": [
+    { "name": "Your Local Emergency Services", "short_desc": "Contact if in immediate danger (e.g., 911, 112, 999, 000)." },
+    { "name": "A Trusted Adult", "short_desc": "Speak to a teacher, school counselor, parent, or another family member." },
+    { "name": "Befrienders Worldwide", "website": "befrienders.org", "short_desc": "Find a crisis support center in your region." }
+  ]
+}

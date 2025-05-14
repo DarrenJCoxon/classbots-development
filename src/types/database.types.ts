@@ -92,6 +92,7 @@ export interface Profile extends BaseTable {
   email: string;
   role: UserRole;
   school_id?: string | null;
+  country_code?: string | null; // <-- ADD THIS
 }
 
 export interface Document extends BaseTable {

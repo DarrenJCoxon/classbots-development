@@ -5,11 +5,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button as StyledButton, Alert } from '@/styles/StyledComponents';
+import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents'; // Removed HelpText
 
 const AuthCard = styled(Card)`
   max-width: 400px;
   margin: 4rem auto;
+`;
+
+const HelpText = styled.div`
+  font-size: 0.95em;
+  color: ${({ theme }) => theme.colors.textLight};
+  margin-top: ${({ theme }) => theme.spacing.xs};
 `;
 
 const Title = styled.h1`
@@ -42,6 +48,7 @@ export default function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [countryCode, setCountryCode] = useState(''); // <--- ADDED for country selection
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -65,7 +72,6 @@ export default function AuthForm({ type }: AuthFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate full name for all signup types
     if (type === 'signup' && !fullName.trim()) {
       setError('Full name is required');
       return;
@@ -76,20 +82,24 @@ export default function AuthForm({ type }: AuthFormProps) {
 
     try {
       if (type === 'signup') {
-        // Determine role based on student signup flag
         const role = isStudentSignup ? 'student' : 'teacher';
         
-        // Simplified signup with just the essential data
-        // Let the database trigger handle profile creation
+        // Prepare options.data, including country_code for teachers
+        const signupData: { role: string; full_name: string; country_code?: string | null } = {
+            role: role,
+            full_name: fullName,
+        };
+
+        if (role === 'teacher') {
+            signupData.country_code = countryCode.trim() || null; // Add country_code if teacher and it's set
+        }
+        
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-            data: {
-              role: role,
-              full_name: fullName,
-            }
+            data: signupData // Use the prepared signupData
           },
         });
         
@@ -98,42 +108,31 @@ export default function AuthForm({ type }: AuthFormProps) {
           throw signUpError;
         }
         
-        // For student signup, wait a moment then try to sign in
         if (isStudentSignup) {
-          // Wait a moment for account creation to complete
           await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Try to sign in
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
-          
           if (!signInError && signInData.user) {
-            // Successfully signed in, redirect to join page
             router.push(redirectTo);
           } else {
-            // If login fails, show error but allow student to proceed to login page
             setError('Account created! Please log in to continue.');
             setTimeout(() => {
               router.push(`/auth?type=login&redirect=${encodeURIComponent(redirectTo)}`);
             }, 3000);
           }
-        } else {
-          // For teachers, show success message
-          alert('Check your email for the confirmation link!');
+        } else { // Teacher signup
+          alert('Check your email for the confirmation link! Please also check your spam folder.');
         }
-      } else {
-        // Handle login
+      } else { // Login
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        
         if (signInError) {
           throw signInError;
         }
-        
         router.push(redirectTo);
         router.refresh();
       }
@@ -145,18 +144,15 @@ export default function AuthForm({ type }: AuthFormProps) {
     }
   };
 
-  // Special UI for student signup (very similar to teacher signup now)
+  // Special UI for student signup
   if (isStudentSignup && type === 'signup') {
     return (
       <AuthCard>
         <Title>Student Sign Up</Title>
-        
         <InfoBox>
           <p><strong>For Students:</strong> Sign up here to join your classroom.</p>
         </InfoBox>
-        
         {error && <Alert variant="error">{error}</Alert>}
-        
         <form onSubmit={handleSubmit}>
           <FormGroup>
             <Label htmlFor="fullName">Full Name</Label>
@@ -199,33 +195,59 @@ export default function AuthForm({ type }: AuthFormProps) {
     );
   }
 
-  // Regular auth form for teachers or login
+  // Regular auth form for teachers (signup/login) or general login
   return (
     <AuthCard>
       <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
       
-      {type === 'signup' && (
+      {type === 'signup' && ( // This block is for Teacher Signup or general Signup
         <InfoBox>
           <p><strong>For Teachers:</strong> Sign up here to create your teacher account.</p>
-          <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
+          {!isStudentSignup && ( // Only show student info if not already in student signup flow
+             <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
+          )}
         </InfoBox>
       )}
       
       {error && <Alert variant="error">{error}</Alert>}
       
       <form onSubmit={handleSubmit}>
-        {type === 'signup' && (
-          <FormGroup>
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter your full name"
-              required
-            />
-          </FormGroup>
+        {type === 'signup' && ( // Fields specific to signup
+          <>
+            <FormGroup>
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
+            </FormGroup>
+            {/* ADDED Country Code Dropdown FOR TEACHER SIGNUP */}
+            {!isStudentSignup && ( // Only show for teacher signup
+                 <FormGroup>
+                    <Label htmlFor="countryCode">Your Country (Optional)</Label>
+                    <StyledSelect
+                        id="countryCode"
+                        name="countryCode"
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                    >
+                        <option value="">Select Country</option>
+                        <option value="US">United States</option>
+                        <option value="GB">United Kingdom</option>
+                        <option value="CA">Canada</option>
+                        <option value="AU">Australia</option>
+                        <option value="NZ">New Zealand</option>
+                        <option value="EU">EU</option>
+                        {/* Add more relevant countries as needed */}
+                    </StyledSelect>
+                    <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
+                 </FormGroup>
+            )}
+          </>
         )}
         <FormGroup>
           <Label htmlFor="email">Email</Label>
