@@ -5110,14 +5110,16 @@ export default function TeacherRoomDetailPage() {
 
 import { useState, useEffect, useCallback } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Button, Alert, Card } from '@/styles/StyledComponents';
+// No longer need useRouter if not used directly on this page for navigation
+// import { useRouter } from 'next/navigation';
+import { Button, Alert, Card, Container } from '@/styles/StyledComponents';
 import RoomList from '@/components/teacher/RoomList';
 import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
 import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const PageWrapper = styled.div``; // This can be a simple div or your main page layout container
+const PageWrapper = styled.div``;
 
 const PageHeader = styled.div`
   display: flex;
@@ -5134,14 +5136,84 @@ const Title = styled.h1`
   margin: 0;
 `;
 
-// This ContentCard will wrap the main content (loading state or RoomList)
-// and will receive the accent color.
-const ContentCard = styled(Card)`
-  /* Base Card styles are inherited. 
-     The $accentColor prop passed to it will be handled by the base Card definition 
-     in StyledComponents.ts (e.g., for border-top). 
-  */
+// Styled components for DeleteModal
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: ${({ theme }) => theme.spacing.md};
 `;
+
+const ModalContent = styled(Card)`
+  width: 100%;
+  max-width: 450px;
+  margin: 20px;
+  position: relative;
+  text-align: center;
+  border-top: none !important;
+`;
+
+const ModalTitle = styled.h3`
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const ModalText = styled.p`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  color: ${({ theme }) => theme.colors.textLight};
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  justify-content: center;
+`;
+
+interface DeleteModalProps {
+  isOpen: boolean;
+  itemType: 'Room';
+  itemName: string;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  isDeleting: boolean;
+}
+
+function DeleteModal({ isOpen, itemType, itemName, onConfirm, onCancel, isDeleting }: DeleteModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <ModalOverlay>
+      <ModalContent>
+        <ModalTitle>Delete {itemType}</ModalTitle>
+        <ModalText>
+          Are you sure you want to delete the {itemType.toLowerCase()} &quot;
+          <strong>{itemName}</strong>
+          &quot;? This action cannot be undone and may affect associated data (e.g., student memberships, chat history).
+        </ModalText>
+        <ModalActions>
+          <Button variant="outline" onClick={onCancel} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+             variant="danger"
+             onClick={onConfirm}
+             disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : `Yes, Delete ${itemType}`}
+          </Button>
+        </ModalActions>
+      </ModalContent>
+    </ModalOverlay>
+  );
+}
+
 
 export default function ManageRoomsPage() {
   const [rooms, setRooms] = useState<TeacherRoom[]>([]);
@@ -5150,7 +5222,16 @@ export default function ManageRoomsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<BaseRoom | null>(null);
-  const theme = useTheme(); // To access theme.colors for the accent
+  const theme = useTheme();
+  // const router = useRouter(); // Removed if not used
+
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    type: 'Room';
+    id: string | null;
+    name: string;
+  }>({ isOpen: false, type: 'Room', id: null, name: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -5158,7 +5239,7 @@ export default function ManageRoomsPage() {
     try {
       const [roomsResponse, chatbotsResponse] = await Promise.all([
         fetch('/api/teacher/rooms'),
-        fetch('/api/teacher/chatbots') 
+        fetch('/api/teacher/chatbots')
       ]);
 
       if (!roomsResponse.ok) {
@@ -5172,7 +5253,7 @@ export default function ManageRoomsPage() {
 
       const roomsData: TeacherRoom[] = await roomsResponse.json();
       const chatbotsData: Chatbot[] = await chatbotsResponse.json();
-      
+
       setRooms(roomsData);
       setChatbots(chatbotsData);
     } catch (err) {
@@ -5190,68 +5271,93 @@ export default function ManageRoomsPage() {
   const handleRoomCreatedOrUpdated = () => {
     setShowRoomForm(false);
     setEditingRoom(null);
-    fetchData(); 
+    fetchData();
   };
 
-  const handleDeleteRoom = async (room: BaseRoom) => {
-     if (window.confirm(`Are you sure you want to delete room "${room.room_name}"? This will also delete associated student memberships and chat history.`)) {
-        setIsLoading(true); // Indicate general loading for the page during delete
-        setError(null);
-        try {
-            const response = await fetch(`/api/teacher/rooms/${room.room_id}`, { method: 'DELETE' });
-            if (!response.ok) {
-                const errData = await response.json().catch(()=>({ error: 'Failed to parse delete error response' }));
-                throw new Error(errData.error || 'Failed to delete room');
-            }
-            // Success, re-fetch data to update the list
-            // No need for alert here if fetchData updates UI correctly
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to delete room.');
-        } finally {
-            fetchData(); // Always refetch data, isLoading will be handled by fetchData
+  const openDeleteModal = (room: BaseRoom) => {
+    setDeleteModal({ isOpen: true, type: 'Room', id: room.room_id, name: room.room_name });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ isOpen: false, type: 'Room', id: null, name: '' });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.id) return;
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+        const response = await fetch(`/api/teacher/rooms/${deleteModal.id}`, { method: 'DELETE' });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to delete room`);
         }
+
+        console.log(`Room ${deleteModal.id} deleted successfully.`);
+        closeDeleteModal();
+        fetchData();
+    } catch (error) {
+        console.error(`Error deleting Room:`, error);
+        setError(error instanceof Error ? error.message : `Failed to delete Room.`);
+    } finally {
+        setIsDeleting(false);
     }
   };
 
+  const handleEditRoom = (room: BaseRoom) => {
+    setEditingRoom(room);
+  };
+
+  const handleCloseEditRoom = () => {
+    setEditingRoom(null);
+  };
+
+  const handleRoomEditSuccess = () => {
+    setEditingRoom(null);
+    fetchData();
+  };
+
+
   return (
     <PageWrapper>
-      <PageHeader>
-        <Title>Classroom Rooms</Title>
-        <Button 
-          onClick={() => setShowRoomForm(true)}
-          disabled={chatbots.length === 0 && !isLoading} 
-          title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
-        >
-          + Create New Room
-        </Button>
-      </PageHeader>
-      
-      {/* Informational alert if no chatbots exist, shown only when not loading */}
-      {chatbots.length === 0 && !isLoading && !error && ( // Also check for no error
-        <Alert variant='info' style={{marginBottom: '16px'}}>
-            You need to create at least one chatbot before you can create a classroom room.
-        </Alert>
-      )}
+      <Container>
+        <PageHeader>
+          <Title>Classroom Rooms</Title>
+          <Button
+            onClick={() => setShowRoomForm(true)}
+            disabled={chatbots.length === 0 && !isLoading}
+            title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
+          >
+            + Create New Room
+          </Button>
+        </PageHeader>
 
-      {/* Display error if any */}
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+        {chatbots.length === 0 && !isLoading && !error && (
+          <Alert variant='info' style={{marginBottom: '16px'}}>
+              You need to create at least one chatbot before you can create a classroom room.
+          </Alert>
+        )}
 
-      {/* Main content area with accent color */}
-      <ContentCard $accentColor={theme.colors.blue} $accentSide="top">
+        {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Card style={{ textAlign: 'center', padding: '40px' }}>
             <LoadingSpinner /> Loading rooms...
-          </div>
-        ) : error ? null : ( // If there's an error, the Alert above handles it, don't render RoomList
+          </Card>
+        ) : error ? null : (
           <RoomList
             rooms={rooms}
-            onUpdate={fetchData} 
-            onEditRoom={setEditingRoom} 
-            onDeleteRoom={handleDeleteRoom}
-            // No accentColor prop needed for RoomList itself now
+            onUpdate={fetchData}
+            onEditRoom={handleEditRoom}
+            onDeleteRoom={openDeleteModal}
+            // 👇 CORRECTED: Pass the blue (skolrCyan) color from the theme
+            accentColor={theme.colors.blue}
           />
         )}
-      </ContentCard>
+      </Container>
 
       {showRoomForm && (
         <RoomForm
@@ -5265,10 +5371,19 @@ export default function ManageRoomsPage() {
         <EditRoomModal
           room={editingRoom}
           chatbots={chatbots}
-          onClose={() => setEditingRoom(null)}
-          onSuccess={handleRoomCreatedOrUpdated}
+          onClose={handleCloseEditRoom}
+          onSuccess={handleRoomEditSuccess}
         />
       )}
+
+      <DeleteModal
+        isOpen={deleteModal.isOpen}
+        itemType={deleteModal.type}
+        itemName={deleteModal.name}
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isDeleting={isDeleting}
+      />
     </PageWrapper>
   );
 }// src/app/teacher-dashboard/page.tsx
@@ -11657,25 +11772,27 @@ import { Card, Alert, Button } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-// --- CORRECTED IMPORT ---
 import type { ChatMessage, Chatbot } from '@/types/database.types';
-// ------------------------
 
+// Constants from API route
+const ASSESSMENT_TRIGGER_COMMAND = "/assess";
+
+// Styled Components (remain the same as previous version)
 const ChatContainer = styled(Card)`
   display: flex;
   flex-direction: column;
   height: calc(100vh - 200px); /* Adjust as needed */
   max-height: 800px;
   position: relative;
-  padding: 0; /* Remove Card padding if MessagesList/InputContainer handle it */
+  padding: 0;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     height: calc(100vh - 150px);
     max-height: none;
     margin: 0;
     border-radius: 0;
-    border: none; /* Remove border on mobile */
-    box-shadow: none; /* Remove shadow on mobile */
+    border: none;
+    box-shadow: none;
   }
 `;
 
@@ -11684,7 +11801,6 @@ const MessagesList = styled.div`
   overflow-y: auto;
   padding: ${({ theme }) => theme.spacing.lg};
   background: ${({ theme }) => theme.colors.background};
-  /* No border-radius needed if ChatContainer handles it */
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.md};
@@ -11695,8 +11811,6 @@ const StyledChatInputContainer = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.backgroundCard};
-  /* No border-radius needed if ChatContainer handles it */
-
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.md};
@@ -11734,22 +11848,21 @@ const LoadingIndicator = styled.div`
   height: 100%;
 `;
 
+
 interface ChatProps {
   roomId: string;
-  chatbot: Chatbot;
+  chatbot: Chatbot; // This should be the full Chatbot object, including bot_type
 }
 
 export default function Chat({ roomId, chatbot }: ChatProps) {
-  // --- CORRECTED TYPE for messages state ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // -----------------------------------------
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // For general sending state
   const [isFetchingMessages, setIsFetchingMessages] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // For send errors
+  const [fetchError, setFetchError] = useState<string | null>(null); // For initial fetch errors
   const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false); // To prevent multiple initial fetches
+  const fetchedRef = useRef(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -11759,79 +11872,60 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         if (user) {
           setUserId(user.id);
         } else {
-          console.warn("Chat component: User not authenticated.");
           setFetchError("Authentication error. Please log in.");
         }
-      } catch (err) {
-        console.error('Error getting user ID:', err);
+      } catch {
         setFetchError("Could not verify user. Please try refreshing.");
       }
     };
     getUserId();
-  }, [supabase]); // Depend only on supabase client
+  }, [supabase]);
 
-  const scrollToBottom = useCallback(() => { // Wrap in useCallback
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  },[]); // No dependencies needed if it only uses ref
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!chatbot?.chatbot_id || !userId || !roomId) {
-        if (!chatbot?.chatbot_id) console.log("Fetch messages waiting: no chatbotId");
-        if (!userId) console.log("Fetch messages waiting: no userId");
-        if (!roomId) console.log("Fetch messages waiting: no roomId");
-        setIsFetchingMessages(false); // Stop loading if prerequisites aren't met
+        setIsFetchingMessages(false);
         return;
     }
-
-    console.log(`Fetching messages for room: ${roomId}, chatbot: ${chatbot.chatbot_id}, user: ${userId}`);
     setIsFetchingMessages(true);
     setFetchError(null);
     fetchedRef.current = true;
-
     try {
       const url = `/api/chat/${roomId}?chatbotId=${chatbot.chatbot_id}`;
       const response = await fetch(url);
-
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Failed to parse error response');
-        console.error(`API error fetching messages: ${response.status}`, errorText);
-        throw new Error(`Failed to fetch messages (status: ${response.status})`);
+        throw new Error(`Failed to fetch messages (status: ${response.status}) - ${errorText}`);
       }
-
       const data = await response.json();
-      console.log("Fetched messages data:", data);
-      // --- CORRECTED TYPE for fetched data ---
       setMessages(Array.isArray(data) ? data as ChatMessage[] : []);
-      // --------------------------------------
-      // Use timeout to allow DOM update before scrolling
       setTimeout(scrollToBottom, 100);
     } catch (err) {
-      console.error('Message fetch error:', err);
       setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
-      fetchedRef.current = false; // Allow retry if fetch failed
+      fetchedRef.current = false;
     } finally {
       setIsFetchingMessages(false);
     }
-  }, [roomId, chatbot?.chatbot_id, userId, scrollToBottom]); // Add scrollToBottom to deps
+  }, [roomId, chatbot?.chatbot_id, userId, scrollToBottom]);
 
   useEffect(() => {
-    // Fetch only when userId and chatbotId are available, and haven't successfully fetched yet
     if (userId && chatbot?.chatbot_id && !fetchedRef.current) {
       fetchMessages();
     }
-    // If chatbotId changes, reset fetchedRef and fetch again
-    const chatbotId = chatbot?.chatbot_id; // Capture for effect cleanup
+    const currentChatbotId = chatbot?.chatbot_id;
     return () => {
-        if (chatbotId !== chatbot?.chatbot_id) {
+        if (currentChatbotId !== chatbot?.chatbot_id) {
             fetchedRef.current = false;
         }
     }
-
   }, [userId, chatbot?.chatbot_id, fetchMessages]);
 
 
   const handleRetryFetch = () => {
-    fetchedRef.current = false; // Allow refetch attempt
+    fetchedRef.current = false;
     fetchMessages();
   };
 
@@ -11840,8 +11934,8 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
 
     setIsLoading(true);
     setError(null);
+    const isAssessmentTrigger = chatbot.bot_type === 'assessment' && content.trim().toLowerCase() === ASSESSMENT_TRIGGER_COMMAND;
 
-    // --- CORRECTED TYPE for optimistic messages ---
     const optimisticUserMessage: ChatMessage = {
       message_id: `local-user-${Date.now()}`,
       room_id: roomId,
@@ -11852,19 +11946,88 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       metadata: { chatbotId: chatbot.chatbot_id }
     };
 
+    setMessages(prev => [...prev, optimisticUserMessage]);
+
+    // Different handling for assessment trigger
+    if (isAssessmentTrigger) {
+      const optimisticAssessmentPlaceholder: ChatMessage = {
+        message_id: `local-assessment-placeholder-${Date.now()}`,
+        room_id: roomId,
+        user_id: "system-assessment", // Special user_id for system messages
+        role: 'system', // Or 'assistant' if preferred for styling
+        content: 'Processing your assessment request...',
+        created_at: new Date().toISOString(),
+        metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
+      };
+      setMessages(prev => [...prev, optimisticAssessmentPlaceholder]);
+      setTimeout(scrollToBottom, 50);
+
+      try {
+        const response = await fetch(`/api/chat/${roomId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: content.trim(), // Send "/assess"
+            chatbot_id: chatbot.chatbot_id,
+          }),
+        });
+
+        // Remove placeholder
+        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticAssessmentPlaceholder.message_id));
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
+          throw new Error(errorData.error?.message || `API error processing assessment (status: ${response.status})`);
+        }
+
+        const assessmentResult = await response.json();
+
+        if (assessmentResult.type === "assessment_feedback") {
+          const feedbackMessage: ChatMessage = {
+            message_id: assessmentResult.assessmentId || `local-assessment-feedback-${Date.now()}`,
+            room_id: roomId,
+            user_id: "system-feedback", // Or chatbot.chatbot_id if you want it to look like from the bot
+            role: 'system', // Or 'assistant'
+            content: assessmentResult.feedback,
+            created_at: new Date().toISOString(),
+            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true }
+          };
+          setMessages(prev => [...prev, feedbackMessage]);
+          // TODO: Add a user-friendly notification about viewing in "My Assessments"
+          // For now, console log or a simple alert
+          if (assessmentResult.assessmentId) {
+              alert("Assessment feedback received! You can also view it in 'My Assessments'.");
+          }
+        } else {
+          // Handle unexpected response
+          throw new Error("Unexpected response from assessment API.");
+        }
+
+      } catch (err) {
+        console.error('Assessment processing error:', err);
+        const errorMsg = err instanceof Error ? err.message : 'Failed to process assessment';
+        setError(errorMsg);
+        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id)); // remove user's /assess command
+        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]); // re-add with error
+      } finally {
+        setIsLoading(false);
+        setTimeout(scrollToBottom, 50);
+      }
+      return; // End execution for assessment command
+    }
+
+    // Regular chat message streaming
     const optimisticAssistantPlaceholder: ChatMessage = {
       message_id: `local-assistant-${Date.now()}`,
       room_id: roomId,
-      user_id: "assistant-placeholder", // Placeholder
+      user_id: "assistant-placeholder",
       role: 'assistant',
       content: 'Thinking...',
       created_at: new Date().toISOString(),
       metadata: { chatbotId: chatbot.chatbot_id }
     };
-    // --------------------------------------------
-
-    setMessages(prev => [...prev, optimisticUserMessage, optimisticAssistantPlaceholder]);
-    setTimeout(scrollToBottom, 50); // Scroll immediately
+    setMessages(prev => [...prev, optimisticAssistantPlaceholder]);
+    setTimeout(scrollToBottom, 50);
 
     try {
       const response = await fetch(`/api/chat/${roomId}`, {
@@ -11873,13 +12036,12 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         body: JSON.stringify({
           content: content.trim(),
           chatbot_id: chatbot.chatbot_id,
-          model: chatbot.model // Send model preference if available
+          model: chatbot.model
         }),
       });
 
       if (!response.ok || !response.body) {
         const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
-        console.error("Send message API error:", errorData);
         throw new Error(errorData.error?.message || `API error sending message (status: ${response.status})`);
       }
 
@@ -11892,11 +12054,10 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         const { done, value } = await reader.read();
         if (done) break;
 
-         // Update placeholder on first chunk received
          if (!firstChunkReceived) {
             setMessages(prev => prev.map(msg =>
                 msg.message_id === optimisticAssistantPlaceholder.message_id
-                ? { ...msg, content: '' } // Clear "Thinking..."
+                ? { ...msg, content: '' }
                 : msg
             ));
             firstChunkReceived = true;
@@ -11915,10 +12076,9 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
                 streamedContent += parsedData.content;
                 setMessages(prev => prev.map(msg =>
                   msg.message_id === optimisticAssistantPlaceholder.message_id
-                    ? { ...msg, content: streamedContent } // Append streamed content
+                    ? { ...msg, content: streamedContent }
                     : msg
                 ));
-                // Consider scrolling less frequently for performance
                  scrollToBottom();
               }
             } catch (e) {
@@ -11927,32 +12087,24 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
           }
         }
       }
-      console.log("Stream finished. Full response:", streamedContent);
-      // Backend saves the full message upon stream completion in its finally block.
-      // We can optionally update the local message ID once the backend confirms saving,
-      // but for now, the optimistic ID works for rendering.
-      // Consider a final update here or rely on a potential WebSocket update later.
        setMessages(prev => prev.map(msg =>
         msg.message_id === optimisticAssistantPlaceholder.message_id
-          ? { ...msg, content: streamedContent.trim() } // Ensure final content is trimmed
+          ? { ...msg, content: streamedContent.trim() }
           : msg
        ));
-
 
     } catch (err) {
       console.error('Chat send/receive error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to send or receive message';
       setError(errorMsg);
-      // Remove optimistic messages on error
       setMessages(prev => prev.filter(msg =>
           msg.message_id !== optimisticUserMessage.message_id &&
           msg.message_id !== optimisticAssistantPlaceholder.message_id
       ));
-       // Optionally, re-add the user message that failed to send, perhaps with an error indicator
        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg}}]);
-
     } finally {
       setIsLoading(false);
+      setTimeout(scrollToBottom, 50);
     }
   };
 
@@ -11972,18 +12124,18 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
           <EmptyState>
             <h3>Start your conversation with {chatbot.name}</h3>
             <p>Your chat history will appear here.</p>
+            {chatbot.bot_type === 'assessment' && <p>Type <strong>{ASSESSMENT_TRIGGER_COMMAND}</strong> when you are ready for an assessment.</p>}
           </EmptyState>
         ) : (
           messages.map((message) => (
             <ChatMessageComponent
-              // Use message_id if available, otherwise generate a fallback key
               key={message.message_id || `local-${message.role}-${message.created_at}-${Math.random()}`}
               message={message}
               chatbotName={chatbot.name}
             />
           ))
         )}
-        <div ref={messagesEndRef} /> {/* Element to scroll to */}
+        <div ref={messagesEndRef} />
       </MessagesList>
 
       <StyledChatInputContainer>
@@ -11992,6 +12144,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
           isLoading={isLoading}
           error={error}
           onClearError={() => setError(null)}
+          hint={chatbot.bot_type === 'assessment' ? `Type ${ASSESSMENT_TRIGGER_COMMAND} to submit for assessment.` : undefined}
         />
       </StyledChatInputContainer>
     </ChatContainer>
