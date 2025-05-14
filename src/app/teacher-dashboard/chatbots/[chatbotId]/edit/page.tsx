@@ -1,7 +1,7 @@
 // src/app/teacher-dashboard/chatbots/[chatbotId]/edit/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react'; 
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import {
@@ -12,7 +12,8 @@ import { createClient } from '@/lib/supabase/client';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
-import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType } from '@/types/database.types';
+// MODIFIED: Import CreateChatbotPayload
+import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType, CreateChatbotPayload } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
@@ -105,12 +106,13 @@ const initialChatbotState: Chatbot = {
     description: '',
     system_prompt: `You are a helpful AI assistant.`,
     teacher_id: '',
-    model: 'qwen/qwen3-235b-a22b',
+    model: 'x-ai/grok-3-mini-beta',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: null,
+    welcome_message: null, // This was already correctly added by you
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
 };
@@ -135,7 +137,6 @@ export default function ConfigureChatbotPage() {
 
   const fetchChatbotData = useCallback(async (id: string, teacherId: string) => {
     setFormError(null);
-    // setLoading(true); // pageLoading handles initial, this is for subsequent if needed
     try {
       const { data, error } = await supabase
         .from('chatbots')
@@ -151,25 +152,20 @@ export default function ConfigureChatbotPage() {
       if (!fetchedData.bot_type) {
         fetchedData.bot_type = 'learning';
       }
+      fetchedData.welcome_message = fetchedData.welcome_message || null;
       setChatbot(fetchedData);
 
-      // This logic is now handled by the separate useEffect that depends on fetchDocumentsData
-      // if (fetchedData.bot_type === 'learning' && fetchedData.enable_rag) {
-      //     await fetchDocumentsData(id); 
-      // } else {
-      //     setDocuments([]);
-      // }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to load chatbot data.');
-      setChatbot(initialChatbotState); // Reset to initial on error
+      setChatbot(initialChatbotState);
     } finally {
-      setPageLoading(false); // Ensure pageLoading is set to false here
+      setPageLoading(false);
     }
-  }, [supabase]); // Removed fetchDocumentsData as it's handled by another useEffect
+  }, [supabase]);
 
   useEffect(() => {
     const initializePage = async () => {
-        setPageLoading(true); // Ensure loading starts
+        setPageLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             router.push('/auth');
@@ -181,17 +177,16 @@ export default function ConfigureChatbotPage() {
             setIsCreateMode(true);
             setChatbot({ ...initialChatbotState, teacher_id: user.id });
             setDocuments([]);
-            setPageLoading(false); // Stop loading for new mode
+            setPageLoading(false);
         } else {
             setIsCreateMode(false);
-            // fetchChatbotData will setPageLoading(false) in its finally block
             await fetchChatbotData(chatbotIdFromParams, user.id);
         }
     };
-    if (chatbotIdFromParams) { // Ensure chatbotIdFromParams is available
+    if (chatbotIdFromParams) {
         initializePage();
     }
-  }, [chatbotIdFromParams, router, supabase, fetchChatbotData]); // Added fetchChatbotData
+  }, [chatbotIdFromParams, router, supabase, fetchChatbotData]);
 
   const fetchDocumentsData = useCallback(async (currentChatbotId: string) => {
     if (!currentChatbotId) return;
@@ -211,14 +206,12 @@ export default function ConfigureChatbotPage() {
     } finally {
       setDocsLoading(false);
     }
-  }, []); // This useCallback has no external dependencies from its scope.
+  }, []);
 
   useEffect(() => {
-    // This effect specifically handles fetching documents when relevant chatbot properties change.
     if (!isCreateMode && chatbot.chatbot_id && chatbot.bot_type === 'learning' && chatbot.enable_rag) {
         fetchDocumentsData(chatbot.chatbot_id);
     } else if (!isCreateMode && chatbot.chatbot_id && (chatbot.bot_type !== 'learning' || !chatbot.enable_rag)) {
-        // If RAG is disabled or type changes from learning, clear documents
         setDocuments([]);
     }
   }, [chatbot.chatbot_id, chatbot.bot_type, chatbot.enable_rag, isCreateMode, fetchDocumentsData]);
@@ -236,55 +229,68 @@ export default function ConfigureChatbotPage() {
     setSuccessMessage(null);
 
     const currentBotType = chatbot.bot_type || 'learning';
-    const payload: Partial<Chatbot> = {
+
+    // This payload is for the direct Supabase client .update() call
+    const supabaseUpdatePayload: Partial<Omit<Chatbot, 'chatbot_id' | 'created_at' | 'updated_at' | 'teacher_id'>> & { teacher_id?: string } = {
         name: chatbot.name,
         description: chatbot.description || undefined,
         system_prompt: chatbot.system_prompt,
-        teacher_id: currentUserId,
+        // teacher_id: currentUserId, // Not strictly needed for update if RLS is correct, but doesn't harm
         model: chatbot.model,
-        max_tokens: (chatbot.max_tokens === undefined || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
-        temperature: (chatbot.temperature === undefined || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
+        max_tokens: (chatbot.max_tokens === undefined || chatbot.max_tokens === null || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
+        temperature: (chatbot.temperature === undefined || chatbot.temperature === null || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
         enable_rag: currentBotType === 'learning' ? (chatbot.enable_rag || false) : false,
         bot_type: currentBotType,
         assessment_criteria_text: currentBotType === 'assessment' ? (chatbot.assessment_criteria_text || null) : null,
+        welcome_message: chatbot.welcome_message || null,
     };
-    if (payload.description === undefined) delete payload.description;
-    
-    // Ensure null is sent if fields are cleared, not undefined
-    if (payload.max_tokens === undefined) payload.max_tokens = null;
-    if (payload.temperature === undefined) payload.temperature = null;
+    if (supabaseUpdatePayload.description === undefined) delete supabaseUpdatePayload.description;
 
 
     try {
         if (isCreateMode) {
+            // Construct the payload for the API POST, matching CreateChatbotPayload
+            const apiCreatePayload: CreateChatbotPayload = {
+                name: chatbot.name,
+                system_prompt: chatbot.system_prompt,
+                description: chatbot.description || undefined,
+                model: chatbot.model || 'qwen/qwen3-235b-a22b', // Ensure model has a default if chatbot.model is undefined
+                max_tokens: supabaseUpdatePayload.max_tokens,
+                temperature: supabaseUpdatePayload.temperature,
+                enable_rag: supabaseUpdatePayload.enable_rag,
+                bot_type: supabaseUpdatePayload.bot_type,
+                assessment_criteria_text: supabaseUpdatePayload.assessment_criteria_text,
+                welcome_message: supabaseUpdatePayload.welcome_message,
+            };
+
             const response = await fetch('/api/teacher/chatbots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(apiCreatePayload),
             });
             const responseData = await response.json();
             if (!response.ok) throw new Error(responseData.error || 'Failed to create chatbot');
 
             setSuccessMessage('Chatbot created successfully! You can now continue configuring or manage documents if RAG is enabled.');
-            const newBotData = responseData as Chatbot;
-            if (!newBotData.bot_type) newBotData.bot_type = 'learning';
-            setChatbot(newBotData);
-            setIsCreateMode(false); // Switch to edit mode
-            router.replace(`/teacher-dashboard/chatbots/${responseData.chatbot_id}/edit`, { scroll: false });
+            const newBotData = responseData as Chatbot; // API returns the full Chatbot object
+            setChatbot(newBotData); // Update local state with the full new bot data
+            setIsCreateMode(false);
+            router.replace(`/teacher-dashboard/chatbots/${newBotData.chatbot_id}/edit`, { scroll: false });
 
-        } else { 
+        } else {
+            // Use supabaseUpdatePayload for the direct Supabase client update
+            // We don't need to spread teacher_id here as it's part of the .eq() condition
+            const updateDataForSupabase = { ...supabaseUpdatePayload };
+            delete updateDataForSupabase.teacher_id; // teacher_id is for eq, not update payload itself
+
             const { error: updateError } = await supabase
                 .from('chatbots')
-                .update({ ...payload, updated_at: new Date().toISOString() })
+                .update({ ...updateDataForSupabase, updated_at: new Date().toISOString() })
                 .eq('chatbot_id', chatbot.chatbot_id)
                 .eq('teacher_id', currentUserId);
 
             if (updateError) throw updateError;
-            setSuccessMessage('Chatbot updated successfully!'); 
-            // No automatic redirect on update, user might want to continue editing RAG docs
-            // setTimeout(() => {
-            //     router.push('/teacher-dashboard/chatbots');
-            // }, 1500); 
+            setSuccessMessage('Chatbot updated successfully!');
         }
     } catch (err) {
         setFormError(err instanceof Error ? err.message : (isCreateMode ? 'Failed to create chatbot.' : 'Failed to update chatbot.'));
@@ -295,13 +301,19 @@ export default function ConfigureChatbotPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    let processedValue: string | number | undefined | BotType = value;
+    let processedValue: string | number | boolean | undefined | null | BotType = value;
 
     if (name === "max_tokens" || name === "temperature") {
-        processedValue = value === `` ? undefined : Number(value); // Allow clearing to undefined
+        processedValue = value === `` ? null : Number(value);
     } else if (name === "bot_type") {
         processedValue = value as BotType;
+    } else if (name === "enable_rag") { // Checkbox handled by handleCheckboxChange
+        return;
     }
+    else if ((name === "welcome_message" || name === "assessment_criteria_text") && value.trim() === "") {
+        processedValue = null;
+    }
+
     setChatbot(prev => ({ ...prev, [name]: processedValue } as Chatbot));
   };
 
@@ -319,7 +331,7 @@ export default function ConfigureChatbotPage() {
       });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to start document processing'); }
       setDocuments(prevDocs => prevDocs.map(doc => doc.document_id === documentId ? { ...doc, status: 'processing' } : doc));
-      setViewingDocumentId(documentId); // Show status for this doc
+      setViewingDocumentId(documentId);
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not process document.'); }
   };
 
@@ -342,7 +354,6 @@ export default function ConfigureChatbotPage() {
   if (pageLoading) {
     return ( <PageWrapper><Container><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></Container></PageWrapper> );
   }
-  // Ensure chatbot is not null when not in create mode, after pageLoading is false
   if (!isCreateMode && !chatbot.chatbot_id && !pageLoading) {
      return ( <PageWrapper><Container><Alert variant="error">{formError || `Chatbot data could not be initialized. Please go back and try again.`}</Alert></Container></PageWrapper> );
   }
@@ -363,7 +374,7 @@ export default function ConfigureChatbotPage() {
           {formError && <Alert variant="error" style={{ marginBottom: '16px'}}>{formError}</Alert>}
           {successMessage && <Alert variant="success" style={{ marginBottom: '16px'}}>{successMessage}</Alert>}
 
-          <form onSubmit={handleSubmit}> 
+          <form onSubmit={handleSubmit}>
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input id="name" name="name" value={chatbot.name || ``} onChange={handleChange} required />
@@ -393,11 +404,28 @@ export default function ConfigureChatbotPage() {
               <TextArea id="system_prompt" name="system_prompt" value={chatbot.system_prompt || ``} onChange={handleChange} required rows={displayBotType === 'assessment' ? 3 : 5} placeholder={ displayBotType === 'assessment' ? `e.g., 'You are an assessment assistant...'` : `e.g., 'You are a friendly history tutor...'` }/>
               <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Bots, instructions from 'Assessment Criteria' are key.`}</HelpText>
             </FormGroup>
+
+            {/* Welcome Message Field - THIS IS THE NEWLY ADDED FIELD */}
+            <FormGroup>
+              <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
+              <TextArea
+                id="welcome_message"
+                name="welcome_message"
+                value={chatbot.welcome_message || ''}
+                onChange={handleChange}
+                rows={3}
+                placeholder="e.g., Hi there! I'm here to help you with [topic]. What would you like to discuss first?"
+              />
+              <HelpText>
+                This message will be shown to students as the first message from the chatbot when they start a new chat. Leave blank for no welcome message.
+              </HelpText>
+            </FormGroup>
+
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect id="model" name="model" value={chatbot.model || 'qwen/qwen3-235b-a22b'} onChange={handleChange}>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta (Paid)</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B (Free)</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
+                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option>
                   <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
               </StyledSelect>
               <HelpText>This model is used for general chat. Assessment evaluation will use Qwen3 235B.</HelpText>
@@ -424,7 +452,7 @@ export default function ConfigureChatbotPage() {
             <Button type="submit" disabled={saving || pageLoading} style={{ width: `100%`, marginTop: `16px` }}>
               {saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create & Configure Chatbot' : 'Save Changes')}
             </Button>
-          </form> 
+          </form>
 
           {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
@@ -434,23 +462,23 @@ export default function ConfigureChatbotPage() {
                 {docsError && <Alert variant="error">{docsError}</Alert>}
                 <DocumentUploader chatbotId={chatbot.chatbot_id} onUploadSuccess={() => { setSuccessMessage("Document uploaded. Refreshing list..."); fetchDocumentsData(chatbot.chatbot_id!); }} />
                 {viewingDocumentId && getViewingDocument() && (
-                    <EmbeddingStatus 
-                      document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }} 
-                      chatbotId={chatbot.chatbot_id!} 
-                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }} 
+                    <EmbeddingStatus
+                      document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }}
+                      chatbotId={chatbot.chatbot_id!}
+                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }}
                     />
                 )}
                 {docsLoading ? ( <LoadingStateContainer><LoadingSpinner size="small"/><span>Loading documents...</span></LoadingStateContainer> ) : (
-                    <DocumentList 
-                      documents={documents.map(doc => ({ ...doc, updated_at: doc.updated_at ?? new Date().toISOString() }))} 
-                      onProcessDocument={handleProcessDocument} 
-                      onDeleteDocument={handleDeleteDocument} 
-                      onViewStatus={setViewingDocumentId} 
+                    <DocumentList
+                      documents={documents.map(doc => ({ ...doc, updated_at: doc.updated_at ?? new Date().toISOString() }))}
+                      onProcessDocument={handleProcessDocument}
+                      onDeleteDocument={handleDeleteDocument}
+                      onViewStatus={setViewingDocumentId}
                     />
                 )}
             </>
           )}
-          {isCreateMode && displayBotType === 'learning' && ( // Show hint for new learning bots
+          {isCreateMode && displayBotType === 'learning' && (
             <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads.</HelpText>
           )}
         </Card>

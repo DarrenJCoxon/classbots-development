@@ -8,7 +8,7 @@ import { Card, Alert, Button } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import type { ChatMessage, Chatbot } from '@/types/database.types';
+import type { ChatMessage, Chatbot } from '@/types/database.types'; // Chatbot type now includes welcome_message
 
 // Constants from API route
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -87,15 +87,15 @@ const LoadingIndicator = styled.div`
 
 interface ChatProps {
   roomId: string;
-  chatbot: Chatbot; // This should be the full Chatbot object, including bot_type
+  chatbot: Chatbot;
 }
 
 export default function Chat({ roomId, chatbot }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // For general sending state
+  const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMessages, setIsFetchingMessages] = useState(true);
-  const [error, setError] = useState<string | null>(null); // For send errors
-  const [fetchError, setFetchError] = useState<string | null>(null); // For initial fetch errors
+  const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef(false);
@@ -137,7 +137,28 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         throw new Error(`Failed to fetch messages (status: ${response.status}) - ${errorText}`);
       }
       const data = await response.json();
-      setMessages(Array.isArray(data) ? data as ChatMessage[] : []);
+      let fetchedMsgs = Array.isArray(data) ? (data as ChatMessage[]) : [];
+
+      // MODIFIED: Prepend welcome message if it's a new chat and welcome message exists
+      // Also check if the first message isn't already our special welcome message (to avoid duplicates on re-fetch/re-render)
+      if (
+        fetchedMsgs.length === 0 &&
+        chatbot.welcome_message &&
+        chatbot.welcome_message.trim() !== ''
+      ) {
+        const welcomeMsg: ChatMessage = {
+          message_id: `welcome-${chatbot.chatbot_id}`, // Use a consistent ID for the welcome message
+          room_id: roomId,
+          user_id: chatbot.chatbot_id, // Attributed to the bot
+          role: 'assistant',
+          content: chatbot.welcome_message,
+          created_at: new Date(0).toISOString(), // Ensures it's always first if sorted by date
+          metadata: { chatbotId: chatbot.chatbot_id, isWelcomeMessage: true },
+        };
+        fetchedMsgs = [welcomeMsg]; // Show only welcome message if no other history
+      }
+
+      setMessages(fetchedMsgs);
       setTimeout(scrollToBottom, 100);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
@@ -145,12 +166,16 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
     } finally {
       setIsFetchingMessages(false);
     }
-  }, [roomId, chatbot?.chatbot_id, userId, scrollToBottom]);
+  // MODIFIED: Added `chatbot.welcome_message` to dependencies of fetchMessages
+  // This ensures fetchMessages is re-evaluated if the welcome message itself changes (e.g., teacher edits it)
+  // and the component re-renders with the new chatbot prop.
+  }, [roomId, chatbot?.chatbot_id, chatbot?.welcome_message, userId, scrollToBottom]);
 
   useEffect(() => {
     if (userId && chatbot?.chatbot_id && !fetchedRef.current) {
       fetchMessages();
     }
+    // This cleanup logic for fetchedRef seems fine for re-fetching if chatbotId changes.
     const currentChatbotId = chatbot?.chatbot_id;
     return () => {
         if (currentChatbotId !== chatbot?.chatbot_id) {
@@ -161,7 +186,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
 
 
   const handleRetryFetch = () => {
-    fetchedRef.current = false;
+    fetchedRef.current = false; // Allow refetch
     fetchMessages();
   };
 
@@ -182,15 +207,24 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       metadata: { chatbotId: chatbot.chatbot_id }
     };
 
-    setMessages(prev => [...prev, optimisticUserMessage]);
+    // If the current first message is the welcome message, remove it before adding the user's message,
+    // as the conversation has now truly started.
+    setMessages(prev => {
+        const currentMessages = [...prev];
+        if (currentMessages.length === 1 && currentMessages[0].metadata?.isWelcomeMessage) {
+            return [optimisticUserMessage];
+        }
+        return [...currentMessages, optimisticUserMessage];
+    });
 
-    // Different handling for assessment trigger
+
+    // ... (rest of handleSendMessage for assessment trigger and regular chat streaming remains IDENTICAL to your provided code) ...
     if (isAssessmentTrigger) {
       const optimisticAssessmentPlaceholder: ChatMessage = {
         message_id: `local-assessment-placeholder-${Date.now()}`,
         room_id: roomId,
-        user_id: "system-assessment", // Special user_id for system messages
-        role: 'system', // Or 'assistant' if preferred for styling
+        user_id: "system-assessment",
+        role: 'system',
         content: 'Processing your assessment request...',
         created_at: new Date().toISOString(),
         metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
@@ -203,56 +237,57 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: content.trim(), // Send "/assess"
+            content: content.trim(),
             chatbot_id: chatbot.chatbot_id,
           }),
         });
-
-        // Remove placeholder
         setMessages(prev => prev.filter(msg => msg.message_id !== optimisticAssessmentPlaceholder.message_id));
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
           throw new Error(errorData.error?.message || `API error processing assessment (status: ${response.status})`);
         }
-
         const assessmentResult = await response.json();
-
-        if (assessmentResult.type === "assessment_feedback") {
+        if (assessmentResult.type === "assessment_feedback") { // Assuming your API sends this type
           const feedbackMessage: ChatMessage = {
             message_id: assessmentResult.assessmentId || `local-assessment-feedback-${Date.now()}`,
             room_id: roomId,
-            user_id: "system-feedback", // Or chatbot.chatbot_id if you want it to look like from the bot
-            role: 'system', // Or 'assistant'
-            content: assessmentResult.feedback,
+            user_id: "system-feedback",
+            role: 'system',
+            content: assessmentResult.feedback, // And this content
             created_at: new Date().toISOString(),
-            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true }
+            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true, assessmentId: assessmentResult.assessmentId }
           };
           setMessages(prev => [...prev, feedbackMessage]);
-          // TODO: Add a user-friendly notification about viewing in "My Assessments"
-          // For now, console log or a simple alert
           if (assessmentResult.assessmentId) {
               alert("Assessment feedback received! You can also view it in 'My Assessments'.");
           }
+        } else if (assessmentResult.type === "assessment_pending") { // Handle pending message from API
+            const pendingMessage: ChatMessage = {
+                message_id: `local-assessment-pending-${Date.now()}`,
+                room_id: roomId,
+                user_id: "system-assessment",
+                role: 'system',
+                content: assessmentResult.message, // Use message from API
+                created_at: new Date().toISOString(),
+                metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
+            };
+            setMessages(prev => [...prev, pendingMessage]);
         } else {
-          // Handle unexpected response
           throw new Error("Unexpected response from assessment API.");
         }
-
       } catch (err) {
         console.error('Assessment processing error:', err);
         const errorMsg = err instanceof Error ? err.message : 'Failed to process assessment';
         setError(errorMsg);
-        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id)); // remove user's /assess command
-        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]); // re-add with error
+        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id));
+        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]);
       } finally {
         setIsLoading(false);
         setTimeout(scrollToBottom, 50);
       }
-      return; // End execution for assessment command
+      return;
     }
 
-    // Regular chat message streaming
     const optimisticAssistantPlaceholder: ChatMessage = {
       message_id: `local-assistant-${Date.now()}`,
       room_id: roomId,
@@ -325,18 +360,21 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       }
        setMessages(prev => prev.map(msg =>
         msg.message_id === optimisticAssistantPlaceholder.message_id
-          ? { ...msg, content: streamedContent.trim() }
+          ? { ...msg, content: streamedContent.trim(), updated_at: new Date().toISOString() } // Add updated_at
           : msg
-       ));
+       ).filter(msg => msg.message_id !== `welcome-${chatbot.chatbot_id}`)); // Remove welcome message if it was there
 
     } catch (err) {
       console.error('Chat send/receive error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to send or receive message';
       setError(errorMsg);
+      // Remove optimistic messages on error
       setMessages(prev => prev.filter(msg =>
           msg.message_id !== optimisticUserMessage.message_id &&
-          msg.message_id !== optimisticAssistantPlaceholder.message_id
+          msg.message_id !== optimisticAssistantPlaceholder.message_id &&
+          msg.message_id !== `welcome-${chatbot.chatbot_id}` // Also ensure welcome is removed if error occurs
       ));
+       // Re-add user message with error indication
        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg}}]);
     } finally {
       setIsLoading(false);
@@ -354,9 +392,11 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       )}
 
       <MessagesList>
+        {/* MODIFIED: Logic for EmptyState or initial message */}
         {isFetchingMessages && messages.length === 0 ? (
            <LoadingIndicator><LoadingSpinner /> Loading messages...</LoadingIndicator>
-        ) : !isFetchingMessages && messages.length === 0 && !fetchError ? (
+        ) : !isFetchingMessages && messages.length === 0 && !fetchError && !(chatbot.welcome_message && chatbot.welcome_message.trim() !== '') ? (
+          // Show EmptyState only if there are no messages AND no welcome message to display
           <EmptyState>
             <h3>Start your conversation with {chatbot.name}</h3>
             <p>Your chat history will appear here.</p>
@@ -365,7 +405,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         ) : (
           messages.map((message) => (
             <ChatMessageComponent
-              key={message.message_id || `local-${message.role}-${message.created_at}-${Math.random()}`}
+              key={message.message_id} // Assuming message_id is always unique now
               message={message}
               chatbotName={chatbot.name}
             />

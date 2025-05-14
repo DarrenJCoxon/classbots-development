@@ -45,6 +45,7 @@ export interface Chatbot extends BaseTable {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
+  welcome_message?: string | null; // <-- ADDED
 }
 
 export interface Room extends BaseTable {
@@ -80,6 +81,7 @@ export interface ChatMessage extends BaseTable {
         isAssessmentFeedback?: boolean;
         isAssessmentPlaceholder?: boolean;
         assessmentId?: string | null;
+        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification)
         [key: string]: unknown;
     } | null;
 }
@@ -184,6 +186,7 @@ export interface CreateChatbotPayload {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
+  welcome_message?: string | null; // <-- ADDED
 }
 
 export interface CreateRoomPayload {
@@ -223,12 +226,14 @@ export interface FlaggedConcernDetails extends FlaggedMessage {
 
 export interface StudentRoom extends Room {
   joined_at: string;
-  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type'>[];
+  // Chatbot here now includes welcome_message if you want student dashboard to access it
+  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type' | 'welcome_message'>[];
 }
 
 export interface TeacherRoom extends Room {
    room_chatbots: {
-       chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'bot_type'> | null;
+       // Chatbot here could also include welcome_message if teacher room overview needs it
+       chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'bot_type' | 'welcome_message'> | null;
    }[] | null;
 }
 
@@ -237,7 +242,7 @@ export interface DetailedAssessmentResponse extends StudentAssessment {
     student_name?: string | null;
     student_email?: string | null;
     chatbot_name?: string | null;
-    assessed_conversation?: ChatMessage[]; // Changed DbChatMessage to ChatMessage for consistency
+    assessed_conversation?: ChatMessage[];
 }
 
 // For the list of assessments for a teacher
@@ -261,10 +266,3 @@ export interface PaginatedAssessmentsResponse {
         totalPages: number;
     };
 }
-
-// This might be redundant if DetailedAssessmentResponse is sufficient.
-// If used, ensure ChatMessage is defined or imported as DbChatMessage
-// export interface StudentAssessmentDetails extends StudentAssessment {
-//     chatbot_name?: string;
-//     room_name?: string; 
-// }

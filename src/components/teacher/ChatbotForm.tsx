@@ -13,11 +13,11 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
+// No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
 // Define BotTypeEnum locally for form state
 type BotType = 'learning' | 'assessment';
 
-// ... (Overlay, FormCard, Header, Title, CloseButton, FormContent, Footer, ActionButton styled components remain the same)
 const Overlay = styled.div`
   position: fixed;
   top: 0;
@@ -140,12 +140,11 @@ const HelpText = styled.p`
   margin-bottom: ${({ theme }) => theme.spacing.md};
 `;
 
-// NEW: Styling for the rubric/assessment criteria section
 const AssessmentCriteriaSection = styled(FormGroup)`
   border: 1px solid ${({ theme }) => theme.colors.border};
   padding: ${({ theme }) => theme.spacing.md};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
-  background-color: ${({ theme }) => theme.colors.background}; // Slightly different background
+  background-color: ${({ theme }) => theme.colors.background};
 `;
 
 const RubricInfoText = styled(HelpText)`
@@ -164,6 +163,7 @@ interface ChatbotFormData {
   enable_rag: boolean;
   bot_type: BotType;
   assessment_criteria_text: string;
+  welcome_message: string; // <--- ADDED
 }
 
 interface ChatbotFormProps {
@@ -176,12 +176,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     name: '',
     description: '',
     system_prompt: '',
-    model: 'qwen/qwen3-235b-a22b',
+    model: 'x-ai/grok-3-mini-beta',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: '',
+    welcome_message: '', // <--- ADDED initial value
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,13 +192,19 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     setIsSubmitting(true);
     setError(null);
 
+    // The payload sent to /api/teacher/chatbots should match CreateChatbotPayload
     const payload = {
-      ...formData,
-      assessment_criteria_text: formData.bot_type === 'assessment' ? formData.assessment_criteria_text : undefined,
+      name: formData.name,
+      description: formData.description || undefined,
+      system_prompt: formData.system_prompt,
+      model: formData.model,
+      max_tokens: (formData.max_tokens === undefined || formData.max_tokens === null || isNaN(formData.max_tokens) || String(formData.max_tokens).trim() === '') ? null : Number(formData.max_tokens),
+      temperature: (formData.temperature === undefined || formData.temperature === null || isNaN(formData.temperature) || String(formData.temperature).trim() === '') ? null : Number(formData.temperature),
       enable_rag: formData.bot_type === 'learning' ? formData.enable_rag : false,
+      bot_type: formData.bot_type,
+      assessment_criteria_text: formData.bot_type === 'assessment' ? (formData.assessment_criteria_text || null) : null,
+      welcome_message: formData.welcome_message.trim() || null, // <--- ADDED (send null if empty)
     };
-    if (payload.max_tokens === undefined || payload.max_tokens === null || isNaN(payload.max_tokens) || String(payload.max_tokens).trim() === '') delete payload.max_tokens;
-    if (payload.temperature === undefined || payload.temperature === null || isNaN(payload.temperature) || String(payload.temperature).trim() === '') delete payload.temperature;
 
 
     try {
@@ -206,7 +213,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), // This payload should match CreateChatbotPayload
       });
 
       const responseData = await response.json();
@@ -236,6 +243,8 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
             [name]: checked,
         }));
     } else {
+        // For welcome_message, allow empty string in state for controlled input,
+        // it will be converted to null in handleSubmit if empty.
         setFormData(prev => ({
             ...prev,
             [name]: (name === 'max_tokens' || name === 'temperature') && value !== '' ? Number(value) : value,
@@ -256,6 +265,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
           {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
           <form onSubmit={handleSubmit} id="chatbotCreateForm">
+            {/* ... other FormGroups for name, bot_type, assessment_criteria, description, system_prompt ... */}
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input
@@ -284,16 +294,15 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
-            {/* ASSESSMENT CRITERIA SECTION (Conditional) */}
             {formData.bot_type === 'assessment' && (
-              <AssessmentCriteriaSection> {/* Using new styled component */}
+              <AssessmentCriteriaSection>
                 <Label htmlFor="assessment_criteria_text">Define Assessment Rubric / Criteria</Label>
                 <TextArea
                   id="assessment_criteria_text"
                   name="assessment_criteria_text"
                   value={formData.assessment_criteria_text}
                   onChange={handleChange}
-                  rows={5} // Slightly more rows
+                  rows={5}
                   placeholder="Clearly describe what the AI should assess. For example:
 1. Accuracy of answers to key concepts.
 2. Clarity of student's explanations.
@@ -342,6 +351,23 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
+            {/* ADDED Welcome Message Field */}
+            <FormGroup>
+              <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
+              <TextArea
+                id="welcome_message"
+                name="welcome_message"
+                value={formData.welcome_message}
+                onChange={handleChange}
+                rows={3}
+                placeholder="e.g., Hello! I'm your [topic] assistant. How can I help you today?"
+              />
+              <HelpText>
+                This will be the first message the student sees from the bot.
+              </HelpText>
+            </FormGroup>
+            {/* END ADDED Welcome Message Field */}
+
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect
@@ -359,7 +385,6 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
-            {/* RAG Enable - Conditionally shown for Learning Bots */}
             {formData.bot_type === 'learning' && (
               <FormGroup>
                   <Label htmlFor="enable_rag">Knowledge Base (RAG)</Label>
@@ -380,7 +405,6 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </FormGroup>
             )}
 
-            {/* Max Tokens and Temperature - these apply to the CHATTING model, not necessarily the assessment evaluation model */}
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>
               <Input id="max_tokens" name="max_tokens" type="number" value={formData.max_tokens || ''} onChange={handleChange} placeholder="Default: 1000" />

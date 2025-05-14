@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteChatbotVectors } from '@/lib/pinecone/utils';
-import type { CreateChatbotPayload } from '@/types/database.types';
+import type { CreateChatbotPayload, Chatbot as DatabaseChatbot } from '@/types/database.types'; // Added DatabaseChatbot type
 
-// GET Handler (from your working version - content-reply-027)
+// GET Handler
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
@@ -27,7 +27,7 @@ export async function GET() {
 
     const { data: chatbots, error: fetchError } = await supabase
       .from('chatbots')
-      .select('*')
+      .select('*') // This will now include welcome_message if the DB column exists
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -46,8 +46,8 @@ export async function GET() {
   }
 }
 
-// POST Handler (from your working version, adapted in content-reply-027, ensure it has bot_type and criteria)
-export async function POST(request: NextRequest) { // Changed from Request to NextRequest
+// POST Handler
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -76,23 +76,29 @@ export async function POST(request: NextRequest) { // Changed from Request to Ne
         return NextResponse.json({ error: 'Assessment criteria are required for assessment bots.' }, { status: 400 });
     }
 
-    const chatbotDataToInsert = {
+    // Explicitly type the object being inserted to match a subset of DatabaseChatbot
+    const chatbotDataToInsert: Omit<DatabaseChatbot, 'chatbot_id' | 'created_at' | 'updated_at'> & { teacher_id: string } = {
       name: body.name,
-      description: body.description,
+      description: body.description || undefined, // Keep undefined if not provided
       system_prompt: body.system_prompt,
       teacher_id: user.id,
-      model: body.model || 'x-ai/grok-3-mini-beta', // Default if not provided
+      model: body.model || 'x-ai/grok-3-mini-beta',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
-      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false, // RAG only for learning, default false
-      bot_type: body.bot_type || 'learning', // Default to 'learning'
+      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
+      bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
+      welcome_message: body.welcome_message || null, // <-- ADDED: ensure null if empty/undefined
     };
+    if (chatbotDataToInsert.description === undefined) {
+        delete chatbotDataToInsert.description; // Remove if undefined to avoid inserting 'undefined'
+    }
+
 
     const { data: newChatbot, error: insertError } = await supabase
       .from('chatbots')
       .insert(chatbotDataToInsert)
-      .select() // Select all fields of the newly created bot
+      .select()
       .single();
 
     if (insertError) {
@@ -114,10 +120,10 @@ export async function POST(request: NextRequest) { // Changed from Request to Ne
 }
 
 
-// NEW DELETE Handler for this collection route
+// DELETE Handler
 export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
-    const chatbotId = searchParams.get('chatbotId'); // Expect chatbotId as a query parameter
+    const chatbotId = searchParams.get('chatbotId');
 
     if (!chatbotId) {
         return NextResponse.json({ error: 'Chatbot ID is required as a query parameter for deletion' }, { status: 400 });
@@ -133,7 +139,6 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
 
-        // 1. Verify teacher owns the chatbot
         const { data: chatbot, error: fetchError } = await supabase
             .from('chatbots')
             .select('teacher_id, name')
@@ -145,7 +150,7 @@ export async function DELETE(request: NextRequest) {
             if (fetchError.code === 'PGRST116') return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
             return NextResponse.json({ error: 'Failed to fetch chatbot details' }, { status: 500 });
         }
-        if (!chatbot) { // Should be caught by fetchError.code PGRST116, but as a safeguard
+        if (!chatbot) {
             return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
         }
         if (chatbot.teacher_id !== user.id) {
@@ -153,7 +158,6 @@ export async function DELETE(request: NextRequest) {
         }
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] User ${user.id} authorized to delete chatbot "${chatbot.name}".`);
 
-        // 2. Delete associated documents from Supabase Storage
         const documentsFolderPath = `${user.id}/${chatbotId}/`;
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Listing files in storage path: ${documentsFolderPath}`);
         const { data: filesInStorage, error: listError } = await adminSupabase.storage
@@ -172,12 +176,11 @@ export async function DELETE(request: NextRequest) {
             }
         }
 
-        // 3. Delete chatbot record from database (cascades should apply)
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting chatbot record from database.`);
         const { error: deleteChatbotError } = await adminSupabase
             .from('chatbots')
             .delete()
-            .eq('chatbot_id', chatbotId); // Ensure this uses the admin client
+            .eq('chatbot_id', chatbotId);
 
         if (deleteChatbotError) {
             console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error deleting chatbot from database: ${deleteChatbotError.message}`);
@@ -185,7 +188,6 @@ export async function DELETE(request: NextRequest) {
         }
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Chatbot record deleted from database.`);
 
-        // 4. Delete vectors from Pinecone
         try {
             console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting vectors from Pinecone.`);
             await deleteChatbotVectors(chatbotId);
