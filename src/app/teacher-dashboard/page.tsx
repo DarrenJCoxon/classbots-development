@@ -25,7 +25,7 @@ export default function TeacherDashboardPage() {
     <div>
       <PageHeader>
         <Title>Teacher Dashboard</Title> {/* Kept general title */}
-        <Subtitle>Welcome! Here&apos;s a summary of your ClassBots activities.</Subtitle>
+        <Subtitle>Welcome! Here&apos;s a summary of your Skolr activities.</Subtitle>
       </PageHeader>
       <DashboardOverview /> {/* Use the new overview component */}
     </div>
