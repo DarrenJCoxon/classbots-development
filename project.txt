@@ -94,6 +94,7 @@ export interface Chatbot extends BaseTable {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
+  welcome_message?: string | null; // <-- ADDED
 }
 
 export interface Room extends BaseTable {
@@ -129,6 +130,7 @@ export interface ChatMessage extends BaseTable {
         isAssessmentFeedback?: boolean;
         isAssessmentPlaceholder?: boolean;
         assessmentId?: string | null;
+        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification)
         [key: string]: unknown;
     } | null;
 }
@@ -139,6 +141,7 @@ export interface Profile extends BaseTable {
   email: string;
   role: UserRole;
   school_id?: string | null;
+  country_code?: string | null; // <-- ADD THIS
 }
 
 export interface Document extends BaseTable {
@@ -233,6 +236,7 @@ export interface CreateChatbotPayload {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
+  welcome_message?: string | null; // <-- ADDED
 }
 
 export interface CreateRoomPayload {
@@ -272,12 +276,14 @@ export interface FlaggedConcernDetails extends FlaggedMessage {
 
 export interface StudentRoom extends Room {
   joined_at: string;
-  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type'>[];
+  // Chatbot here now includes welcome_message if you want student dashboard to access it
+  chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type' | 'welcome_message'>[];
 }
 
 export interface TeacherRoom extends Room {
    room_chatbots: {
-       chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'bot_type'> | null;
+       // Chatbot here could also include welcome_message if teacher room overview needs it
+       chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'bot_type' | 'welcome_message'> | null;
    }[] | null;
 }
 
@@ -286,7 +292,7 @@ export interface DetailedAssessmentResponse extends StudentAssessment {
     student_name?: string | null;
     student_email?: string | null;
     chatbot_name?: string | null;
-    assessed_conversation?: ChatMessage[]; // Changed DbChatMessage to ChatMessage for consistency
+    assessed_conversation?: ChatMessage[];
 }
 
 // For the list of assessments for a teacher
@@ -309,14 +315,7 @@ export interface PaginatedAssessmentsResponse {
         totalCount: number;
         totalPages: number;
     };
-}
-
-// This might be redundant if DetailedAssessmentResponse is sufficient.
-// If used, ensure ChatMessage is defined or imported as DbChatMessage
-// export interface StudentAssessmentDetails extends StudentAssessment {
-//     chatbot_name?: string;
-//     room_name?: string; 
-// }// src/types/auth.types.ts
+}// src/types/auth.types.ts
 import { User, Session } from '@supabase/supabase-js';
 import { UserRole } from './database.types';
 
@@ -3149,7 +3148,7 @@ export default function TeacherDashboardLayout({
 }// src/app/teacher-dashboard/chatbots/[chatbotId]/edit/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react'; 
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import {
@@ -3160,7 +3159,8 @@ import { createClient } from '@/lib/supabase/client';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
-import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType } from '@/types/database.types';
+// MODIFIED: Import CreateChatbotPayload
+import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType, CreateChatbotPayload } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
@@ -3253,12 +3253,13 @@ const initialChatbotState: Chatbot = {
     description: '',
     system_prompt: `You are a helpful AI assistant.`,
     teacher_id: '',
-    model: 'qwen/qwen3-235b-a22b',
+    model: 'x-ai/grok-3-mini-beta',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: null,
+    welcome_message: null, // This was already correctly added by you
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
 };
@@ -3283,7 +3284,6 @@ export default function ConfigureChatbotPage() {
 
   const fetchChatbotData = useCallback(async (id: string, teacherId: string) => {
     setFormError(null);
-    // setLoading(true); // pageLoading handles initial, this is for subsequent if needed
     try {
       const { data, error } = await supabase
         .from('chatbots')
@@ -3299,25 +3299,20 @@ export default function ConfigureChatbotPage() {
       if (!fetchedData.bot_type) {
         fetchedData.bot_type = 'learning';
       }
+      fetchedData.welcome_message = fetchedData.welcome_message || null;
       setChatbot(fetchedData);
 
-      // This logic is now handled by the separate useEffect that depends on fetchDocumentsData
-      // if (fetchedData.bot_type === 'learning' && fetchedData.enable_rag) {
-      //     await fetchDocumentsData(id); 
-      // } else {
-      //     setDocuments([]);
-      // }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to load chatbot data.');
-      setChatbot(initialChatbotState); // Reset to initial on error
+      setChatbot(initialChatbotState);
     } finally {
-      setPageLoading(false); // Ensure pageLoading is set to false here
+      setPageLoading(false);
     }
-  }, [supabase]); // Removed fetchDocumentsData as it's handled by another useEffect
+  }, [supabase]);
 
   useEffect(() => {
     const initializePage = async () => {
-        setPageLoading(true); // Ensure loading starts
+        setPageLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             router.push('/auth');
@@ -3329,17 +3324,16 @@ export default function ConfigureChatbotPage() {
             setIsCreateMode(true);
             setChatbot({ ...initialChatbotState, teacher_id: user.id });
             setDocuments([]);
-            setPageLoading(false); // Stop loading for new mode
+            setPageLoading(false);
         } else {
             setIsCreateMode(false);
-            // fetchChatbotData will setPageLoading(false) in its finally block
             await fetchChatbotData(chatbotIdFromParams, user.id);
         }
     };
-    if (chatbotIdFromParams) { // Ensure chatbotIdFromParams is available
+    if (chatbotIdFromParams) {
         initializePage();
     }
-  }, [chatbotIdFromParams, router, supabase, fetchChatbotData]); // Added fetchChatbotData
+  }, [chatbotIdFromParams, router, supabase, fetchChatbotData]);
 
   const fetchDocumentsData = useCallback(async (currentChatbotId: string) => {
     if (!currentChatbotId) return;
@@ -3359,14 +3353,12 @@ export default function ConfigureChatbotPage() {
     } finally {
       setDocsLoading(false);
     }
-  }, []); // This useCallback has no external dependencies from its scope.
+  }, []);
 
   useEffect(() => {
-    // This effect specifically handles fetching documents when relevant chatbot properties change.
     if (!isCreateMode && chatbot.chatbot_id && chatbot.bot_type === 'learning' && chatbot.enable_rag) {
         fetchDocumentsData(chatbot.chatbot_id);
     } else if (!isCreateMode && chatbot.chatbot_id && (chatbot.bot_type !== 'learning' || !chatbot.enable_rag)) {
-        // If RAG is disabled or type changes from learning, clear documents
         setDocuments([]);
     }
   }, [chatbot.chatbot_id, chatbot.bot_type, chatbot.enable_rag, isCreateMode, fetchDocumentsData]);
@@ -3384,55 +3376,68 @@ export default function ConfigureChatbotPage() {
     setSuccessMessage(null);
 
     const currentBotType = chatbot.bot_type || 'learning';
-    const payload: Partial<Chatbot> = {
+
+    // This payload is for the direct Supabase client .update() call
+    const supabaseUpdatePayload: Partial<Omit<Chatbot, 'chatbot_id' | 'created_at' | 'updated_at' | 'teacher_id'>> & { teacher_id?: string } = {
         name: chatbot.name,
         description: chatbot.description || undefined,
         system_prompt: chatbot.system_prompt,
-        teacher_id: currentUserId,
+        // teacher_id: currentUserId, // Not strictly needed for update if RLS is correct, but doesn't harm
         model: chatbot.model,
-        max_tokens: (chatbot.max_tokens === undefined || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
-        temperature: (chatbot.temperature === undefined || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
+        max_tokens: (chatbot.max_tokens === undefined || chatbot.max_tokens === null || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
+        temperature: (chatbot.temperature === undefined || chatbot.temperature === null || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
         enable_rag: currentBotType === 'learning' ? (chatbot.enable_rag || false) : false,
         bot_type: currentBotType,
         assessment_criteria_text: currentBotType === 'assessment' ? (chatbot.assessment_criteria_text || null) : null,
+        welcome_message: chatbot.welcome_message || null,
     };
-    if (payload.description === undefined) delete payload.description;
-    
-    // Ensure null is sent if fields are cleared, not undefined
-    if (payload.max_tokens === undefined) payload.max_tokens = null;
-    if (payload.temperature === undefined) payload.temperature = null;
+    if (supabaseUpdatePayload.description === undefined) delete supabaseUpdatePayload.description;
 
 
     try {
         if (isCreateMode) {
+            // Construct the payload for the API POST, matching CreateChatbotPayload
+            const apiCreatePayload: CreateChatbotPayload = {
+                name: chatbot.name,
+                system_prompt: chatbot.system_prompt,
+                description: chatbot.description || undefined,
+                model: chatbot.model || 'qwen/qwen3-235b-a22b', // Ensure model has a default if chatbot.model is undefined
+                max_tokens: supabaseUpdatePayload.max_tokens,
+                temperature: supabaseUpdatePayload.temperature,
+                enable_rag: supabaseUpdatePayload.enable_rag,
+                bot_type: supabaseUpdatePayload.bot_type,
+                assessment_criteria_text: supabaseUpdatePayload.assessment_criteria_text,
+                welcome_message: supabaseUpdatePayload.welcome_message,
+            };
+
             const response = await fetch('/api/teacher/chatbots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(apiCreatePayload),
             });
             const responseData = await response.json();
             if (!response.ok) throw new Error(responseData.error || 'Failed to create chatbot');
 
             setSuccessMessage('Chatbot created successfully! You can now continue configuring or manage documents if RAG is enabled.');
-            const newBotData = responseData as Chatbot;
-            if (!newBotData.bot_type) newBotData.bot_type = 'learning';
-            setChatbot(newBotData);
-            setIsCreateMode(false); // Switch to edit mode
-            router.replace(`/teacher-dashboard/chatbots/${responseData.chatbot_id}/edit`, { scroll: false });
+            const newBotData = responseData as Chatbot; // API returns the full Chatbot object
+            setChatbot(newBotData); // Update local state with the full new bot data
+            setIsCreateMode(false);
+            router.replace(`/teacher-dashboard/chatbots/${newBotData.chatbot_id}/edit`, { scroll: false });
 
-        } else { 
+        } else {
+            // Use supabaseUpdatePayload for the direct Supabase client update
+            // We don't need to spread teacher_id here as it's part of the .eq() condition
+            const updateDataForSupabase = { ...supabaseUpdatePayload };
+            delete updateDataForSupabase.teacher_id; // teacher_id is for eq, not update payload itself
+
             const { error: updateError } = await supabase
                 .from('chatbots')
-                .update({ ...payload, updated_at: new Date().toISOString() })
+                .update({ ...updateDataForSupabase, updated_at: new Date().toISOString() })
                 .eq('chatbot_id', chatbot.chatbot_id)
                 .eq('teacher_id', currentUserId);
 
             if (updateError) throw updateError;
-            setSuccessMessage('Chatbot updated successfully!'); 
-            // No automatic redirect on update, user might want to continue editing RAG docs
-            // setTimeout(() => {
-            //     router.push('/teacher-dashboard/chatbots');
-            // }, 1500); 
+            setSuccessMessage('Chatbot updated successfully!');
         }
     } catch (err) {
         setFormError(err instanceof Error ? err.message : (isCreateMode ? 'Failed to create chatbot.' : 'Failed to update chatbot.'));
@@ -3443,13 +3448,19 @@ export default function ConfigureChatbotPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    let processedValue: string | number | undefined | BotType = value;
+    let processedValue: string | number | boolean | undefined | null | BotType = value;
 
     if (name === "max_tokens" || name === "temperature") {
-        processedValue = value === `` ? undefined : Number(value); // Allow clearing to undefined
+        processedValue = value === `` ? null : Number(value);
     } else if (name === "bot_type") {
         processedValue = value as BotType;
+    } else if (name === "enable_rag") { // Checkbox handled by handleCheckboxChange
+        return;
     }
+    else if ((name === "welcome_message" || name === "assessment_criteria_text") && value.trim() === "") {
+        processedValue = null;
+    }
+
     setChatbot(prev => ({ ...prev, [name]: processedValue } as Chatbot));
   };
 
@@ -3467,7 +3478,7 @@ export default function ConfigureChatbotPage() {
       });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to start document processing'); }
       setDocuments(prevDocs => prevDocs.map(doc => doc.document_id === documentId ? { ...doc, status: 'processing' } : doc));
-      setViewingDocumentId(documentId); // Show status for this doc
+      setViewingDocumentId(documentId);
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not process document.'); }
   };
 
@@ -3490,7 +3501,6 @@ export default function ConfigureChatbotPage() {
   if (pageLoading) {
     return ( <PageWrapper><Container><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></Container></PageWrapper> );
   }
-  // Ensure chatbot is not null when not in create mode, after pageLoading is false
   if (!isCreateMode && !chatbot.chatbot_id && !pageLoading) {
      return ( <PageWrapper><Container><Alert variant="error">{formError || `Chatbot data could not be initialized. Please go back and try again.`}</Alert></Container></PageWrapper> );
   }
@@ -3511,7 +3521,7 @@ export default function ConfigureChatbotPage() {
           {formError && <Alert variant="error" style={{ marginBottom: '16px'}}>{formError}</Alert>}
           {successMessage && <Alert variant="success" style={{ marginBottom: '16px'}}>{successMessage}</Alert>}
 
-          <form onSubmit={handleSubmit}> 
+          <form onSubmit={handleSubmit}>
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input id="name" name="name" value={chatbot.name || ``} onChange={handleChange} required />
@@ -3541,11 +3551,28 @@ export default function ConfigureChatbotPage() {
               <TextArea id="system_prompt" name="system_prompt" value={chatbot.system_prompt || ``} onChange={handleChange} required rows={displayBotType === 'assessment' ? 3 : 5} placeholder={ displayBotType === 'assessment' ? `e.g., 'You are an assessment assistant...'` : `e.g., 'You are a friendly history tutor...'` }/>
               <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Bots, instructions from 'Assessment Criteria' are key.`}</HelpText>
             </FormGroup>
+
+            {/* Welcome Message Field - THIS IS THE NEWLY ADDED FIELD */}
+            <FormGroup>
+              <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
+              <TextArea
+                id="welcome_message"
+                name="welcome_message"
+                value={chatbot.welcome_message || ''}
+                onChange={handleChange}
+                rows={3}
+                placeholder="e.g., Hi there! I'm here to help you with [topic]. What would you like to discuss first?"
+              />
+              <HelpText>
+                This message will be shown to students as the first message from the chatbot when they start a new chat. Leave blank for no welcome message.
+              </HelpText>
+            </FormGroup>
+
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect id="model" name="model" value={chatbot.model || 'qwen/qwen3-235b-a22b'} onChange={handleChange}>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta (Paid)</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B (Free)</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
+                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option>
                   <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
               </StyledSelect>
               <HelpText>This model is used for general chat. Assessment evaluation will use Qwen3 235B.</HelpText>
@@ -3572,7 +3599,7 @@ export default function ConfigureChatbotPage() {
             <Button type="submit" disabled={saving || pageLoading} style={{ width: `100%`, marginTop: `16px` }}>
               {saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create & Configure Chatbot' : 'Save Changes')}
             </Button>
-          </form> 
+          </form>
 
           {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
@@ -3582,23 +3609,23 @@ export default function ConfigureChatbotPage() {
                 {docsError && <Alert variant="error">{docsError}</Alert>}
                 <DocumentUploader chatbotId={chatbot.chatbot_id} onUploadSuccess={() => { setSuccessMessage("Document uploaded. Refreshing list..."); fetchDocumentsData(chatbot.chatbot_id!); }} />
                 {viewingDocumentId && getViewingDocument() && (
-                    <EmbeddingStatus 
-                      document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }} 
-                      chatbotId={chatbot.chatbot_id!} 
-                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }} 
+                    <EmbeddingStatus
+                      document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }}
+                      chatbotId={chatbot.chatbot_id!}
+                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }}
                     />
                 )}
                 {docsLoading ? ( <LoadingStateContainer><LoadingSpinner size="small"/><span>Loading documents...</span></LoadingStateContainer> ) : (
-                    <DocumentList 
-                      documents={documents.map(doc => ({ ...doc, updated_at: doc.updated_at ?? new Date().toISOString() }))} 
-                      onProcessDocument={handleProcessDocument} 
-                      onDeleteDocument={handleDeleteDocument} 
-                      onViewStatus={setViewingDocumentId} 
+                    <DocumentList
+                      documents={documents.map(doc => ({ ...doc, updated_at: doc.updated_at ?? new Date().toISOString() }))}
+                      onProcessDocument={handleProcessDocument}
+                      onDeleteDocument={handleDeleteDocument}
+                      onViewStatus={setViewingDocumentId}
                     />
                 )}
             </>
           )}
-          {isCreateMode && displayBotType === 'learning' && ( // Show hint for new learning bots
+          {isCreateMode && displayBotType === 'learning' && (
             <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads.</HelpText>
           )}
         </Card>
@@ -5413,7 +5440,7 @@ export default function TeacherDashboardPage() {
     <div>
       <PageHeader>
         <Title>Teacher Dashboard</Title> {/* Kept general title */}
-        <Subtitle>Welcome! Here&apos;s a summary of your ClassBots activities.</Subtitle>
+        <Subtitle>Welcome! Here&apos;s a summary of your Skolr activities.</Subtitle>
       </PageHeader>
       <DashboardOverview /> {/* Use the new overview component */}
     </div>
@@ -5855,20 +5882,12 @@ import { queryVectors } from '@/lib/pinecone/utils';
 
 // ONLY import what is DIRECTLY CALLED by THIS file.
 // checkMessageSafety is the function we call from monitoring.ts.
-// initialConcernCheck and verifyConcern are used INTERNALLY by checkMessageSafety.
 import { checkMessageSafety } from '@/lib/safety/monitoring';
 
 // Import specific types needed in THIS file.
 import type { ChatMessage, Room } from '@/types/database.types';
-// Database and SupabaseClient types are generally not needed if the supabase client instance is not explicitly typed here.
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// CONCERN_THRESHOLD is defined and used within 'src/lib/safety/monitoring.ts', so it's not needed here.
-
-// These constants WILL BE USED when we re-integrate assessment logic.
-// For now, to avoid "unused var" errors while we stabilize, we can comment them out
-// or keep them if we are immediately moving to re-add assessment logic after this fix.
-// Let's keep them for now, anticipating the next step.
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
 const ASSESSMENT_CONTEXT_MESSAGE_COUNT = 5;
 
@@ -5920,7 +5939,7 @@ export async function GET(request: NextRequest) {
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
   let userMessageId: string | null = null;
-  const supabase = await createServerSupabaseClient(); // User-context client
+  const supabase = await createServerSupabaseClient(); 
 
   try {
     const pathname = request.nextUrl.pathname;
@@ -5946,10 +5965,9 @@ export async function POST(request: NextRequest) {
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
 
-    // Fetch full chatbot config, including bot_type for assessment logic
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -5962,7 +5980,7 @@ export async function POST(request: NextRequest) {
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
             .from('rooms')
-            .select('room_id, teacher_id, room_name') // Ensure all fields needed by checkMessageSafety are here
+            .select('room_id, teacher_id, room_name, school_id') 
             .eq('room_id', roomId)
             .single();
         if (roomFetchError || !roomData) { 
@@ -5980,68 +5998,66 @@ export async function POST(request: NextRequest) {
     const { data: savedUserMessageData, error: userMessageError } = await supabase.from('chat_messages').insert(userMessageToStore).select('message_id, created_at').single();
     if (userMessageError || !savedUserMessageData) { console.error('Error storing user message:', userMessageError); return NextResponse.json({ error: 'Failed to store message' }, { status: 500 }); }
     userMessageId = savedUserMessageData.message_id;
-    const userMessageCreatedAt = savedUserMessageData.created_at; // Will be used when re-adding assessment trigger
+    const userMessageCreatedAt = savedUserMessageData.created_at;
     
     // Safety Check Trigger
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}`);
-        // Call the imported function. The 'supabase' here is the user-context client.
-        checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck)
+        let teacherCountryCode: string | null = null;
+        try {
+            if (roomForSafetyCheck.teacher_id) {
+                const { data: teacherProfileData, error: teacherProfileError } = await supabase
+                    .from('profiles')
+                    .select('country_code')
+                    .eq('user_id', roomForSafetyCheck.teacher_id)
+                    .single();
+
+                if (teacherProfileError) {
+                    console.warn(`[API Chat POST] Error fetching teacher profile for safety check (teacher_id: ${roomForSafetyCheck.teacher_id}):`, teacherProfileError.message);
+                } else if (teacherProfileData) {
+                    teacherCountryCode = teacherProfileData.country_code || null;
+                }
+            } else {
+                console.warn(`[API Chat POST] Teacher ID not found in roomForSafetyCheck object. Cannot fetch country for safety check.`);
+            }
+        } catch (countryFetchError) {
+            console.warn(`[API Chat POST] Exception while trying to fetch teacher's country for safety check:`, countryFetchError);
+        }
+
+        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
+        // *** CORRECTED CALL: Added teacherCountryCode as the 6th argument ***
+        checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
             .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
     } else {
-        console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}`);
+        console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}, roomForSafetyCheck: ${!!roomForSafetyCheck}`);
     }
 
     // --- ASSESSMENT TRIGGER LOGIC ---
-    // This is where the assessment trigger logic, which uses ASSESSMENT_TRIGGER_COMMAND and ASSESSMENT_CONTEXT_MESSAGE_COUNT,
-    // and userMessageCreatedAt will be re-inserted.
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
-        
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
             .from('chat_messages')
             .select('message_id')
             .eq('room_id', roomId)
             .eq('user_id', user.id) 
             .eq('metadata->>chatbotId', chatbot_id)
-            .lt('created_at', userMessageCreatedAt) // Use the timestamp of the "/assess" command
+            .lt('created_at', userMessageCreatedAt)
             .order('created_at', { ascending: false })
-            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); // Fetch enough to get varied turns
-
+            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); 
         if (contextMsgsError) {
             console.error(`[API Chat POST] Error fetching message IDs for assessment context: ${contextMsgsError.message}`);
-            // Not returning error, assessment might proceed with less context
         }
-        
         const messageIdsToAssess = (contextMessagesForAssessment || []).map(m => m.message_id).reverse();
-        
-        const assessmentPayload = {
-            student_id: user.id,
-            chatbot_id: chatbot_id,
-            room_id: roomId,
-            message_ids_to_assess: messageIdsToAssess,
-        };
-
+        const assessmentPayload = { student_id: user.id, chatbot_id: chatbot_id, room_id: roomId, message_ids_to_assess: messageIdsToAssess };
         console.log(`[API Chat POST] Asynchronously calling /api/assessment/process.`);
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-        fetch(`${baseUrl}/api/assessment/process`, { // This is the call to the new dedicated assessment API
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(assessmentPayload),
-        }).catch(fetchError => {
-            console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError);
-        });
-
-        return NextResponse.json({
-            type: "assessment_pending",
-            message: "Your responses are being submitted for assessment. Feedback will appear here shortly."
-        });
+        fetch(`${baseUrl}/api/assessment/process`, { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assessmentPayload),
+        }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
+        return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
     // --- END OF ASSESSMENT TRIGGER LOGIC ---
 
-
     // Regular Chat Logic (RAG, LLM Call, Streaming)
-    // This part will only execute if it's NOT an assessment trigger.
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
       .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
@@ -6092,7 +6108,6 @@ export async function POST(request: NextRequest) {
         throw new Error(errorMessage);
     }
 
-    // Streaming logic...
     let fullResponseContent = ''; const encoder = new TextEncoder(); let assistantMessageId: string | null = null;
     const stream = new ReadableStream({
         async start(controller) {
@@ -6133,10 +6148,7 @@ export async function POST(request: NextRequest) {
       console.error('Error in POST /api/chat/[roomId]:', error); 
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to process message' }, { status: 500 }); 
   }
-}
-
-// NO LOCAL DEFINITION OF checkMessageSafety, initialConcernCheck, or verifyConcern HERE.
-// They are handled by the import from '@/lib/safety/monitoring.ts'.// src/app/api/health/route.ts
+}// src/app/api/health/route.ts
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -8243,9 +8255,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteChatbotVectors } from '@/lib/pinecone/utils';
-import type { CreateChatbotPayload } from '@/types/database.types';
+import type { CreateChatbotPayload, Chatbot as DatabaseChatbot } from '@/types/database.types'; // Added DatabaseChatbot type
 
-// GET Handler (from your working version - content-reply-027)
+// GET Handler
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
@@ -8267,7 +8279,7 @@ export async function GET() {
 
     const { data: chatbots, error: fetchError } = await supabase
       .from('chatbots')
-      .select('*')
+      .select('*') // This will now include welcome_message if the DB column exists
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -8286,8 +8298,8 @@ export async function GET() {
   }
 }
 
-// POST Handler (from your working version, adapted in content-reply-027, ensure it has bot_type and criteria)
-export async function POST(request: NextRequest) { // Changed from Request to NextRequest
+// POST Handler
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -8316,23 +8328,29 @@ export async function POST(request: NextRequest) { // Changed from Request to Ne
         return NextResponse.json({ error: 'Assessment criteria are required for assessment bots.' }, { status: 400 });
     }
 
-    const chatbotDataToInsert = {
+    // Explicitly type the object being inserted to match a subset of DatabaseChatbot
+    const chatbotDataToInsert: Omit<DatabaseChatbot, 'chatbot_id' | 'created_at' | 'updated_at'> & { teacher_id: string } = {
       name: body.name,
-      description: body.description,
+      description: body.description || undefined, // Keep undefined if not provided
       system_prompt: body.system_prompt,
       teacher_id: user.id,
-      model: body.model || 'x-ai/grok-3-mini-beta', // Default if not provided
+      model: body.model || 'x-ai/grok-3-mini-beta',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
-      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false, // RAG only for learning, default false
-      bot_type: body.bot_type || 'learning', // Default to 'learning'
+      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
+      bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
+      welcome_message: body.welcome_message || null, // <-- ADDED: ensure null if empty/undefined
     };
+    if (chatbotDataToInsert.description === undefined) {
+        delete chatbotDataToInsert.description; // Remove if undefined to avoid inserting 'undefined'
+    }
+
 
     const { data: newChatbot, error: insertError } = await supabase
       .from('chatbots')
       .insert(chatbotDataToInsert)
-      .select() // Select all fields of the newly created bot
+      .select()
       .single();
 
     if (insertError) {
@@ -8354,10 +8372,10 @@ export async function POST(request: NextRequest) { // Changed from Request to Ne
 }
 
 
-// NEW DELETE Handler for this collection route
+// DELETE Handler
 export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
-    const chatbotId = searchParams.get('chatbotId'); // Expect chatbotId as a query parameter
+    const chatbotId = searchParams.get('chatbotId');
 
     if (!chatbotId) {
         return NextResponse.json({ error: 'Chatbot ID is required as a query parameter for deletion' }, { status: 400 });
@@ -8373,7 +8391,6 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
 
-        // 1. Verify teacher owns the chatbot
         const { data: chatbot, error: fetchError } = await supabase
             .from('chatbots')
             .select('teacher_id, name')
@@ -8385,7 +8402,7 @@ export async function DELETE(request: NextRequest) {
             if (fetchError.code === 'PGRST116') return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
             return NextResponse.json({ error: 'Failed to fetch chatbot details' }, { status: 500 });
         }
-        if (!chatbot) { // Should be caught by fetchError.code PGRST116, but as a safeguard
+        if (!chatbot) {
             return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
         }
         if (chatbot.teacher_id !== user.id) {
@@ -8393,7 +8410,6 @@ export async function DELETE(request: NextRequest) {
         }
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] User ${user.id} authorized to delete chatbot "${chatbot.name}".`);
 
-        // 2. Delete associated documents from Supabase Storage
         const documentsFolderPath = `${user.id}/${chatbotId}/`;
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Listing files in storage path: ${documentsFolderPath}`);
         const { data: filesInStorage, error: listError } = await adminSupabase.storage
@@ -8412,12 +8428,11 @@ export async function DELETE(request: NextRequest) {
             }
         }
 
-        // 3. Delete chatbot record from database (cascades should apply)
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting chatbot record from database.`);
         const { error: deleteChatbotError } = await adminSupabase
             .from('chatbots')
             .delete()
-            .eq('chatbot_id', chatbotId); // Ensure this uses the admin client
+            .eq('chatbot_id', chatbotId);
 
         if (deleteChatbotError) {
             console.error(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error deleting chatbot from database: ${deleteChatbotError.message}`);
@@ -8425,7 +8440,6 @@ export async function DELETE(request: NextRequest) {
         }
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Chatbot record deleted from database.`);
 
-        // 4. Delete vectors from Pinecone
         try {
             console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting vectors from Pinecone.`);
             await deleteChatbotVectors(chatbotId);
@@ -9909,9 +9923,15 @@ export default function Home() {
         
         {!user && (
           <CTAButtons>
-            <Button size="large" onClick={() => router.push('/auth')}>
+            <Button size="large" onClick={() => router.push('/auth?type=teacher_signup')}>
+              Teacher Sign Up FREE
+            </Button>
+            {/* Optional: Add a separate, less prominent "Teacher Sign In" button if desired */}
+            {/* For example:
+            <Button size="large" variant="outline" onClick={() => router.push('/auth')}>
               Teacher Sign In
             </Button>
+            */}
             <Button size="large" variant="secondary" onClick={() => router.push('/join')}>
               Student: Join Class
             </Button>
@@ -10723,11 +10743,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button as StyledButton, Alert } from '@/styles/StyledComponents';
+import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents'; // Removed HelpText
 
 const AuthCard = styled(Card)`
   max-width: 400px;
   margin: 4rem auto;
+`;
+
+const HelpText = styled.div`
+  font-size: 0.95em;
+  color: ${({ theme }) => theme.colors.textLight};
+  margin-top: ${({ theme }) => theme.spacing.xs};
 `;
 
 const Title = styled.h1`
@@ -10760,6 +10786,7 @@ export default function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [countryCode, setCountryCode] = useState(''); // <--- ADDED for country selection
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -10783,7 +10810,6 @@ export default function AuthForm({ type }: AuthFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate full name for all signup types
     if (type === 'signup' && !fullName.trim()) {
       setError('Full name is required');
       return;
@@ -10794,20 +10820,24 @@ export default function AuthForm({ type }: AuthFormProps) {
 
     try {
       if (type === 'signup') {
-        // Determine role based on student signup flag
         const role = isStudentSignup ? 'student' : 'teacher';
         
-        // Simplified signup with just the essential data
-        // Let the database trigger handle profile creation
+        // Prepare options.data, including country_code for teachers
+        const signupData: { role: string; full_name: string; country_code?: string | null } = {
+            role: role,
+            full_name: fullName,
+        };
+
+        if (role === 'teacher') {
+            signupData.country_code = countryCode.trim() || null; // Add country_code if teacher and it's set
+        }
+        
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-            data: {
-              role: role,
-              full_name: fullName,
-            }
+            data: signupData // Use the prepared signupData
           },
         });
         
@@ -10816,42 +10846,31 @@ export default function AuthForm({ type }: AuthFormProps) {
           throw signUpError;
         }
         
-        // For student signup, wait a moment then try to sign in
         if (isStudentSignup) {
-          // Wait a moment for account creation to complete
           await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Try to sign in
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
-          
           if (!signInError && signInData.user) {
-            // Successfully signed in, redirect to join page
             router.push(redirectTo);
           } else {
-            // If login fails, show error but allow student to proceed to login page
             setError('Account created! Please log in to continue.');
             setTimeout(() => {
               router.push(`/auth?type=login&redirect=${encodeURIComponent(redirectTo)}`);
             }, 3000);
           }
-        } else {
-          // For teachers, show success message
-          alert('Check your email for the confirmation link!');
+        } else { // Teacher signup
+          alert('Check your email for the confirmation link! Please also check your spam folder.');
         }
-      } else {
-        // Handle login
+      } else { // Login
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        
         if (signInError) {
           throw signInError;
         }
-        
         router.push(redirectTo);
         router.refresh();
       }
@@ -10863,18 +10882,15 @@ export default function AuthForm({ type }: AuthFormProps) {
     }
   };
 
-  // Special UI for student signup (very similar to teacher signup now)
+  // Special UI for student signup
   if (isStudentSignup && type === 'signup') {
     return (
       <AuthCard>
         <Title>Student Sign Up</Title>
-        
         <InfoBox>
           <p><strong>For Students:</strong> Sign up here to join your classroom.</p>
         </InfoBox>
-        
         {error && <Alert variant="error">{error}</Alert>}
-        
         <form onSubmit={handleSubmit}>
           <FormGroup>
             <Label htmlFor="fullName">Full Name</Label>
@@ -10917,33 +10933,59 @@ export default function AuthForm({ type }: AuthFormProps) {
     );
   }
 
-  // Regular auth form for teachers or login
+  // Regular auth form for teachers (signup/login) or general login
   return (
     <AuthCard>
       <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
       
-      {type === 'signup' && (
+      {type === 'signup' && ( // This block is for Teacher Signup or general Signup
         <InfoBox>
           <p><strong>For Teachers:</strong> Sign up here to create your teacher account.</p>
-          <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
+          {!isStudentSignup && ( // Only show student info if not already in student signup flow
+             <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
+          )}
         </InfoBox>
       )}
       
       {error && <Alert variant="error">{error}</Alert>}
       
       <form onSubmit={handleSubmit}>
-        {type === 'signup' && (
-          <FormGroup>
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter your full name"
-              required
-            />
-          </FormGroup>
+        {type === 'signup' && ( // Fields specific to signup
+          <>
+            <FormGroup>
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
+            </FormGroup>
+            {/* ADDED Country Code Dropdown FOR TEACHER SIGNUP */}
+            {!isStudentSignup && ( // Only show for teacher signup
+                 <FormGroup>
+                    <Label htmlFor="countryCode">Your Country (Optional)</Label>
+                    <StyledSelect
+                        id="countryCode"
+                        name="countryCode"
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                    >
+                        <option value="">Select Country</option>
+                        <option value="US">United States</option>
+                        <option value="GB">United Kingdom</option>
+                        <option value="CA">Canada</option>
+                        <option value="AU">Australia</option>
+                        <option value="NZ">New Zealand</option>
+                        <option value="EU">EU</option>
+                        {/* Add more relevant countries as needed */}
+                    </StyledSelect>
+                    <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
+                 </FormGroup>
+            )}
+          </>
         )}
         <FormGroup>
           <Label htmlFor="email">Email</Label>
@@ -11772,7 +11814,7 @@ import { Card, Alert, Button } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import type { ChatMessage, Chatbot } from '@/types/database.types';
+import type { ChatMessage, Chatbot } from '@/types/database.types'; // Chatbot type now includes welcome_message
 
 // Constants from API route
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -11851,15 +11893,15 @@ const LoadingIndicator = styled.div`
 
 interface ChatProps {
   roomId: string;
-  chatbot: Chatbot; // This should be the full Chatbot object, including bot_type
+  chatbot: Chatbot;
 }
 
 export default function Chat({ roomId, chatbot }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // For general sending state
+  const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMessages, setIsFetchingMessages] = useState(true);
-  const [error, setError] = useState<string | null>(null); // For send errors
-  const [fetchError, setFetchError] = useState<string | null>(null); // For initial fetch errors
+  const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef(false);
@@ -11901,7 +11943,28 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         throw new Error(`Failed to fetch messages (status: ${response.status}) - ${errorText}`);
       }
       const data = await response.json();
-      setMessages(Array.isArray(data) ? data as ChatMessage[] : []);
+      let fetchedMsgs = Array.isArray(data) ? (data as ChatMessage[]) : [];
+
+      // MODIFIED: Prepend welcome message if it's a new chat and welcome message exists
+      // Also check if the first message isn't already our special welcome message (to avoid duplicates on re-fetch/re-render)
+      if (
+        fetchedMsgs.length === 0 &&
+        chatbot.welcome_message &&
+        chatbot.welcome_message.trim() !== ''
+      ) {
+        const welcomeMsg: ChatMessage = {
+          message_id: `welcome-${chatbot.chatbot_id}`, // Use a consistent ID for the welcome message
+          room_id: roomId,
+          user_id: chatbot.chatbot_id, // Attributed to the bot
+          role: 'assistant',
+          content: chatbot.welcome_message,
+          created_at: new Date(0).toISOString(), // Ensures it's always first if sorted by date
+          metadata: { chatbotId: chatbot.chatbot_id, isWelcomeMessage: true },
+        };
+        fetchedMsgs = [welcomeMsg]; // Show only welcome message if no other history
+      }
+
+      setMessages(fetchedMsgs);
       setTimeout(scrollToBottom, 100);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
@@ -11909,12 +11972,16 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
     } finally {
       setIsFetchingMessages(false);
     }
-  }, [roomId, chatbot?.chatbot_id, userId, scrollToBottom]);
+  // MODIFIED: Added `chatbot.welcome_message` to dependencies of fetchMessages
+  // This ensures fetchMessages is re-evaluated if the welcome message itself changes (e.g., teacher edits it)
+  // and the component re-renders with the new chatbot prop.
+  }, [roomId, chatbot?.chatbot_id, chatbot?.welcome_message, userId, scrollToBottom]);
 
   useEffect(() => {
     if (userId && chatbot?.chatbot_id && !fetchedRef.current) {
       fetchMessages();
     }
+    // This cleanup logic for fetchedRef seems fine for re-fetching if chatbotId changes.
     const currentChatbotId = chatbot?.chatbot_id;
     return () => {
         if (currentChatbotId !== chatbot?.chatbot_id) {
@@ -11925,7 +11992,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
 
 
   const handleRetryFetch = () => {
-    fetchedRef.current = false;
+    fetchedRef.current = false; // Allow refetch
     fetchMessages();
   };
 
@@ -11946,15 +12013,24 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       metadata: { chatbotId: chatbot.chatbot_id }
     };
 
-    setMessages(prev => [...prev, optimisticUserMessage]);
+    // If the current first message is the welcome message, remove it before adding the user's message,
+    // as the conversation has now truly started.
+    setMessages(prev => {
+        const currentMessages = [...prev];
+        if (currentMessages.length === 1 && currentMessages[0].metadata?.isWelcomeMessage) {
+            return [optimisticUserMessage];
+        }
+        return [...currentMessages, optimisticUserMessage];
+    });
 
-    // Different handling for assessment trigger
+
+    // ... (rest of handleSendMessage for assessment trigger and regular chat streaming remains IDENTICAL to your provided code) ...
     if (isAssessmentTrigger) {
       const optimisticAssessmentPlaceholder: ChatMessage = {
         message_id: `local-assessment-placeholder-${Date.now()}`,
         room_id: roomId,
-        user_id: "system-assessment", // Special user_id for system messages
-        role: 'system', // Or 'assistant' if preferred for styling
+        user_id: "system-assessment",
+        role: 'system',
         content: 'Processing your assessment request...',
         created_at: new Date().toISOString(),
         metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
@@ -11967,56 +12043,57 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: content.trim(), // Send "/assess"
+            content: content.trim(),
             chatbot_id: chatbot.chatbot_id,
           }),
         });
-
-        // Remove placeholder
         setMessages(prev => prev.filter(msg => msg.message_id !== optimisticAssessmentPlaceholder.message_id));
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
           throw new Error(errorData.error?.message || `API error processing assessment (status: ${response.status})`);
         }
-
         const assessmentResult = await response.json();
-
-        if (assessmentResult.type === "assessment_feedback") {
+        if (assessmentResult.type === "assessment_feedback") { // Assuming your API sends this type
           const feedbackMessage: ChatMessage = {
             message_id: assessmentResult.assessmentId || `local-assessment-feedback-${Date.now()}`,
             room_id: roomId,
-            user_id: "system-feedback", // Or chatbot.chatbot_id if you want it to look like from the bot
-            role: 'system', // Or 'assistant'
-            content: assessmentResult.feedback,
+            user_id: "system-feedback",
+            role: 'system',
+            content: assessmentResult.feedback, // And this content
             created_at: new Date().toISOString(),
-            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true }
+            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true, assessmentId: assessmentResult.assessmentId }
           };
           setMessages(prev => [...prev, feedbackMessage]);
-          // TODO: Add a user-friendly notification about viewing in "My Assessments"
-          // For now, console log or a simple alert
           if (assessmentResult.assessmentId) {
               alert("Assessment feedback received! You can also view it in 'My Assessments'.");
           }
+        } else if (assessmentResult.type === "assessment_pending") { // Handle pending message from API
+            const pendingMessage: ChatMessage = {
+                message_id: `local-assessment-pending-${Date.now()}`,
+                room_id: roomId,
+                user_id: "system-assessment",
+                role: 'system',
+                content: assessmentResult.message, // Use message from API
+                created_at: new Date().toISOString(),
+                metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
+            };
+            setMessages(prev => [...prev, pendingMessage]);
         } else {
-          // Handle unexpected response
           throw new Error("Unexpected response from assessment API.");
         }
-
       } catch (err) {
         console.error('Assessment processing error:', err);
         const errorMsg = err instanceof Error ? err.message : 'Failed to process assessment';
         setError(errorMsg);
-        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id)); // remove user's /assess command
-        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]); // re-add with error
+        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id));
+        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]);
       } finally {
         setIsLoading(false);
         setTimeout(scrollToBottom, 50);
       }
-      return; // End execution for assessment command
+      return;
     }
 
-    // Regular chat message streaming
     const optimisticAssistantPlaceholder: ChatMessage = {
       message_id: `local-assistant-${Date.now()}`,
       room_id: roomId,
@@ -12089,18 +12166,21 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       }
        setMessages(prev => prev.map(msg =>
         msg.message_id === optimisticAssistantPlaceholder.message_id
-          ? { ...msg, content: streamedContent.trim() }
+          ? { ...msg, content: streamedContent.trim(), updated_at: new Date().toISOString() } // Add updated_at
           : msg
-       ));
+       ).filter(msg => msg.message_id !== `welcome-${chatbot.chatbot_id}`)); // Remove welcome message if it was there
 
     } catch (err) {
       console.error('Chat send/receive error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to send or receive message';
       setError(errorMsg);
+      // Remove optimistic messages on error
       setMessages(prev => prev.filter(msg =>
           msg.message_id !== optimisticUserMessage.message_id &&
-          msg.message_id !== optimisticAssistantPlaceholder.message_id
+          msg.message_id !== optimisticAssistantPlaceholder.message_id &&
+          msg.message_id !== `welcome-${chatbot.chatbot_id}` // Also ensure welcome is removed if error occurs
       ));
+       // Re-add user message with error indication
        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg}}]);
     } finally {
       setIsLoading(false);
@@ -12118,9 +12198,11 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       )}
 
       <MessagesList>
+        {/* MODIFIED: Logic for EmptyState or initial message */}
         {isFetchingMessages && messages.length === 0 ? (
            <LoadingIndicator><LoadingSpinner /> Loading messages...</LoadingIndicator>
-        ) : !isFetchingMessages && messages.length === 0 && !fetchError ? (
+        ) : !isFetchingMessages && messages.length === 0 && !fetchError && !(chatbot.welcome_message && chatbot.welcome_message.trim() !== '') ? (
+          // Show EmptyState only if there are no messages AND no welcome message to display
           <EmptyState>
             <h3>Start your conversation with {chatbot.name}</h3>
             <p>Your chat history will appear here.</p>
@@ -12129,7 +12211,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         ) : (
           messages.map((message) => (
             <ChatMessageComponent
-              key={message.message_id || `local-${message.role}-${message.created_at}-${Math.random()}`}
+              key={message.message_id} // Assuming message_id is always unique now
               message={message}
               chatbotName={chatbot.name}
             />
@@ -14689,11 +14771,11 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
+// No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
 // Define BotTypeEnum locally for form state
 type BotType = 'learning' | 'assessment';
 
-// ... (Overlay, FormCard, Header, Title, CloseButton, FormContent, Footer, ActionButton styled components remain the same)
 const Overlay = styled.div`
   position: fixed;
   top: 0;
@@ -14816,12 +14898,11 @@ const HelpText = styled.p`
   margin-bottom: ${({ theme }) => theme.spacing.md};
 `;
 
-// NEW: Styling for the rubric/assessment criteria section
 const AssessmentCriteriaSection = styled(FormGroup)`
   border: 1px solid ${({ theme }) => theme.colors.border};
   padding: ${({ theme }) => theme.spacing.md};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
-  background-color: ${({ theme }) => theme.colors.background}; // Slightly different background
+  background-color: ${({ theme }) => theme.colors.background};
 `;
 
 const RubricInfoText = styled(HelpText)`
@@ -14840,6 +14921,7 @@ interface ChatbotFormData {
   enable_rag: boolean;
   bot_type: BotType;
   assessment_criteria_text: string;
+  welcome_message: string; // <--- ADDED
 }
 
 interface ChatbotFormProps {
@@ -14852,12 +14934,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     name: '',
     description: '',
     system_prompt: '',
-    model: 'qwen/qwen3-235b-a22b',
+    model: 'x-ai/grok-3-mini-beta',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: '',
+    welcome_message: '', // <--- ADDED initial value
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14867,13 +14950,19 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     setIsSubmitting(true);
     setError(null);
 
+    // The payload sent to /api/teacher/chatbots should match CreateChatbotPayload
     const payload = {
-      ...formData,
-      assessment_criteria_text: formData.bot_type === 'assessment' ? formData.assessment_criteria_text : undefined,
+      name: formData.name,
+      description: formData.description || undefined,
+      system_prompt: formData.system_prompt,
+      model: formData.model,
+      max_tokens: (formData.max_tokens === undefined || formData.max_tokens === null || isNaN(formData.max_tokens) || String(formData.max_tokens).trim() === '') ? null : Number(formData.max_tokens),
+      temperature: (formData.temperature === undefined || formData.temperature === null || isNaN(formData.temperature) || String(formData.temperature).trim() === '') ? null : Number(formData.temperature),
       enable_rag: formData.bot_type === 'learning' ? formData.enable_rag : false,
+      bot_type: formData.bot_type,
+      assessment_criteria_text: formData.bot_type === 'assessment' ? (formData.assessment_criteria_text || null) : null,
+      welcome_message: formData.welcome_message.trim() || null, // <--- ADDED (send null if empty)
     };
-    if (payload.max_tokens === undefined || payload.max_tokens === null || isNaN(payload.max_tokens) || String(payload.max_tokens).trim() === '') delete payload.max_tokens;
-    if (payload.temperature === undefined || payload.temperature === null || isNaN(payload.temperature) || String(payload.temperature).trim() === '') delete payload.temperature;
 
 
     try {
@@ -14882,7 +14971,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), // This payload should match CreateChatbotPayload
       });
 
       const responseData = await response.json();
@@ -14912,6 +15001,8 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
             [name]: checked,
         }));
     } else {
+        // For welcome_message, allow empty string in state for controlled input,
+        // it will be converted to null in handleSubmit if empty.
         setFormData(prev => ({
             ...prev,
             [name]: (name === 'max_tokens' || name === 'temperature') && value !== '' ? Number(value) : value,
@@ -14932,6 +15023,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
           {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
           <form onSubmit={handleSubmit} id="chatbotCreateForm">
+            {/* ... other FormGroups for name, bot_type, assessment_criteria, description, system_prompt ... */}
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input
@@ -14960,16 +15052,15 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
-            {/* ASSESSMENT CRITERIA SECTION (Conditional) */}
             {formData.bot_type === 'assessment' && (
-              <AssessmentCriteriaSection> {/* Using new styled component */}
+              <AssessmentCriteriaSection>
                 <Label htmlFor="assessment_criteria_text">Define Assessment Rubric / Criteria</Label>
                 <TextArea
                   id="assessment_criteria_text"
                   name="assessment_criteria_text"
                   value={formData.assessment_criteria_text}
                   onChange={handleChange}
-                  rows={5} // Slightly more rows
+                  rows={5}
                   placeholder="Clearly describe what the AI should assess. For example:
 1. Accuracy of answers to key concepts.
 2. Clarity of student's explanations.
@@ -15018,6 +15109,23 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
+            {/* ADDED Welcome Message Field */}
+            <FormGroup>
+              <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
+              <TextArea
+                id="welcome_message"
+                name="welcome_message"
+                value={formData.welcome_message}
+                onChange={handleChange}
+                rows={3}
+                placeholder="e.g., Hello! I'm your [topic] assistant. How can I help you today?"
+              />
+              <HelpText>
+                This will be the first message the student sees from the bot.
+              </HelpText>
+            </FormGroup>
+            {/* END ADDED Welcome Message Field */}
+
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect
@@ -15035,7 +15143,6 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </HelpText>
             </FormGroup>
 
-            {/* RAG Enable - Conditionally shown for Learning Bots */}
             {formData.bot_type === 'learning' && (
               <FormGroup>
                   <Label htmlFor="enable_rag">Knowledge Base (RAG)</Label>
@@ -15056,7 +15163,6 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
               </FormGroup>
             )}
 
-            {/* Max Tokens and Temperature - these apply to the CHATTING model, not necessarily the assessment evaluation model */}
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>
               <Input id="max_tokens" name="max_tokens" type="number" value={formData.max_tokens || ''} onChange={handleChange} placeholder="Default: 1000" />
@@ -17338,84 +17444,86 @@ export const createServerSupabaseClient = async () => {
     }
   );
 };// src/lib/safety/monitoring.ts
-import type { Room, Database } from '@/types/database.types';
+import type { Room, Database } from '@/types/database.types'; // Removed unused Profile import
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTeacherAlert } from '@/lib/safety/alerts';
+// Import the JSON data
+import HELPLINE_DATA_JSON from './data/helplines.json'; // Ensure this path is correct and the file exists
 
 // OpenRouter Configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const SAFETY_CHECK_MODEL = 'meta-llama/llama-4-scout';
+const SAFETY_CHECK_MODEL = 'google/gemini-2.5-flash-preview';
 const CONCERN_THRESHOLD = 3;
 
 // Keywords organized by category - FULL LIST AS PROVIDED
 const CONCERN_KEYWORDS: Record<string, string[]> = {
   self_harm: [
-    'hate myself',
-    'don\'t want to live',
-    'don\'t want to be alive',
-    'don\'t want to be here',
-    'don\'t want to exist',
-    'not worth going on',
-    'no point in living',
-    'no point going on',
-    'rather be dead',
-    'should end it',
-    'should end it all',
-    'end it all',
-    'give up',
-    'giving up',
-    'take my own life',
-    'take my life',
-    'harming myself',
-    'harm myself',
-    'hurting myself',
-    'cut myself',
-    'cutting myself',
-    'disappear forever',
-    'everyone better off without me',
-    'they\'d be better off without me',
-    'they would be better off without me',
-    'leave this world',
-    'escape this world',
-    'stop existing',
-    'tired of being alive',
-    'tired of existing',
-    'too much pain',
-    'can\'t take it anymore',
-    'life is too hard',
-    'life isn\'t worth it',
-    'never wake up',
-    'wish I wouldn\'t wake up',
-    'make the pain stop',
-    'no hope left',
-    'nowhere to turn',
-    'plan to kill',
-    'how to end',
-    'easier if I wasn\'t here',
-    'easier if I was gone',
-    'want to die',
-    'wanna die',
-    'kill myself',
-    'suicidal'
+    'hate myself', 'don\'t want to live', 'don\'t want to be alive', 'don\'t want to be here', 'don\'t want to exist',
+    'not worth going on', 'no point in living', 'no point going on', 'rather be dead', 'should end it',
+    'should end it all', 'end it all', 'give up', 'giving up', 'take my own life', 'take my life',
+    'harming myself', 'harm myself', 'hurting myself', 'cut myself', 'cutting myself', 'disappear forever',
+    'everyone better off without me', 'they\'d be better off without me', 'they would be better off without me',
+    'leave this world', 'escape this world', 'stop existing', 'tired of being alive', 'tired of existing',
+    'too much pain', 'can\'t take it anymore', 'life is too hard', 'life isn\'t worth it', 'never wake up',
+    'wish I wouldn\'t wake up', 'make the pain stop', 'no hope left', 'nowhere to turn', 'plan to kill',
+    'how to end', 'easier if I wasn\'t here', 'easier if I was gone', 'want to die', 'wanna die',
+    'kill myself', 'suicidal'
   ],
   bullying: [
-    'bullied', 'bully', 'bullying', 'they hate me', 'everyone hates me', 'laughed at me', 'laugh at me', 'excluded', 'leave me out', 'leaving me out', 'no friends', 'don\'t have friends', 'nobody likes me', 'no one likes me', 'call me names', 'called me names', 'push me around', 'pushed me', 'shove me', 'shoved me', 'making threats', 'threatened me', 'online bullying', 'cyberbullying', 'posting about me', 'spreading rumors', 'spreading rumours', 'spreading lies', 'everyone talks about me', 'made fun of', 'mock me', 'mocking me', 'rejected by everyone', 'being isolated', 'no one talks to me', 'nobody talks to me', 'they ignore me', 'everyone ignores me', 'being targeted', 'pick on me', 'won\'t leave me alone', 'always after me', 'ganging up on me', 'scared to go to school', 'don\'t want to go to school', 'afraid at school', 'scared at school'
+    'bullied', 'bully', 'bullying', 'they hate me', 'everyone hates me', 'laughed at me', 'laugh at me',
+    'excluded', 'leave me out', 'leaving me out', 'no friends', 'don\'t have friends', 'nobody likes me',
+    'no one likes me', 'call me names', 'called me names', 'push me around', 'pushed me', 'shove me',
+    'shoved me', 'making threats', 'threatened me', 'online bullying', 'cyberbullying', 'posting about me',
+    'spreading rumors', 'spreading rumours', 'spreading lies', 'everyone talks about me', 'made fun of',
+    'mock me', 'mocking me', 'rejected by everyone', 'being isolated', 'no one talks to me',
+    'nobody talks to me', 'they ignore me', 'everyone ignores me', 'being targeted', 'pick on me',
+    'won\'t leave me alone', 'always after me', 'ganging up on me', 'scared to go to school',
+    'don\'t want to go to school', 'afraid at school', 'scared at school'
   ],
   abuse: [
-    'hurt me', 'hurting me', 'hitting me', 'hit by', 'kicks me', 'kicking me', 'pushed me', 'pushes me', 'throws things at me', 'threw things at me', 'threw something at me', 'yells at me', 'yelling at me', 'screams at me', 'screaming at me', 'threatens me', 'threatening me', 'controls me', 'controlling me', 'not allowed to', 'won\'t let me', 'keeps me from', 'locked me in', 'locks me in', 'touches me', 'touched me', 'uncomfortable touching', 'hurt by someone', 'afraid of them', 'afraid to go home', 'scared to go home', 'not safe at home', 'don\'t feel safe around', 'being punished', 'punishes me unfairly', 'treated badly', 'treats me badly', 'calls me stupid', 'calls me worthless', 'makes me feel worthless', 'makes me feel bad', 'punched me', 'punches me', 'slapped me', 'slaps me', 'bruises from', 'left bruises', 'threatened to hurt me if I told', 'can\'t tell anyone'
+    'hurt me', 'hurting me', 'hitting me', 'hit by', 'kicks me', 'kicking me', 'pushed me', 'pushes me',
+    'throws things at me', 'threw things at me', 'threw something at me', 'yells at me', 'yelling at me',
+    'screams at me', 'screaming at me', 'threatens me', 'threatening me', 'controls me', 'controlling me',
+    'not allowed to', 'won\'t let me', 'keeps me from', 'locked me in', 'locks me in', 'touches me',
+    'touched me', 'uncomfortable touching', 'hurt by someone', 'afraid of them', 'afraid to go home',
+    'scared to go home', 'not safe at home', 'don\'t feel safe around', 'being punished',
+    'punishes me unfairly', 'treated badly', 'treats me badly', 'calls me stupid', 'calls me worthless',
+    'makes me feel worthless', 'makes me feel bad', 'punched me', 'punches me', 'slapped me', 'slaps me',
+    'bruises from', 'left bruises', 'threatened to hurt me if I told', 'can\'t tell anyone'
   ],
   depression: [
-    'hate my life', 'no one cares', 'nobody cares', 'nobody loves me', 'no one loves me', 'feel empty', 'feeling empty', 'feel nothing', 'feels like nothing matters', 'nothing matters', 'what\'s the point', 'feel worthless', 'feeling worthless', 'don\'t feel anything', 'don\'t know what to do', 'can\'t see a future', 'lost all hope', 'lost hope', 'given up', 'feel like a failure', 'am a failure', 'everything is dark', 'darkness closing in', 'can\'t get out of bed', 'can\'t face the day', 'crying all the time', 'crying myself to sleep', 'never happy', 'always feeling down', 'feel so alone', 'completely alone', 'no one understands', 'nobody understands', 'don\'t enjoy anything', 'nothing makes me happy', 'too sad to function', 'too sad to do anything', 'life is meaningless', 'unable to feel joy', 'can\'t sleep', 'can\'t eat', 'can\'t concentrate', 'mind feels foggy', 'exhausted all the time', 'overwhelmed by sadness', 'drowning in sadness'
+    'hate my life', 'no one cares', 'nobody cares', 'nobody loves me', 'no one loves me', 'feel empty',
+    'feeling empty', 'feel nothing', 'feels like nothing matters', 'nothing matters', 'what\'s the point',
+    'feel worthless', 'feeling worthless', 'don\'t feel anything', 'don\'t know what to do',
+    'can\'t see a future', 'lost all hope', 'lost hope', 'given up', 'feel like a failure', 'am a failure',
+    'everything is dark', 'darkness closing in', 'can\'t get out of bed', 'can\'t face the day',
+    'crying all the time', 'crying myself to sleep', 'never happy', 'always feeling down', 'feel so alone',
+    'completely alone', 'no one understands', 'nobody understands', 'don\'t enjoy anything',
+    'nothing makes me happy', 'too sad to function', 'too sad to do anything', 'life is meaningless',
+    'unable to feel joy', 'can\'t sleep', 'can\'t eat', 'can\'t concentrate', 'mind feels foggy',
+    'exhausted all the time', 'overwhelmed by sadness', 'drowning in sadness'
   ],
   family_issues: [
-    'parents always fighting', 'parents always argue', 'parents hate each other', 'home is not safe', 'scared at home', 'afraid at home', 'can\'t stand being home', 'hate being home', 'nowhere to go', 'might get kicked out', 'might be kicked out', 'threatened to kick me out', 'parent drinking', 'parent drunk', 'parents drunk', 'drinking problem', 'drug problem', 'parents using drugs', 'parent using drugs', 'not enough food', 'going hungry', 'no food at home', 'can\'t sleep at home', 'parents separated', 'parents separating', 'parents broke up', 'parents splitting up', 'losing our house', 'lost our house', 'might be homeless', 'could be homeless', 'moving in with relatives', 'have to move', 'parent lost job', 'no money for', 'can\'t afford', 'parent in jail', 'parent arrested', 'no one takes care of me', 'have to take care of myself', 'have to take care of my siblings', 'parent is sick', 'parent is ill', 'parent in hospital', 'no electricity', 'utilities shut off', 'water shut off'
+    'parents always fighting', 'parents always argue', 'parents hate each other', 'home is not safe',
+    'scared at home', 'afraid at home', 'can\'t stand being home', 'hate being home', 'nowhere to go',
+    'might get kicked out', 'might be kicked out', 'threatened to kick me out', 'parent drinking',
+    'parent drunk', 'parents drunk', 'drinking problem', 'drug problem', 'parents using drugs',
+    'parent using drugs', 'not enough food', 'going hungry', 'no food at home', 'can\'t sleep at home',
+    'parents separated', 'parents separating', 'parents broke up', 'parents splitting up',
+    'losing our house', 'lost our house', 'might be homeless', 'could be homeless',
+    'moving in with relatives', 'have to move', 'parent lost job', 'no money for', 'can\'t afford',
+    'parent in jail', 'parent arrested', 'no one takes care of me', 'have to take care of myself',
+    'have to take care of my siblings', 'parent is sick', 'parent is ill', 'parent in hospital',
+    'no electricity', 'utilities shut off', 'water shut off'
   ],
 };
 
-/**
- * First-pass check: Look for concerning keywords in a message.
- */
+// Type for the imported JSON data
+type HelplineEntry = { name: string; phone?: string; website?: string; text_to?: string; text_msg?: string; short_desc: string };
+type HelplineData = Record<string, HelplineEntry[]>;
+const ALL_HELPLINES: HelplineData = HELPLINE_DATA_JSON as HelplineData;
+
 export function initialConcernCheck(message: string): {
   hasConcern: boolean;
   concernType?: string;
@@ -17424,42 +17532,40 @@ export function initialConcernCheck(message: string): {
     return { hasConcern: false };
   }
   const lowerMessage = message.toLowerCase();
-
   for (const [category, keywords] of Object.entries(CONCERN_KEYWORDS)) {
     for (const keyword of keywords) {
         const escapedKeyword = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escapedKeyword}\\b`); // Word boundary
+        const regex = new RegExp(`\\b${escapedKeyword}\\b`);
         if (regex.test(lowerMessage)) {
             console.log(`[InitialCheck] Keyword MATCH! Category: ${category}, Keyword: "${keyword}"`);
             return { hasConcern: true, concernType: category };
         }
     }
   }
-
-  // Your existing heuristics (can be expanded)
   if (lowerMessage.includes('hate myself') && (lowerMessage.includes('not worth') || lowerMessage.includes('don\'t know what to do'))) {
     return { hasConcern: true, concernType: 'self_harm' };
   }
   if ((lowerMessage.includes('not worth') || lowerMessage.includes('no point')) && (lowerMessage.includes('going on') || lowerMessage.includes('living') || lowerMessage.includes('anymore'))) {
     return { hasConcern: true, concernType: 'self_harm' };
   }
-  // ... (add more heuristics as needed)
-
   return { hasConcern: false };
 }
 
-/**
- * Second-pass check: Use specified OpenRouter model to verify concern and rate severity.
- */
 export async function verifyConcern(
   message: string,
   concernType: string,
-  recentMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
+  recentMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [],
+  countryCode: string | null
 ): Promise<{
   isRealConcern: boolean;
   concernLevel: number;
   analysisExplanation: string;
+  aiGeneratedAdvice?: string;
 }> {
+  // --- START OF ADDED CONSOLE LOGS FOR DEBUGGING ---
+  console.log(`[VerifyConcern DEBUG] Function called. Received countryCode: "${countryCode}" (Type: ${typeof countryCode})`);
+  // --- END OF ADDED CONSOLE LOGS FOR DEBUGGING ---
+
   let contextString = '';
   if (recentMessages.length > 0) {
     contextString = "\n\nRecent Conversation History (most recent last):\n";
@@ -17469,22 +17575,71 @@ export async function verifyConcern(
     });
   }
 
-  const promptForModel = `
-You are an AI safety analyst reviewing a student's chat message for a specific concern.
-Concern Category Identified by Keywords: ${concernType.replace(/_/g, ' ')}
-${contextString}
-Student's Message: "${message}"
+  const effectiveCountryCode = countryCode?.toUpperCase() || 'DEFAULT';
+  // --- ADDED CONSOLE LOG ---
+  console.log(`[VerifyConcern DEBUG] Effective country code for helpline lookup: "${effectiveCountryCode}"`);
 
-Task:
-1.  Determine if the student's message genuinely expresses the identified concern category. Distinguish real expressions of distress or risk from creative writing, hypothetical scenarios, or misinterpretations of keywords.
-2.  If it is a genuine concern, assess its severity level on a scale of 0 to 5 (0=No Concern, 1=Very Low, 2=Low, 3=Moderate, 4=High, 5=Critical).
-3.  Provide a brief (1-2 sentences) explanation for your assessment.
+  const countrySpecificHelplines: HelplineEntry[] = ALL_HELPLINES[effectiveCountryCode] || ALL_HELPLINES.DEFAULT;
+  // --- ADDED CONSOLE LOG ---
+  console.log(`[VerifyConcern DEBUG] Selected countrySpecificHelplines for "${effectiveCountryCode}" (first 3 entries):`, JSON.stringify(countrySpecificHelplines.slice(0,3), null, 2));
 
-Respond ONLY with a valid JSON object with these exact keys:
-"isRealConcern": boolean
-"concernLevel": number (integer 0-5)
-"analysisExplanation": string
-`;
+
+  let conciseHelplineDataForPrompt = "";
+  const helplinesToList = countrySpecificHelplines.slice(0, 2); 
+
+  if (helplinesToList.length > 0) {
+    conciseHelplineDataForPrompt = "Relevant Support Contacts (use ONLY these for the student's country):\n";
+    helplinesToList.forEach(line => {
+      conciseHelplineDataForPrompt += `* ${line.name}`;
+      if (line.phone) {
+        conciseHelplineDataForPrompt += ` - Phone: ${line.phone}`;
+      } else if (line.text_to && line.text_msg) {
+        conciseHelplineDataForPrompt += ` - Text: ${line.text_msg} to ${line.text_to}`;
+      } else if (line.website) {
+        const shortWebsite = line.website.length > 20 ? line.website.substring(0, 17) + "..." : line.website;
+        conciseHelplineDataForPrompt += ` - Website: ${shortWebsite}`;
+      }
+      conciseHelplineDataForPrompt += "\n";
+    });
+  } else { 
+       conciseHelplineDataForPrompt = "Please reach out to a trusted adult or local emergency services if you need help or are in danger.\n";
+  }
+  
+  // --- ADDED CONSOLE LOG ---
+  console.log(`[VerifyConcern DEBUG] conciseHelplineDataForPrompt string for LLM:\n${conciseHelplineDataForPrompt}`);
+
+  const teacherAwarenessMandatorySentence = "Remember, your teacher can see this conversation and is here to support you. Please feel comfortable reaching out to them or another trusted adult if you need help.";
+
+  const promptParts = [
+    `You are an AI safety assistant. Your task is to review a student's chat message for a specific concern and provide guidance if necessary.`,
+    `Concern Category Identified by Keywords: ${concernType.replace(/_/g, ' ')}`,
+    contextString,
+    `Student's Message: "${message}"`,
+    `\nTasks:`,
+    `1.  **Analysis for Teacher (Internal):**`,
+    `    a.  **isRealConcern**: (boolean: true/false) Is the concern genuine?`,
+    `    b.  **concernLevel**: (number 0-5) If genuine, assess severity.`,
+    `    c.  **analysisExplanation**: (string) Briefly explain for the teacher (1-2 sentences).\n`,
+    `2.  **Message for Student (aiGeneratedAdvice):**`,
+    `    If \`isRealConcern\` is true AND \`concernLevel\` is 2 or higher, compose a **VERY SHORT (max 3-4 sentences total, including helplines), empathetic, and DIRECT message**. This message MUST:`,
+    `    a.  Start with a brief, caring acknowledgment (e.g., "I hear that you're going through a tough time," or "It sounds like you're feeling [X]."). This should be one sentence.`,
+    `    b.  **Include this exact sentence VERBATIM**: "${teacherAwarenessMandatorySentence}"`,
+    `    c.  **Then, you MUST list ONLY the specific support contacts shown between the START and END markers below. Do NOT add any other helplines or general advice beyond this provided list for this section. Present them as a simple list**:`,
+    `        ---START OF PROVIDED HELPLINES---`,
+    `        ${conciseHelplineDataForPrompt.trim()}`,
+    `        ---END OF PROVIDED HELPLINES---`,
+    `    d.  End with a very short supportive closing (e.g., "Please reach out." or "Help is available."). This should be one sentence.`,
+    `    e.  The entire message must be very succinct and focused. Do not add any extra information not explicitly requested.\n`,
+    `Respond ONLY with a valid JSON object with these exact keys:`,
+    `"isRealConcern": boolean,`,
+    `"concernLevel": number,`,
+    `"analysisExplanation": string,`,
+    `"aiGeneratedAdvice": string (Omit this key or set to null if conditions in Task 2 are not met, or if you cannot follow the student message constraints exactly.)`
+  ];
+  const promptForModel = promptParts.join('\n');
+  // --- ADDED CONSOLE LOG ---
+  console.log(`[VerifyConcern DEBUG] Full promptForModel being sent to LLM (first 700 chars to see helpline injection):\n${promptForModel.substring(0,700)}...`);
+
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -17499,7 +17654,7 @@ Respond ONLY with a valid JSON object with these exact keys:
           model: SAFETY_CHECK_MODEL,
           messages: [ { role: "user", content: promptForModel } ],
           temperature: 0.2,
-          max_tokens: 250,
+          max_tokens: 300, 
           response_format: { type: "json_object" }
         }),
       });
@@ -17516,6 +17671,9 @@ Respond ONLY with a valid JSON object with these exact keys:
     if (!rawResponseContent) {
       throw new Error("OpenRouter response for safety verification was empty or missing content.");
     }
+     // --- ADDED CONSOLE LOG ---
+    console.log(`[VerifyConcern DEBUG] Raw LLM response content:\n${rawResponseContent}`);
+
 
     let analysisResult;
     try {
@@ -17523,18 +17681,38 @@ Respond ONLY with a valid JSON object with these exact keys:
         if (jsonMatch && jsonMatch[1]) {
             analysisResult = JSON.parse(jsonMatch[1]);
         } else {
-            const directJsonMatch = rawResponseContent.match(/\{[\s\S]*\}/);
+             const directJsonMatch = rawResponseContent.match(/\{[\s\S]*\}/);
             if (directJsonMatch && directJsonMatch[0]) {
                  analysisResult = JSON.parse(directJsonMatch[0]);
             } else {
-                throw new Error("No valid JSON found in LLM response for safety verification.");
+                try {
+                    analysisResult = JSON.parse(rawResponseContent);
+                } catch (innerParseError) {
+                    console.error("[VerifyConcern] Final attempt to parse rawResponseContent as JSON failed:", rawResponseContent, innerParseError);
+                    throw new Error("No valid JSON found in LLM response for safety verification after multiple attempts.");
+                }
             }
         }
     } catch (parseError) {
          console.error("[VerifyConcern] Failed to parse JSON from safety model:", rawResponseContent, parseError);
+         let fallbackAdvice = `I understand this might be a difficult time. ${teacherAwarenessMandatorySentence}\n\nPlease consider reaching out to a trusted adult.`;
+         const defaultHelplines = ALL_HELPLINES.DEFAULT || [];
+         if (defaultHelplines.length > 0) {
+             fallbackAdvice += "\nHere are some general resources:\n";
+             defaultHelplines.slice(0,2).forEach(line => {
+                fallbackAdvice += `* ${line.name}`;
+                if (line.phone) fallbackAdvice += `: ${line.phone}`;
+                else if (line.text_to && line.text_msg) fallbackAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
+                else if (line.website) fallbackAdvice += ` (${line.website})`;
+                fallbackAdvice += `\n`;
+             });
+         }
+         fallbackAdvice += "Help is available.";
          return {
-             isRealConcern: true, concernLevel: 3,
-             analysisExplanation: `Safety model response was not valid JSON. Raw snippet: ${String(rawResponseContent).substring(0, 150)}... Review manually.`
+             isRealConcern: true, 
+             concernLevel: 3,
+             analysisExplanation: `Safety model response was not valid JSON. Raw snippet: ${String(rawResponseContent).substring(0, 150)}... Review manually.`,
+             aiGeneratedAdvice: fallbackAdvice
          };
     }
 
@@ -17545,28 +17723,73 @@ Respond ONLY with a valid JSON object with these exact keys:
     const analysisExplanation = typeof analysisResult.analysisExplanation === 'string'
       ? analysisResult.analysisExplanation.trim()
       : "AI analysis explanation was not provided or in an invalid format.";
+    
+    let aiGeneratedAdvice: string | undefined = undefined;
+    if (isRealConcern && concernLevel >= 2 && typeof analysisResult.aiGeneratedAdvice === 'string' && analysisResult.aiGeneratedAdvice.trim() !== "") {
+        aiGeneratedAdvice = analysisResult.aiGeneratedAdvice.trim();
+        if (aiGeneratedAdvice && !aiGeneratedAdvice.includes(teacherAwarenessMandatorySentence)) {
+            console.warn("[VerifyConcern] LLM advice generated but missed the mandatory teacher awareness sentence. Prepending it.");
+            aiGeneratedAdvice = `${teacherAwarenessMandatorySentence}\n${aiGeneratedAdvice}`;
+        }
+    } else if (isRealConcern && concernLevel >= 2) {
+        console.warn("[VerifyConcern] LLM met conditions for advice but 'aiGeneratedAdvice' field was missing or empty. Constructing concise default advice.");
+        let defaultAdvice = `I understand this may be a tough moment. ${teacherAwarenessMandatorySentence}\n\nHere are some resources that might help:\n`;
+        const helplinesForDefaultForStudent = countrySpecificHelplines.slice(0, 2); // Use the already filtered list
+        if (helplinesForDefaultForStudent.length > 0) {
+            helplinesForDefaultForStudent.forEach(line => { 
+                defaultAdvice += `* ${line.name}`;
+                if (line.phone) defaultAdvice += `: ${line.phone}`;
+                else if (line.text_to && line.text_msg) defaultAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
+                else if (line.website) defaultAdvice += ` (${line.website})`;
+                defaultAdvice += "\n";
+            });
+        } else { 
+            ALL_HELPLINES.DEFAULT.slice(0,2).forEach(line => { // Fallback to generic default if countrySpecific was empty
+                 defaultAdvice += `* ${line.name}`;
+                if (line.phone) defaultAdvice += `: ${line.phone}`;
+                else if (line.text_to && line.text_msg) defaultAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
+                else if (line.website) defaultAdvice += ` (${line.website})`;
+                defaultAdvice += "\n";
+            });
+        }
+        defaultAdvice += "Please reach out for support.";
+        aiGeneratedAdvice = defaultAdvice;
+    }
 
-    console.log(`[VerifyConcern] LLM Analysis: isReal=${isRealConcern}, level=${concernLevel}, explanation="${analysisExplanation}"`);
-    return { isRealConcern, concernLevel, analysisExplanation };
+    console.log(`[VerifyConcern] LLM Analysis: isReal=${isRealConcern}, level=${concernLevel}, explanation="${analysisExplanation}", adviceProvided=${!!aiGeneratedAdvice}`);
+    return { isRealConcern, concernLevel, analysisExplanation, aiGeneratedAdvice };
 
   } catch (error) {
     console.error('[VerifyConcern] Error during OpenRouter call or processing:', error);
+    let defaultFallbackAdvice = `It's important to reach out if you're struggling. ${teacherAwarenessMandatorySentence}\n\nHere are some general resources:\n`;
+    const defaultHelplinesOnCatch = ALL_HELPLINES.DEFAULT || [];
+    defaultHelplinesOnCatch.slice(0,2).forEach(line => {
+        defaultFallbackAdvice += `* ${line.name}`;
+        if (line.phone) defaultFallbackAdvice += `: ${line.phone}`;
+        else if (line.text_to && line.text_msg) defaultFallbackAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
+        else if (line.website) defaultFallbackAdvice += ` (${line.website})`;
+        defaultFallbackAdvice += "\n";
+    });
+    defaultFallbackAdvice += "Help is available.";
     return {
-      isRealConcern: true, concernLevel: 3,
+      isRealConcern: true, 
+      concernLevel: 3,
       analysisExplanation: `Concern verification process failed: ${error instanceof Error ? error.message : 'Unknown LLM call error'}. Flagged for manual review.`,
+      aiGeneratedAdvice: defaultFallbackAdvice
     };
   }
 }
-
 
 export async function checkMessageSafety(
     supabaseUserContextClient: SupabaseClient<Database>,
     messageContent: string,
     messageId: string,
     studentId: string,
-    room: Room
+    room: Room,
+    countryCode: string | null 
 ): Promise<void> {
-    console.log(`[Safety Check] START - MsgID: ${messageId}, Student: ${studentId}, Room: ${room.room_id}, Teacher: ${room.teacher_id}`);
+    // Added the debug log here, as requested in the previous step, to see what checkMessageSafety receives
+    console.log(`[Safety Check] START - MsgID: ${messageId}, Student: ${studentId}, Room: ${room.room_id}, Teacher: ${room.teacher_id}, Received Country Code by checkMessageSafety: "${countryCode}"`);
     try {
         const adminClient = createAdminClient();
         const { data: currentMessageData, error: fetchMsgError } = await supabaseUserContextClient
@@ -17597,7 +17820,13 @@ export async function checkMessageSafety(
             const recentMessagesForSafetyLLM = (contextMessagesData || [])
                 .map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }))
                 .reverse();
-            const { isRealConcern, concernLevel, analysisExplanation } = await verifyConcern(messageContent, concernType, recentMessagesForSafetyLLM);
+            
+            const { isRealConcern, concernLevel, analysisExplanation, aiGeneratedAdvice } = await verifyConcern(
+                messageContent,
+                concernType,
+                recentMessagesForSafetyLLM,
+                countryCode 
+            );
 
             if (isRealConcern && concernLevel >= CONCERN_THRESHOLD) {
                 const { data: teacherProfile } = await adminClient.from('profiles').select('email').eq('user_id', room.teacher_id).single();
@@ -17611,16 +17840,102 @@ export async function checkMessageSafety(
 
                 if (flagInsertError) { console.error(`[Safety Check] FAILED to insert flag:`, flagInsertError.message); return; }
                 
-                const newFlagId = insertedFlag!.flag_id; // Assert not null after error check
+                const newFlagId = insertedFlag!.flag_id;
                 console.log(`[Safety Check] Flag ${newFlagId} inserted for message ${messageId}.`);
                 if (teacherProfile?.email) {
                     const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${newFlagId}`;
                     await sendTeacherAlert(teacherProfile.email,studentName,room.room_name || `Room (ID: ${room.room_id.substring(0,6)})`,concernType,concernLevel,messageContent,viewUrl);
                 } else { console.warn(`[Safety Check] Teacher email for ${room.teacher_id} not found. Cannot send alert for flag ${newFlagId}.`);}
             } else { console.log(`[Safety Check] Concern level ${concernLevel} < threshold ${CONCERN_THRESHOLD} or not real.`); }
+
+            if (aiGeneratedAdvice && aiGeneratedAdvice.trim() !== "") {
+                console.log(`[Safety Check] Inserting AI-generated advice for student ${studentId} in room ${room.room_id}`);
+                const { error: adviceInsertError } = await adminClient
+                    .from('chat_messages')
+                    .insert({
+                        room_id: room.room_id,
+                        user_id: studentId, 
+                        role: 'system',    
+                        content: aiGeneratedAdvice,
+                        metadata: {
+                            chatbotId: currentMessageData.metadata?.chatbotId || null, 
+                            isSystemSafetyResponse: true, 
+                            originalConcernType: concernType,
+                            originalConcernLevel: concernLevel
+                        },
+                    });
+                if (adviceInsertError) {
+                    console.error(`[Safety Check] FAILED to insert AI advice message:`, adviceInsertError.message);
+                } else {
+                    console.log(`[Safety Check] Successfully inserted AI advice message.`);
+                }
+            }
+
         } else { console.log(`[Safety Check] No initial concern for message ${messageId}.`); }
     } catch (error) { console.error(`[Safety Check] CRITICAL ERROR for msg ${messageId}:`, error); }
     console.log(`[Safety Check] END - Checked message ID: ${messageId}`);
+}{
+  "US": [
+    { "name": "Childhelp USA", "phone": "1-800-422-4453", "website": "childhelp.org", "short_desc": "Child abuse prevention & treatment" },
+    { "name": "National Suicide & Crisis Lifeline", "phone": "988", "website": "988lifeline.org", "short_desc": "24/7 crisis support" },
+    { "name": "Crisis Text Line", "text_to": "741741", "text_msg": "HOME", "short_desc": "Text support for any crisis" },
+    { "name": "The Trevor Project", "phone": "1-866-488-7386", "website": "thetrevorproject.org", "short_desc": "For LGBTQ youth" }
+  ],
+  "CA": [
+    { "name": "Kids Help Phone", "phone": "1-800-668-6868", "website": "kidshelpphone.ca", "short_desc": "24/7 youth support (text CONNECT to 686868)" },
+    { "name": "Talk Suicide Canada", "phone": "1-833-456-4566", "website": "talksuicide.ca", "short_desc": "Suicide prevention & support (text 45645)" },
+    { "name": "Canadian Centre for Child Protection", "website": "protectchildren.ca", "short_desc": "Child safety resources" }
+  ],
+  "GB": [
+    { "name": "Childline", "phone": "0800 1111", "website": "childline.org.uk", "short_desc": "Support for children & young people" },
+    { "name": "NSPCC Helpline", "phone": "0808 800 5000", "website": "nspcc.org.uk", "short_desc": "If you're worried about a child" },
+    { "name": "Samaritans", "phone": "116 123", "website": "samaritans.org", "short_desc": "Emotional support, 24/7" },
+    { "name": "Papyrus HOPELINEUK", "phone": "0800 068 4141", "website": "papyrus-uk.org", "short_desc": "Suicide prevention for under 35s" }
+  ],
+  "IE": [
+    { "name": "Childline (ISPCC)", "phone": "1800 66 66 66", "website": "childline.ie", "short_desc": "24/7 support for children (text 'LIST' to 50101)" },
+    { "name": "Samaritans Ireland", "phone": "116 123", "website": "samaritans.org/ireland/", "short_desc": "Emotional support, 24/7" },
+    { "name": "Pieta House", "phone": "1800 247247", "website": "pieta.ie", "short_desc": "Suicide & self-harm crisis centre (text HELP to 51444)" }
+  ],
+  "FR": [
+    { "name": "Allo Enfance en Danger", "phone": "119", "website": "allo119.gouv.fr", "short_desc": "National child protection helpline (24/7)" },
+    { "name": "Suicide Écoute", "phone": "01 45 39 40 00", "website": "suicide-ecoute.fr", "short_desc": "Suicide prevention helpline" },
+    { "name": "Net Ecoute (e-Enfance)", "phone": "3018", "website": "e-enfance.org/numero-3018/", "short_desc": "Protection for children online (cyberbullying, etc.)" }
+  ],
+  "ES": [
+    { "name": "ANAR (Ayuda a Niños y Adolescentes en Riesgo)", "phone": "900 20 20 10", "website": "anar.org", "short_desc": "Help for children & adolescents at risk (24/7)" },
+    { "name": "Teléfono de la Esperanza", "phone": "717 003 717", "website": "telefonodelaesperanza.org", "short_desc": "Crisis support line" }
+  ],
+  "IT": [
+    { "name": "Telefono Azzurro", "phone": "19696", "website": "azzurro.it", "short_desc": "Child helpline (24/7)" },
+    { "name": "Telefono Amico Italia", "phone": "02 2327 2327", "website": "telefonoamico.it", "short_desc": "Emotional support helpline (check hours)" }
+  ],
+  "PT": [
+    { "name": "SOS Criança (IAC)", "phone": "116 111", "website": "iacrianca.pt", "short_desc": "Child helpline (check hours)" },
+    { "name": "Voz de Apoio", "phone": "225 50 60 70", "website": "vozdeapoio.pt", "short_desc": "Emotional support helpline (check hours)" }
+  ],
+  "DE": [
+    { "name": "Nummer gegen Kummer (Kinder- und Jugendtelefon)", "phone": "116 111", "website": "nummergegenkummer.de", "short_desc": "Helpline for children & youth (Mon-Sat)" },
+    { "name": "TelefonSeelsorge", "phone": "0800 111 0 111", "website": "telefonseelsorge.de", "short_desc": "Crisis support (24/7)" }
+  ],
+  "GR": [
+    { "name": "The Smile of the Child (National Helpline for Children SOS)", "phone": "1056", "website": "hamogelo.gr", "short_desc": "Child helpline (24/7)" },
+    { "name": "KLIMAKA (Suicide Prevention)", "phone": "1018", "website": "klimaka.org.gr", "short_desc": "24/7 suicide prevention line" }
+  ],
+  "AU": [
+    { "name": "Kids Helpline", "phone": "1800 55 1800", "website": "kidshelpline.com.au", "short_desc": "Counselling for young people 5-25 (24/7)" },
+    { "name": "Lifeline Australia", "phone": "13 11 14", "website": "lifeline.org.au", "short_desc": "24/7 crisis support & suicide prevention" },
+    { "name": "eSafety Commissioner", "website": "esafety.gov.au", "short_desc": "Online safety help & reporting" }
+  ],
+  "AE": [
+    { "name": "Child Protection Centre (Ministry of Interior)", "phone": "116111", "website": "moi-cpc.ae", "short_desc": "Child protection helpline" },
+    { "name": "Dubai Foundation for Women and Children", "phone": "800111", "website": "dfwac.ae", "short_desc": "Support for women & children (violence/abuse)" }
+  ],
+  "DEFAULT": [
+    { "name": "Your Local Emergency Services", "short_desc": "Contact if in immediate danger (e.g., 911, 112, 999, 000)." },
+    { "name": "A Trusted Adult", "short_desc": "Speak to a teacher, school counselor, parent, or another family member." },
+    { "name": "Befrienders Worldwide", "website": "befrienders.org", "short_desc": "Find a crisis support center in your region." }
+  ]
 }// src/lib/safety/alerts.ts - Replace the existing function
 import { sendEmail } from '@/lib/email/resend';  // Import the new function
 import { APP_NAME } from '@/lib/utils/constants';

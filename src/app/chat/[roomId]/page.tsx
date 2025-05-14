@@ -6,7 +6,7 @@ import styled from 'styled-components';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Container, Alert } from '@/styles/StyledComponents';
-import Chat from '@/components/shared/Chat'; 
+import Chat from '@/components/shared/Chat';
 import type { Chatbot } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -70,7 +70,7 @@ interface RoomQueryResult {
   created_at: string;
   updated_at?: string;
   room_chatbots: {
-    chatbots: Chatbot;
+    chatbots: Chatbot; // This Chatbot type already includes welcome_message
   }[] | null;
 }
 
@@ -117,13 +117,13 @@ export default function ChatPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        initialFetchDoneRef.current = false; 
+        initialFetchDoneRef.current = false;
         throw new Error('Not authenticated');
       }
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
       if (!profile) {
-        initialFetchDoneRef.current = false; 
+        initialFetchDoneRef.current = false;
         throw new Error('User profile not found');
       }
 
@@ -141,7 +141,8 @@ export default function ChatPage() {
               temperature, 
               enable_rag, 
               bot_type, 
-              assessment_criteria_text
+              assessment_criteria_text,
+              welcome_message
             )
           )
         `)
@@ -176,9 +177,9 @@ export default function ChatPage() {
       setRoom(typedRoomData);
       if (typedRoomData.room_chatbots && typedRoomData.room_chatbots.length > 0 && typedRoomData.room_chatbots[0].chatbots) {
         setChatbot(typedRoomData.room_chatbots[0].chatbots);
-      } else { 
+      } else {
         initialFetchDoneRef.current = false;
-        throw new Error('Chatbot details missing in fetched room data.'); 
+        throw new Error('Chatbot details missing in fetched room data.');
       }
       initialFetchDoneRef.current = true; // Mark as done only on full success
     } catch (err) {
