@@ -4,7 +4,8 @@ import { splitTextIntoChunks, estimateTokenCount } from './chunker';
 import { generateEmbeddings } from '@/lib/openai/embeddings';
 import { upsertVectors } from '@/lib/pinecone/utils';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { Document, DocumentChunk, DocumentStatus } from '@/types/knowledge-base.types';
+import { Document, DocumentChunk, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
+import { extractContentFromUrl } from '@/lib/scraping/content-extractor'; // MODIFIED: Import new utility
 
 // Mock embedding function for fallback - using 1536 dimensions for OpenAI
 function createMockEmbedding(): number[] {
@@ -16,36 +17,53 @@ function createMockEmbedding(): number[] {
  * Process a document by extracting text, chunking, and generating embeddings
  */
 export async function processDocument(document: Document): Promise<void> {
-  console.log(`[PROCESSOR] Starting document processing for doc ID: ${document.document_id}, file: ${document.file_name}`);
+  console.log(`[PROCESSOR] Starting document processing for doc ID: ${document.document_id}, name: ${document.file_name}, type: ${document.file_type}`);
   const supabase = await createServerSupabaseClient();
 
   try {
-    // Update document status to processing (already done by caller, but good for robustness)
+    // Update document status to processing
     await supabase
       .from('documents')
       .update({ status: 'processing' as DocumentStatus, updated_at: new Date().toISOString() })
       .eq('document_id', document.document_id);
     console.log(`[PROCESSOR ${document.document_id}] Status set to processing.`);
 
-    // Download file from storage
-    console.log(`[PROCESSOR ${document.document_id}] Downloading file from storage: ${document.file_path}`);
-    const { data: fileData, error: fileError } = await supabase
-      .storage
-      .from('documents')
-      .download(document.file_path);
+    let extractedText: string;
 
-    if (fileError || !fileData) {
-      throw new Error(`Failed to download file: ${fileError?.message}`);
+    // MODIFIED: Handle text extraction based on document type
+    if (document.file_type === 'webpage') {
+      console.log(`[PROCESSOR ${document.document_id}] Extracting content from URL: ${document.file_path}`);
+      const webContent = await extractContentFromUrl(document.file_path); // file_path holds the URL
+      if (webContent.error || !webContent.textContent) {
+        throw new Error(`Failed to extract content from URL ${document.file_path}: ${webContent.error || 'No text content found'}`);
+      }
+      extractedText = webContent.textContent;
+      console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters from URL.`);
+      // Optionally, update document_size if it wasn't set correctly at creation
+      if (document.file_size !== extractedText.length) {
+        await supabase.from('documents').update({ file_size: extractedText.length }).eq('document_id', document.document_id);
+      }
+    } else {
+      // Existing logic for file-based documents
+      console.log(`[PROCESSOR ${document.document_id}] Downloading file from storage: ${document.file_path}`);
+      const { data: fileData, error: fileError } = await supabase
+        .storage
+        .from('documents')
+        .download(document.file_path);
+
+      if (fileError || !fileData) {
+        throw new Error(`Failed to download file ${document.file_path}: ${fileError?.message}`);
+      }
+      console.log(`[PROCESSOR ${document.document_id}] File downloaded successfully.`);
+
+      console.log(`[PROCESSOR ${document.document_id}] Extracting text from file type: ${document.file_type}`);
+      // We know document.file_type cannot be 'webpage' here, so direct cast is safer
+      extractedText = await extractTextFromFile(
+        Buffer.from(await fileData.arrayBuffer()),
+        document.file_type as Exclude<DocumentType, 'webpage'> 
+      );
+      console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters from file.`);
     }
-    console.log(`[PROCESSOR ${document.document_id}] File downloaded successfully.`);
-
-    // Extract text from file
-    console.log(`[PROCESSOR ${document.document_id}] Extracting text from file type: ${document.file_type}`);
-    const extractedText = await extractTextFromFile(
-      Buffer.from(await fileData.arrayBuffer()),
-      document.file_type
-    );
-    console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters.`);
 
     // Split text into chunks
     console.log(`[PROCESSOR ${document.document_id}] Splitting text into chunks.`);
@@ -111,14 +129,14 @@ export async function processDocument(document: Document): Promise<void> {
           .eq('document_id', document.document_id);
       }
       if (chunks.length > openAIbatchSize) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Avoid hitting rate limits too quickly if there are many batches
+        await new Promise(resolve => setTimeout(resolve, 500)); 
       }
     }
     console.log(`[PROCESSOR ${document.document_id}] Generated ${embeddings.length} embeddings. ${usingMockEmbeddings ? '(Used MOCK embeddings for some)' : '(Used REAL embeddings)'}`);
 
-    // Build vectors array with an initial filter to remove nulls
+    // Build vectors array
     const preparedVectors = [];
-    
     for (let i = 0; i < embeddings.length; i++) {
       const chunkId = insertedChunks[i]?.chunk_id;
       if (!chunkId) {
@@ -133,10 +151,10 @@ export async function processDocument(document: Document): Promise<void> {
           chatbotId: document.chatbot_id,
           documentId: document.document_id,
           chunkId: chunkId,
-          text: chunks[i],
-          fileName: document.file_name,
-          fileType: document.file_type,
-          isMockEmbedding: usingMockEmbeddings ? "true" : "false" // Use string to avoid type conflicts
+          text: chunks[i], // The actual chunk text
+          fileName: document.file_name, // For webpages, this is the title or URL
+          fileType: document.file_type, // Will be 'webpage' for URLs
+          isMockEmbedding: usingMockEmbeddings ? "true" : "false"
         }
       });
     }
@@ -145,50 +163,58 @@ export async function processDocument(document: Document): Promise<void> {
         console.error(`[PROCESSOR ${document.document_id}] No vectors prepared for Pinecone, though chunks exist. This indicates an issue with chunk_id mapping.`);
         throw new Error("Failed to prepare vectors for Pinecone due to chunk ID mismatch.");
     }
-
     console.log(`[PROCESSOR ${document.document_id}] Prepared ${preparedVectors.length} vectors for Pinecone.`);
 
     let vectorsUpsertedSuccessfully = false;
-    try {
-      console.log(`[PROCESSOR ${document.document_id}] Upserting ${preparedVectors.length} vectors to Pinecone via SDK.`);
-      await upsertVectors(preparedVectors);
-      vectorsUpsertedSuccessfully = true;
-      console.log(`[PROCESSOR ${document.document_id}] Successfully upserted vectors to Pinecone.`);
-    } catch (pineconeError) {
-        console.error(`[PROCESSOR ${document.document_id}] Error upserting vectors to Pinecone:`, pineconeError);
+    if (preparedVectors.length > 0) { // MODIFIED: Only upsert if there are vectors
+        try {
+          console.log(`[PROCESSOR ${document.document_id}] Upserting ${preparedVectors.length} vectors to Pinecone via SDK.`);
+          await upsertVectors(preparedVectors);
+          vectorsUpsertedSuccessfully = true;
+          console.log(`[PROCESSOR ${document.document_id}] Successfully upserted vectors to Pinecone.`);
+        } catch (pineconeError) {
+            console.error(`[PROCESSOR ${document.document_id}] Error upserting vectors to Pinecone:`, pineconeError);
+        }
+    } else {
+        console.log(`[PROCESSOR ${document.document_id}] No vectors to upsert to Pinecone.`);
+        // If there were chunks but no vectors prepared, it's an error handled above.
+        // If there were no chunks initially, this part is skipped.
+        // If RAG is based on chunks, and no chunks, then "completed" is okay if no other error.
+        if (chunks.length === 0) vectorsUpsertedSuccessfully = true; 
     }
 
+
     console.log(`[PROCESSOR ${document.document_id}] Updating chunk statuses in DB.`);
-    for (const insertedChunk of insertedChunks) {
+    for (const insertedChunk of insertedChunks) { // This loop will only run if chunks were inserted
         const vectorAttempted = preparedVectors.find(v => v.id === insertedChunk.chunk_id);
-        if (vectorAttempted) {
-            await supabase
-                .from('document_chunks')
-                .update({
-                    status: vectorsUpsertedSuccessfully ? 'embedded' : 'error',
-                    embedding_id: vectorsUpsertedSuccessfully ? insertedChunk.chunk_id : null
-                })
-                .eq('chunk_id', insertedChunk.chunk_id);
-        } else {
-            await supabase
-                .from('document_chunks')
-                .update({ status: 'error' })
-                .eq('chunk_id', insertedChunk.chunk_id);
-        }
+        const chunkStatus = vectorsUpsertedSuccessfully && vectorAttempted ? 'embedded' : 'error';
+        
+        await supabase
+            .from('document_chunks')
+            .update({
+                status: chunkStatus,
+                embedding_id: (chunkStatus === 'embedded' && vectorAttempted) ? insertedChunk.chunk_id : null // Set embedding_id only if successfully embedded
+            })
+            .eq('chunk_id', insertedChunk.chunk_id);
     }
     console.log(`[PROCESSOR ${document.document_id}] Chunk statuses updated.`);
 
+    // Determine final document status
     const finalDocStatus = vectorsUpsertedSuccessfully ? 'completed' : 'error';
     let finalErrorMessage = vectorsUpsertedSuccessfully ? null : 'Failed to upsert vectors to Pinecone.';
-    if (usingMockEmbeddings && vectorsUpsertedSuccessfully) {
+    if (usingMockEmbeddings && vectorsUpsertedSuccessfully) { // If mock embeddings were used but upsert was "successful"
         finalErrorMessage = (finalErrorMessage ? finalErrorMessage + " " : "") + "Warning: Some or all embeddings are MOCK data.";
     }
+    if (chunks.length === 0 && !document.error_message) { // If no chunks and no prior error, consider it completed (nothing to process)
+         // Status already set to completed above for this case. Message already set.
+    }
+
 
     await supabase
       .from('documents')
       .update({
         status: finalDocStatus as DocumentStatus,
-        error_message: finalErrorMessage,
+        error_message: finalErrorMessage, // This might overwrite "No content to process." if an error occurs later.
         updated_at: new Date().toISOString()
       })
       .eq('document_id', document.document_id);

@@ -13,8 +13,8 @@ export type UserRole = 'teacher' | 'student' | 'school_admin';
 export type ConcernStatus = 'pending' | 'reviewing' | 'resolved' | 'false_positive';
 
 // Knowledge Base Types
-export type DocumentType = 'pdf' | 'docx' | 'txt';
-export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error';
+export type DocumentType = 'pdf' | 'docx' | 'txt' | 'webpage'; // MODIFIED: Added 'webpage'
+export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error' | 'fetched'; // MODIFIED: Added 'fetched'
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
 // Bot Type Enum
@@ -45,7 +45,7 @@ export interface Chatbot extends BaseTable {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
-  welcome_message?: string | null; // <-- ADDED
+  welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
 }
 
 export interface Room extends BaseTable {
@@ -81,7 +81,7 @@ export interface ChatMessage extends BaseTable {
         isAssessmentFeedback?: boolean;
         isAssessmentPlaceholder?: boolean;
         assessmentId?: string | null;
-        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification)
+        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification) (This was already correct in your original file)
         [key: string]: unknown;
     } | null;
 }
@@ -92,17 +92,18 @@ export interface Profile extends BaseTable {
   email: string;
   role: UserRole;
   school_id?: string | null;
-  country_code?: string | null; // <-- ADD THIS
+  country_code?: string | null; // <-- ADD THIS (This was already correct in your original file)
 }
 
+// THIS IS THE Document INTERFACE WITHIN database.types.ts
 export interface Document extends BaseTable {
   document_id: string;
   chatbot_id: string;
   file_name: string;
   file_path: string;
-  file_type: DocumentType;
+  file_type: DocumentType; // This now correctly uses the MODIFIED DocumentType above
   file_size: number;
-  status: DocumentStatus;
+  status: DocumentStatus;  // This now correctly uses the MODIFIED DocumentStatus above
   error_message?: string;
 }
 
@@ -166,7 +167,7 @@ export interface Database {
   room_chatbots: RoomChatbot;
   room_memberships: RoomMembership;
   chat_messages: ChatMessage;
-  documents: Document;
+  documents: Document; // This now refers to the locally defined Document interface
   document_chunks: DocumentChunk;
   flagged_messages: FlaggedMessage;
   student_assessments: StudentAssessment;
@@ -187,7 +188,7 @@ export interface CreateChatbotPayload {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
-  welcome_message?: string | null; // <-- ADDED
+  welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
 }
 
 export interface CreateRoomPayload {

@@ -4,24 +4,24 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Card, Button, Badge, Alert } from '@/styles/StyledComponents';
-import type { Document as KnowledgeDocument, DocumentStatus } from '@/types/knowledge-base.types';
+import type { Document as KnowledgeDocument, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
 
 const ListContainer = styled(Card)`
   margin-top: ${({ theme }) => theme.spacing.lg};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
-  overflow-x: auto; // Ensure table is scrollable horizontally if it overflows
+  overflow-x: auto; 
 `;
 
 const Table = styled.table`
   width: 100%;
-  min-width: 700px; // Ensure table has a minimum width for all columns
-  border-collapse: collapse; // Corrected from seperate to collapse
+  min-width: 700px; 
+  border-collapse: collapse; 
   
   th, td {
     text-align: left;
     padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    vertical-align: middle; // Changed from top for better alignment with buttons
+    vertical-align: middle; 
   }
 
   th {
@@ -30,7 +30,7 @@ const Table = styled.table`
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    white-space: nowrap; // Prevent headers from wrapping
+    white-space: nowrap; 
   }
 
   td {
@@ -39,19 +39,20 @@ const Table = styled.table`
   }
 
   .actions-cell {
-    width: 1%; // Allow this column to shrink but also expand for multiple buttons
+    width: 1%; 
     white-space: nowrap;
   }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    /* Forcing table display for now, mobile list can be a future enhancement */
-    /* display: none; */ 
+  
+  .filename-cell { // MODIFIED: Added for better filename display
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `;
 
-// MobileList and related components are kept but not used if Table is always displayed
 const MobileList = styled.div`
-  display: none; /* Hidden for now, enable if switching views */
+  display: none; 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     /* display: block; */
   }
@@ -72,7 +73,7 @@ const MobileHeader = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
-const FileNameMobile = styled.div` // Renamed to avoid conflict with Table's FileName
+const FileNameMobile = styled.div`
   font-weight: 500;
   color: ${({ theme }) => theme.colors.text};
   word-break: break-all;
@@ -110,18 +111,15 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-// StatusBadge is imported from StyledComponents, so it should use its defined props
-// The $status prop was correct if Badge in StyledComponents expects it for styling.
-// If Badge in StyledComponents uses 'variant', then we adjust.
-// Assuming Badge uses 'variant' prop and we map status to variant:
-// Removed unused StyledStatusBadge
 
+// MODIFIED: getStatusBadgeVariant to include 'fetched' status
 const getStatusBadgeVariant = (status: DocumentStatus): 'success' | 'warning' | 'error' | 'default' => {
     switch (status) {
       case 'completed': return 'success';
-      case 'processing': return 'default'; // Or a 'info' / 'blue' if you have one
+      case 'processing': return 'default';
       case 'error': return 'error';
-      case 'uploaded': return 'warning'; // 'uploaded' might be better as 'warning' or 'default'
+      case 'uploaded': return 'warning';
+      case 'fetched': return 'warning'; // 'fetched' can also be warning or default
       default: return 'default';
     }
 };
@@ -149,19 +147,27 @@ export default function DocumentList({
     return new Date(dateString).toLocaleString();
   };
 
-  const formatFileSize = (bytes: number): string => {
+  // MODIFIED: formatFileSize to handle webpage type (size is text length)
+  const formatFileSize = (bytes: number, fileType: DocumentType): string => {
+    if (fileType === 'webpage') {
+        // For webpages, 'bytes' is actually character count of extracted text
+        if (bytes === 0) return 'No text extracted';
+        return `${bytes.toLocaleString()} chars`;
+    }
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + ['Bytes', 'KB', 'MB', 'GB', 'TB'][i];
   };
 
+  // MODIFIED: getStatusLabel to include 'fetched'
   const getStatusLabel = (status: DocumentStatus): string => {
     const labels: Record<DocumentStatus, string> = {
       uploaded: 'Uploaded',
       processing: 'Processing',
       completed: 'Completed',
       error: 'Error',
+      fetched: 'Fetched', // New label
     };
     return labels[status] || status;
   };
@@ -197,7 +203,7 @@ export default function DocumentList({
     return (
       <ListContainer>
         <EmptyState>
-          <p>No documents have been uploaded for this chatbot yet.</p>
+          <p>No documents have been added to this chatbot&apos;s knowledge base yet.</p>
         </EmptyState>
       </ListContainer>
     );
@@ -205,12 +211,13 @@ export default function DocumentList({
 
   const renderActions = (doc: KnowledgeDocument) => (
     <>
-      {doc.status === 'uploaded' && (
+      {/* MODIFIED: Allow processing for 'fetched' status as well */}
+      {(doc.status === 'uploaded' || doc.status === 'fetched') && (
         <Button
           size="small"
           onClick={() => handleProcess(doc.document_id)}
           disabled={processingId === doc.document_id}
-          title="Process this document for RAG"
+          title="Process this document/webpage for RAG"
         >
           {processingId === doc.document_id ? 'Starting...' : 'Process'}
         </Button>
@@ -230,16 +237,12 @@ export default function DocumentList({
         variant="danger" 
         onClick={() => handleDelete(doc.document_id, doc.file_name)}
         disabled={deletingId === doc.document_id}
-        title="Delete this document"
+        title="Delete this document/webpage"
       >
         {deletingId === doc.document_id ? 'Deleting...' : 'Delete'}
       </Button>
     </>
   );
-
-  // The main issue was likely `className` on `TableHeader` and `TableCell` which are styled components.
-  // Styled components pass props directly, or use transient props ($prop) for styling only.
-  // For `actions-cell`, it's better to create a specific styled TD or handle width via CSS.
 
   return (
     <ListContainer>
@@ -247,22 +250,30 @@ export default function DocumentList({
       <Table>
         <thead>
           <tr>
-            <th>Name</th> {/* Changed from TableHeader component to direct th */}
+            <th>Name / URL</th> 
             <th>Type</th>
-            <th>Size</th>
+            <th>Size / Content Length</th>
             <th>Status</th>
-            <th>Uploaded</th>
-            <th className="actions-cell">Actions</th> {/* Using a className for specific styling */}
+            <th>Added</th>
+            <th className="actions-cell">Actions</th>
           </tr>
         </thead>
         <tbody>
           {documents.map((doc) => (
             <tr key={doc.document_id}>
-              <td title={doc.file_name}>{doc.file_name}</td> {/* Changed from TableCell to direct td */}
+              {/* MODIFIED: Display filename for files, and file_path (URL) for webpages */}
+              <td className="filename-cell" title={doc.file_type === 'webpage' ? doc.file_path : doc.file_name}>
+                {doc.file_type === 'webpage' ? 
+                  <a href={doc.file_path} target="_blank" rel="noopener noreferrer" title={`Open: ${doc.file_path}`}>
+                    {doc.file_name} {/* file_name for webpage is its title */}
+                  </a>
+                  : doc.file_name
+                }
+              </td>
               <td>{doc.file_type.toUpperCase()}</td>
-              <td>{formatFileSize(doc.file_size)}</td>
+              {/* MODIFIED: Pass file_type to formatFileSize */}
+              <td>{formatFileSize(doc.file_size, doc.file_type)}</td>
               <td>
-                {/* Using the imported Badge and determining its variant */}
                 <Badge variant={getStatusBadgeVariant(doc.status)}>
                   {getStatusLabel(doc.status)}
                 </Badge>
@@ -278,12 +289,19 @@ export default function DocumentList({
         </tbody>
       </Table>
 
-      {/* MobileList remains unchanged for now, as the focus is fixing the table errors */}
       <MobileList>
         {documents.map((doc) => (
-          <MobileCard key={doc.document_id}>
+          <MobileCard key={`mobile-${doc.document_id}`}> {/* MODIFIED: Added unique key prefix for mobile */}
             <MobileHeader>
-              <FileNameMobile title={doc.file_name}>{doc.file_name}</FileNameMobile>
+              {/* MODIFIED: Mobile display for filename/URL */}
+              <FileNameMobile title={doc.file_type === 'webpage' ? doc.file_path : doc.file_name}>
+                {doc.file_type === 'webpage' ? 
+                  <a href={doc.file_path} target="_blank" rel="noopener noreferrer">
+                    {doc.file_name}
+                  </a>
+                  : doc.file_name
+                }
+              </FileNameMobile>
               <Badge variant={getStatusBadgeVariant(doc.status)}>
                 {getStatusLabel(doc.status)}
               </Badge>
@@ -292,8 +310,9 @@ export default function DocumentList({
               <span className="label">Type:</span>
               <span className="value">{doc.file_type.toUpperCase()}</span>
               <span className="label">Size:</span>
-              <span className="value">{formatFileSize(doc.file_size)}</span>
-              <span className="label">Uploaded:</span>
+              {/* MODIFIED: Pass file_type to formatFileSize for mobile */}
+              <span className="value">{formatFileSize(doc.file_size, doc.file_type)}</span>
+              <span className="label">Added:</span>
               <span className="value">{formatDate(doc.created_at)}</span>
               {doc.error_message && (
                 <>

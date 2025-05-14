@@ -12,7 +12,6 @@ import { createClient } from '@/lib/supabase/client';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
-// MODIFIED: Import CreateChatbotPayload
 import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType, CreateChatbotPayload } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -36,7 +35,6 @@ const MainTitle = styled.h1`
     font-size: 1.8rem;
     color: ${({ theme }) => theme.colors.text};
 `;
-
 
 const CheckboxGroup = styled.div`
   display: flex;
@@ -100,6 +98,40 @@ const LoadingStateContainer = styled.div`
     color: ${({ theme }) => theme.colors.textLight};
 `;
 
+// MODIFIED: Styled component for URL input section
+const UrlInputSection = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  background-color: ${({ theme }) => theme.colors.background}; // Slightly different background
+`;
+
+const UrlInputForm = styled.form`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  align-items: flex-start; // Align items to the start for better layout with potential error messages
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+  }
+`;
+
+const UrlInput = styled(Input)`
+  flex-grow: 1;
+`;
+
+const AddUrlButton = styled(Button)`
+  white-space: nowrap; // Prevent button text from wrapping
+  min-width: 120px; // Ensure button has a decent minimum width
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+  }
+`;
+
+
 const initialChatbotState: Chatbot = {
     chatbot_id: '',
     name: '',
@@ -112,7 +144,7 @@ const initialChatbotState: Chatbot = {
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: null,
-    welcome_message: null, // This was already correctly added by you
+    welcome_message: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
 };
@@ -129,6 +161,12 @@ export default function ConfigureChatbotPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // MODIFIED: Added states for URL input
+  const [webpageUrl, setWebpageUrl] = useState('');
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
 
   const params = useParams();
   const router = useRouter();
@@ -230,12 +268,10 @@ export default function ConfigureChatbotPage() {
 
     const currentBotType = chatbot.bot_type || 'learning';
 
-    // This payload is for the direct Supabase client .update() call
     const supabaseUpdatePayload: Partial<Omit<Chatbot, 'chatbot_id' | 'created_at' | 'updated_at' | 'teacher_id'>> & { teacher_id?: string } = {
         name: chatbot.name,
         description: chatbot.description || undefined,
         system_prompt: chatbot.system_prompt,
-        // teacher_id: currentUserId, // Not strictly needed for update if RLS is correct, but doesn't harm
         model: chatbot.model,
         max_tokens: (chatbot.max_tokens === undefined || chatbot.max_tokens === null || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
         temperature: (chatbot.temperature === undefined || chatbot.temperature === null || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
@@ -246,15 +282,13 @@ export default function ConfigureChatbotPage() {
     };
     if (supabaseUpdatePayload.description === undefined) delete supabaseUpdatePayload.description;
 
-
     try {
         if (isCreateMode) {
-            // Construct the payload for the API POST, matching CreateChatbotPayload
             const apiCreatePayload: CreateChatbotPayload = {
                 name: chatbot.name,
                 system_prompt: chatbot.system_prompt,
                 description: chatbot.description || undefined,
-                model: chatbot.model || 'qwen/qwen3-235b-a22b', // Ensure model has a default if chatbot.model is undefined
+                model: chatbot.model || 'qwen/qwen3-235b-a22b',
                 max_tokens: supabaseUpdatePayload.max_tokens,
                 temperature: supabaseUpdatePayload.temperature,
                 enable_rag: supabaseUpdatePayload.enable_rag,
@@ -271,17 +305,15 @@ export default function ConfigureChatbotPage() {
             const responseData = await response.json();
             if (!response.ok) throw new Error(responseData.error || 'Failed to create chatbot');
 
-            setSuccessMessage('Chatbot created successfully! You can now continue configuring or manage documents if RAG is enabled.');
-            const newBotData = responseData as Chatbot; // API returns the full Chatbot object
-            setChatbot(newBotData); // Update local state with the full new bot data
+            setSuccessMessage('Chatbot created successfully! You can now configure its knowledge base if RAG is enabled.');
+            const newBotData = responseData as Chatbot;
+            setChatbot(newBotData);
             setIsCreateMode(false);
             router.replace(`/teacher-dashboard/chatbots/${newBotData.chatbot_id}/edit`, { scroll: false });
 
         } else {
-            // Use supabaseUpdatePayload for the direct Supabase client update
-            // We don't need to spread teacher_id here as it's part of the .eq() condition
             const updateDataForSupabase = { ...supabaseUpdatePayload };
-            delete updateDataForSupabase.teacher_id; // teacher_id is for eq, not update payload itself
+            delete updateDataForSupabase.teacher_id;
 
             const { error: updateError } = await supabase
                 .from('chatbots')
@@ -307,7 +339,7 @@ export default function ConfigureChatbotPage() {
         processedValue = value === `` ? null : Number(value);
     } else if (name === "bot_type") {
         processedValue = value as BotType;
-    } else if (name === "enable_rag") { // Checkbox handled by handleCheckboxChange
+    } else if (name === "enable_rag") {
         return;
     }
     else if ((name === "welcome_message" || name === "assessment_criteria_text") && value.trim() === "") {
@@ -332,6 +364,7 @@ export default function ConfigureChatbotPage() {
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to start document processing'); }
       setDocuments(prevDocs => prevDocs.map(doc => doc.document_id === documentId ? { ...doc, status: 'processing' } : doc));
       setViewingDocumentId(documentId);
+      setSuccessMessage('Document processing started. You can monitor its status below.');
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not process document.'); }
   };
 
@@ -343,6 +376,7 @@ export default function ConfigureChatbotPage() {
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to delete document'); }
       setDocuments(prevDocs => prevDocs.filter(doc => doc.document_id !== documentId));
       if (viewingDocumentId === documentId) { setViewingDocumentId(null); }
+      setSuccessMessage('Document deleted successfully.');
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not delete document.'); }
   };
 
@@ -350,6 +384,48 @@ export default function ConfigureChatbotPage() {
     if (!viewingDocumentId) return null;
     return documents.find(doc => doc.document_id === viewingDocumentId) || null;
   };
+
+  // MODIFIED: Function to handle adding a webpage URL
+  const handleAddWebpage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!webpageUrl.trim() || !chatbot.chatbot_id) {
+      setUrlError('Please enter a valid URL.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(webpageUrl)) {
+      setUrlError('URL must start with http:// or https://');
+      return;
+    }
+
+    setIsAddingUrl(true);
+    setUrlError(null);
+    setSuccessMessage(null);
+    setDocsError(null);
+
+    const formData = new FormData();
+    formData.append('url', webpageUrl);
+    formData.append('chatbotId', chatbot.chatbot_id);
+
+    try {
+      const response = await fetch('/api/teacher/documents', { // Uses the same POST endpoint
+        method: 'POST',
+        body: formData, // API will detect it's a URL based on form data
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add webpage');
+      }
+      setSuccessMessage(data.message || 'Webpage added successfully! Refreshing list...');
+      setWebpageUrl(''); // Clear input
+      fetchDocumentsData(chatbot.chatbot_id); // Refresh the document list
+    } catch (err) {
+      setUrlError(err instanceof Error ? err.message : 'Could not add webpage.');
+      console.error("Error adding webpage:", err);
+    } finally {
+      setIsAddingUrl(false);
+    }
+  };
+
 
   if (pageLoading) {
     return ( <PageWrapper><Container><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></Container></PageWrapper> );
@@ -375,6 +451,7 @@ export default function ConfigureChatbotPage() {
           {successMessage && <Alert variant="success" style={{ marginBottom: '16px'}}>{successMessage}</Alert>}
 
           <form onSubmit={handleSubmit}>
+            {/* ... (chatbot configuration form fields: name, description, bot_type, etc.) ... */}
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input id="name" name="name" value={chatbot.name || ``} onChange={handleChange} required />
@@ -405,7 +482,6 @@ export default function ConfigureChatbotPage() {
               <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Bots, instructions from 'Assessment Criteria' are key.`}</HelpText>
             </FormGroup>
 
-            {/* Welcome Message Field - THIS IS THE NEWLY ADDED FIELD */}
             <FormGroup>
               <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
               <TextArea
@@ -454,18 +530,55 @@ export default function ConfigureChatbotPage() {
             </Button>
           </form>
 
+          {/* MODIFIED: Knowledge Base Section */}
           {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
                 <Divider />
                 <SectionTitle>Knowledge Base Documents (for RAG)</SectionTitle>
-                <HelpText>{`Upload PDF, Word, or TXT files. These will be processed and embedded for this chatbot's knowledge base.`}</HelpText>
+                
+                {/* URL Input Section */}
+                <UrlInputSection>
+                    <Label htmlFor="webpageUrl">Add Webpage by URL</Label>
+                    <UrlInputForm onSubmit={handleAddWebpage}>
+                        <UrlInput
+                            type="url"
+                            id="webpageUrl"
+                            name="webpageUrl"
+                            value={webpageUrl}
+                            onChange={(e) => { setWebpageUrl(e.target.value); setUrlError(null); }}
+                            placeholder="https://example.com/your-article-here"
+                            disabled={isAddingUrl}
+                        />
+                        <AddUrlButton type="submit" variant="outline" disabled={isAddingUrl || !webpageUrl.trim()}>
+                            {isAddingUrl ? 'Adding...' : 'Add URL'}
+                        </AddUrlButton>
+                    </UrlInputForm>
+                    {urlError && <Alert variant="error" style={{ marginTop: '8px' }}>{urlError}</Alert>}
+                    <HelpText style={{marginTop: '8px'}}>
+                        The system will attempt to extract the main content from the provided URL.
+                    </HelpText>
+                </UrlInputSection>
+
+                {/* Existing Document Uploader */}
+                <HelpText>{`Alternatively, upload PDF, Word, or TXT files directly.`}</HelpText>
                 {docsError && <Alert variant="error">{docsError}</Alert>}
-                <DocumentUploader chatbotId={chatbot.chatbot_id} onUploadSuccess={() => { setSuccessMessage("Document uploaded. Refreshing list..."); fetchDocumentsData(chatbot.chatbot_id!); }} />
+                <DocumentUploader 
+                    chatbotId={chatbot.chatbot_id} 
+                    onUploadSuccess={() => { 
+                        setSuccessMessage("Document uploaded. Refreshing list..."); 
+                        fetchDocumentsData(chatbot.chatbot_id!); 
+                    }} 
+                />
+                
+                {/* Document List and Status */}
                 {viewingDocumentId && getViewingDocument() && (
                     <EmbeddingStatus
                       document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }}
                       chatbotId={chatbot.chatbot_id!}
-                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }}
+                      onRefresh={() => { 
+                          setSuccessMessage("Document status refreshed."); 
+                          fetchDocumentsData(chatbot.chatbot_id!); 
+                        }}
                     />
                 )}
                 {docsLoading ? ( <LoadingStateContainer><LoadingSpinner size="small"/><span>Loading documents...</span></LoadingStateContainer> ) : (
@@ -479,7 +592,7 @@ export default function ConfigureChatbotPage() {
             </>
           )}
           {isCreateMode && displayBotType === 'learning' && (
-            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads.</HelpText>
+            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads and URL additions.</HelpText>
           )}
         </Card>
       </Container>
