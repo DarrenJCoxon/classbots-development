@@ -81,7 +81,8 @@ const getModelDisplayName = (model: string | undefined) => {
     const modelNames: Record<string, string> = {
         'x-ai/grok-3-mini-beta': 'Grok 3 Mini',
         'qwen/qwen3-235b-a22b': 'Qwen3 235B',
-        'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash'
+        'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash',
+        'openai/gpt-4.1-nano': 'GPT-4.1 Nano', 
     };
     return modelNames[model] || model;
 };

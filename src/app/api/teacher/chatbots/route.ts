@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       description: body.description || undefined, // Keep undefined if not provided
       system_prompt: body.system_prompt,
       teacher_id: user.id,
-      model: body.model || 'x-ai/grok-3-mini-beta',
+      model: body.model || 'openai/gpt-4.1-nano',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
       enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,

@@ -3,13 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
-
-// ONLY import what is DIRECTLY CALLED by THIS file.
-// checkMessageSafety is the function we call from monitoring.ts.
 import { checkMessageSafety } from '@/lib/safety/monitoring';
-
-// Import specific types needed in THIS file.
-import type { ChatMessage, Room } from '@/types/database.types';
+import type { ChatMessage, Room } from '@/types/database.types'; // MODIFIED: Removed unused Profile
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -18,6 +13,7 @@ const ASSESSMENT_CONTEXT_MESSAGE_COUNT = 5;
 const isTeacherTestRoom = (roomId: string) => roomId.startsWith('teacher_test_room_for_');
 
 // --- GET Function ---
+// ... (GET function remains the same) ...
 export async function GET(request: NextRequest) {
     try {
         const pathname = request.nextUrl.pathname;
@@ -60,6 +56,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
+
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
   let userMessageId: string | null = null;
@@ -73,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
-
+    
     const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
@@ -89,9 +86,10 @@ export async function POST(request: NextRequest) {
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
 
+    // MODIFIED: Select teacher_id from chatbotConfig to fetch teacher's profile
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id') // Added teacher_id
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -101,6 +99,8 @@ export async function POST(request: NextRequest) {
     }
 
     let roomForSafetyCheck: Room | null = null;
+    let teacherCountryCode: string | null = null; // MODIFIED: Variable to store country code
+
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
             .from('rooms')
@@ -112,9 +112,41 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 }); 
         }
         roomForSafetyCheck = roomData as Room;
-    } else if (isTeacherTestRoom(roomId) && !isTeacher) {
-        return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
+        
+        // Fetch teacher's profile for country code if we have a room and thus a teacher_id
+        // This also benefits the safety check logic later
+        if (roomData.teacher_id) {
+            const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', roomData.teacher_id)
+                .single();
+            if (roomTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching teacher profile for room's teacher (${roomData.teacher_id}):`, roomTeacherProfileError.message);
+            } else if (roomTeacherProfile) {
+                teacherCountryCode = roomTeacherProfile.country_code || null;
+            }
+        }
+    } else if (isTeacherTestRoom(roomId)) {
+        if (!isTeacher) {
+            return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
+        }
+        // For teacher test rooms, the "user" is the teacher. Fetch their country code.
+        // chatbotConfig.teacher_id should be the current user's ID.
+        if (user.id === chatbotConfig.teacher_id) {
+            const { data: testTeacherProfile, error: testTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', user.id)
+                .single();
+            if (testTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching teacher profile for test room user (${user.id}):`, testTeacherProfileError.message);
+            } else if (testTeacherProfile) {
+                teacherCountryCode = testTeacherProfile.country_code || null;
+            }
+        }
     }
+
 
     const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string } } = {
       room_id: roomId, user_id: user.id, role: 'user' as const, content: trimmedContent, metadata: { chatbotId: chatbot_id }
@@ -124,39 +156,17 @@ export async function POST(request: NextRequest) {
     userMessageId = savedUserMessageData.message_id;
     const userMessageCreatedAt = savedUserMessageData.created_at;
     
-    // Safety Check Trigger
+    // Safety Check uses teacherCountryCode fetched above
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        let teacherCountryCode: string | null = null;
-        try {
-            if (roomForSafetyCheck.teacher_id) {
-                const { data: teacherProfileData, error: teacherProfileError } = await supabase
-                    .from('profiles')
-                    .select('country_code')
-                    .eq('user_id', roomForSafetyCheck.teacher_id)
-                    .single();
-
-                if (teacherProfileError) {
-                    console.warn(`[API Chat POST] Error fetching teacher profile for safety check (teacher_id: ${roomForSafetyCheck.teacher_id}):`, teacherProfileError.message);
-                } else if (teacherProfileData) {
-                    teacherCountryCode = teacherProfileData.country_code || null;
-                }
-            } else {
-                console.warn(`[API Chat POST] Teacher ID not found in roomForSafetyCheck object. Cannot fetch country for safety check.`);
-            }
-        } catch (countryFetchError) {
-            console.warn(`[API Chat POST] Exception while trying to fetch teacher's country for safety check:`, countryFetchError);
-        }
-
         console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
-        // *** CORRECTED CALL: Added teacherCountryCode as the 6th argument ***
         checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
             .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
     } else {
         console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}, roomForSafetyCheck: ${!!roomForSafetyCheck}`);
     }
 
-    // --- ASSESSMENT TRIGGER LOGIC ---
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
+        // ... (assessment logic remains the same)
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
             .from('chat_messages')
@@ -179,9 +189,7 @@ export async function POST(request: NextRequest) {
         }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
         return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
-    // --- END OF ASSESSMENT TRIGGER LOGIC ---
 
-    // Regular Chat Logic (RAG, LLM Call, Streaming)
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
       .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
@@ -190,8 +198,8 @@ export async function POST(request: NextRequest) {
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
     const { 
-        system_prompt: systemPromptToUse = "You are a helpful AI assistant.",
-        model: modelToUseFromConfig = 'x-ai/grok-3-mini-beta', 
+        system_prompt: systemPromptToUse = "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.",
+        model: modelToUseFromConfig = 'openai/gpt-4.1-nano', 
         temperature: temperatureToUse = 0.7, 
         max_tokens: maxTokensToUse = 1000, 
         enable_rag: enableRagFromConfig = false 
@@ -206,18 +214,34 @@ export async function POST(request: NextRequest) {
             const searchResults = await queryVectors(queryEmbedding, chatbot_id, 3);
             if (searchResults && searchResults.length > 0) {
                 ragContextText = "\n\nRelevant information from knowledge base:\n";
-                searchResults.forEach((result, index) => {
+                searchResults.forEach((result) => { 
                     if (result.metadata?.text) {
                         const fileName = typeof result.metadata.fileName === 'string' ? result.metadata.fileName : 'document';
                         const chunkText = String(result.metadata.text).substring(0, 500);
-                        ragContextText += `\n[${index + 1}] From "${fileName}":\n${chunkText}\n`;
+                        ragContextText += `\nFrom document "${fileName}":\n${chunkText}\n`; 
                     }
                 });
             }
         } catch (ragError) { console.warn(`[RAG] Error:`, ragError); }
     }
 
-    const enhancedSystemPrompt = `${systemPromptToUse}${ragContextText ? `\n\n${ragContextText}\n\nRemember to cite sources by their number (e.g., [1], [2]) if you use their information.` : ''}`;
+    // MODIFICATION START: Incorporate country code into system prompt
+    let regionalInstruction = '';
+    if (teacherCountryCode === 'GB') {
+        regionalInstruction = " Please use British English spelling (e.g., 'colour', 'analyse').";
+    } else if (teacherCountryCode === 'AU') {
+        regionalInstruction = " Please use Australian English spelling.";
+    } else if (teacherCountryCode === 'CA') {
+        regionalInstruction = " Please use Canadian English spelling.";
+    }
+    // Add more else if for other specific regions (e.g., 'US' for American, though often default)
+
+    const baseSystemPrompt = `${systemPromptToUse}${regionalInstruction}`;
+    // MODIFICATION END
+
+    const enhancedSystemPrompt = `${baseSystemPrompt}${ragContextText ? `\n\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    console.log(`[API Chat POST] Enhanced System Prompt (first 200 chars): ${enhancedSystemPrompt.substring(0,200)}...`);
+    
     const messagesForAPI = [ { role: 'system', content: enhancedSystemPrompt }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
@@ -254,7 +278,11 @@ export async function POST(request: NextRequest) {
                 }
             } catch (streamError) { console.error('Stream error:', streamError); controller.error(streamError); }
             finally {
-                const finalContent = fullResponseContent.trim();
+                let finalContent = fullResponseContent.trim();
+                finalContent = finalContent.replace(/\s*Source:\s*\[\d+\]\s*$/gm, '').trim(); 
+                finalContent = finalContent.replace(/\s*\[\d+\]\s*$/gm, '').trim(); 
+                finalContent = finalContent.replace(/(\r\n|\n|\r){2,}/gm, '$1').replace(/ +/g, ' ');
+
                 if (assistantMessageId && finalContent) {
                     const { error: updateError } = await supabase.from('chat_messages').update({ content: finalContent, updated_at: new Date().toISOString() }).eq('message_id', assistantMessageId);
                     if (updateError) console.error(`Error updating assistant message ${assistantMessageId}:`, updateError); else console.log(`Assistant message ${assistantMessageId} updated.`);
