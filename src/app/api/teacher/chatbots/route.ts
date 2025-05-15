@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteChatbotVectors } from '@/lib/pinecone/utils';
-import type { CreateChatbotPayload, Chatbot as DatabaseChatbot } from '@/types/database.types'; // Added DatabaseChatbot type
+import type { CreateChatbotPayload, Chatbot as DatabaseChatbot, BotTypeEnum } from '@/types/database.types'; // MODIFIED: Added BotTypeEnum
 
 // GET Handler
-export async function GET() {
+export async function GET(request: NextRequest) { // MODIFIED: Added request parameter
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,11 +25,48 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { data: chatbots, error: fetchError } = await supabase
+    // MODIFIED: Extract query parameters for filtering and sorting
+    const { searchParams } = new URL(request.url);
+    const searchTerm = searchParams.get('searchTerm');
+    const botType = searchParams.get('botType') as BotTypeEnum | null;
+    const ragEnabledParam = searchParams.get('ragEnabled'); // Will be 'true' or 'false' as string
+    const sortBy = searchParams.get('sortBy') || 'created_at_desc'; // Default sort
+
+    let query = supabase
       .from('chatbots')
-      .select('*') // This will now include welcome_message if the DB column exists
-      .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('*')
+      .eq('teacher_id', user.id);
+
+    // Apply search term filter (searches name and description)
+    if (searchTerm) {
+      // Using .or() for searching in multiple columns.
+      // The syntax `description.ilike.%${searchTerm}%` means description case-insensitive LIKE '%searchTerm%'
+      query = query.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+    }
+
+    // Apply botType filter
+    if (botType && (botType === 'learning' || botType === 'assessment')) {
+      query = query.eq('bot_type', botType);
+    }
+
+    // Apply ragEnabled filter
+    if (ragEnabledParam === 'true') {
+      query = query.eq('enable_rag', true);
+    } else if (ragEnabledParam === 'false') {
+      query = query.eq('enable_rag', false);
+    }
+
+    // Apply sorting
+    // Example: sortBy = "name_asc" or "created_at_desc"
+    const [sortField, sortOrder] = sortBy.split('_');
+    if (sortField && sortOrder && ['name', 'created_at', 'updated_at', 'bot_type'].includes(sortField)) {
+      query = query.order(sortField as keyof DatabaseChatbot, { ascending: sortOrder === 'asc' });
+    } else {
+      // Default sort if sortBy parameter is invalid or not provided fully
+      query = query.order('created_at', { ascending: false });
+    }
+    
+    const { data: chatbots, error: fetchError } = await query;
 
     if (fetchError) {
       console.error('Error fetching chatbots:', fetchError);
@@ -47,6 +84,7 @@ export async function GET() {
 }
 
 // POST Handler
+// ... (POST Handler remains the same as you provided)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -76,10 +114,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Assessment criteria are required for assessment bots.' }, { status: 400 });
     }
 
-    // Explicitly type the object being inserted to match a subset of DatabaseChatbot
     const chatbotDataToInsert: Omit<DatabaseChatbot, 'chatbot_id' | 'created_at' | 'updated_at'> & { teacher_id: string } = {
       name: body.name,
-      description: body.description || undefined, // Keep undefined if not provided
+      description: body.description || undefined, 
       system_prompt: body.system_prompt,
       teacher_id: user.id,
       model: body.model || 'openai/gpt-4.1-nano',
@@ -88,10 +125,10 @@ export async function POST(request: NextRequest) {
       enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
       bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
-      welcome_message: body.welcome_message || null, // <-- ADDED: ensure null if empty/undefined
+      welcome_message: body.welcome_message || null, 
     };
     if (chatbotDataToInsert.description === undefined) {
-        delete chatbotDataToInsert.description; // Remove if undefined to avoid inserting 'undefined'
+        delete chatbotDataToInsert.description; 
     }
 
 
@@ -121,6 +158,7 @@ export async function POST(request: NextRequest) {
 
 
 // DELETE Handler
+// ... (DELETE Handler remains the same as you provided)
 export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const chatbotId = searchParams.get('chatbotId');

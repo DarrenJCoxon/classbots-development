@@ -2,10 +2,11 @@
 'use client';
 
 import Link from 'next/link';
-import styled from 'styled-components'; // Removed useTheme as it's not directly used now
-import { Card, Button } from '@/styles/StyledComponents'; 
+import styled from 'styled-components';
+import { Card, Button, Badge } from '@/styles/StyledComponents'; // MODIFIED: Added Badge
 import type { Chatbot } from '@/types/database.types';
 
+// Card View Styled Components (Existing)
 const ListGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -17,8 +18,6 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
   position: relative;
   display: flex;
   flex-direction: column;
-
-  /* Optional: Apply a passed accent color to the top border */
   ${({ $cardAccentColor }) => 
     $cardAccentColor && `border-top: 4px solid ${$cardAccentColor};`}
 
@@ -53,28 +52,80 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
   }
   .actions {
     display: flex;
-    gap: ${({ theme }) => theme.spacing.md}; // Adjusted gap for two buttons
+    gap: ${({ theme }) => theme.spacing.md};
     margin-top: auto; 
     padding-top: ${({ theme }) => theme.spacing.md}; 
-    flex-wrap: no-wrap; // Prevent wrapping if space allows for two buttons
+    flex-wrap: no-wrap; 
     
-    button { // Target button elements directly for sizing
+    button { 
         flex-grow: 1; 
-        /* Each button can take up to 50% of the space minus gap */
         flex-basis: calc(50% - ${({ theme }) => `calc(${theme.spacing.md} / 2)`});
         max-width: calc(50% - ${({ theme }) => `calc(${theme.spacing.md} / 2)`});
         text-align: center; 
 
-         @media (max-width: 380px) { // Stricter breakpoint for stacking two buttons
+         @media (max-width: 380px) { 
             flex-basis: 100%; 
             max-width: 100%;
             &:not(:last-child) {
-              margin-bottom: ${({ theme }) => theme.spacing.sm}; // Add margin if they stack
+              margin-bottom: ${({ theme }) => theme.spacing.sm};
             }
          }
     }
   }
 `;
+
+// MODIFIED: Added Styled Components for Table/List View
+const TableContainer = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+`;
+
+const Table = styled.table`
+  width: 100%;
+  min-width: 800px; /* Ensure table has a minimum width for readability */
+  border-collapse: collapse;
+  
+  th, td {
+    padding: ${({ theme }) => theme.spacing.md};
+    text-align: left;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    vertical-align: middle;
+  }
+
+  th {
+    background-color: ${({ theme }) => theme.colors.backgroundCard};
+    color: ${({ theme }) => theme.colors.textLight};
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td {
+    font-size: 0.9rem;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  .description-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
+
+const ActionButtonsContainer = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  align-items: center;
+`;
+
 
 const getModelDisplayName = (model: string | undefined) => {
     if (!model) return 'Default Model';
@@ -87,27 +138,99 @@ const getModelDisplayName = (model: string | undefined) => {
     return modelNames[model] || model;
 };
 
+// MODIFIED: Added viewMode to props
 interface ChatbotListProps {
   chatbots: Chatbot[];
   onEdit: (chatbotId: string) => void;
   onDelete: (chatbotId: string, chatbotName: string) => void;
+  viewMode: 'card' | 'list'; // New prop
 }
 
-export default function ChatbotList({ chatbots, onEdit, onDelete }: ChatbotListProps) {
-  // const theme = useTheme(); // Not strictly needed if not applying accents directly here
+export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: ChatbotListProps) {
 
   if (chatbots.length === 0) {
-    return <Card><p>No chatbots created yet. Click &quot;+ Create Chatbot&quot; to get started!</p></Card>;
+    // This message might be better handled in the parent component (ManageChatbotsPage)
+    // if it needs to consider filters. For now, keeping a simple empty state here.
+    return <Card><p>No chatbots found.</p></Card>;
   }
 
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  // MODIFIED: Conditional rendering based on viewMode
+  if (viewMode === 'list') {
+    return (
+      <TableContainer>
+        <Table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Model</th>
+              <th>RAG</th>
+              <th>Last Modified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chatbots.map((chatbot) => (
+              <tr key={chatbot.chatbot_id}>
+                <td>
+                  <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`} title={`Test chat with ${chatbot.name}`}>
+                    {chatbot.name}
+                  </Link>
+                </td>
+                <td>
+                  <Badge variant={chatbot.bot_type === 'assessment' ? 'warning' : 'default'}>
+                    {chatbot.bot_type ? chatbot.bot_type.charAt(0).toUpperCase() + chatbot.bot_type.slice(1) : 'N/A'}
+                  </Badge>
+                </td>
+                <td className="description-cell" title={chatbot.description || undefined}>
+                  {chatbot.description || '-'}
+                </td>
+                <td>{getModelDisplayName(chatbot.model)}</td>
+                <td>
+                  <Badge variant={chatbot.enable_rag ? 'success' : 'default'}>
+                    {chatbot.enable_rag ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </td>
+                <td>{formatDate(chatbot.updated_at || chatbot.created_at)}</td>
+                <td>
+                  <ActionButtonsContainer>
+                    <Button
+                      size="small"
+                      variant="outline"
+                      onClick={() => onEdit(chatbot.chatbot_id)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="magenta"
+                      onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
+                    >
+                      Delete
+                    </Button>
+                  </ActionButtonsContainer>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </TableContainer>
+    );
+  }
+
+  // Default to Card View (existing logic)
   return (
     <ListGrid>
-      {chatbots.map((chatbot) => { // Removed index as it wasn't used for key
+      {chatbots.map((chatbot) => {
         return (
           <StyledChatbotCard 
               key={chatbot.chatbot_id}
-              // Example: if you wanted to cycle card accents:
-              // $cardAccentColor={cardAccentColors[index % cardAccentColors.length]} 
           >
             <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`} title={`Test chat with ${chatbot.name}`}>
               <h3>{chatbot.name}</h3>
@@ -123,12 +246,11 @@ export default function ChatbotList({ chatbots, onEdit, onDelete }: ChatbotListP
                 onClick={() => onEdit(chatbot.chatbot_id)}
                 title="Edit chatbot settings and knowledge base"
               >
-                Edit {/* CHANGED from "Configure" */}
+                Edit
               </Button>
-              {/* "Knowledge" Button has been REMOVED */}
               <Button
                   size="small"
-                  variant="magenta" // Using magenta variant
+                  variant="magenta"
                   onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
                   title="Delete this chatbot"
               >

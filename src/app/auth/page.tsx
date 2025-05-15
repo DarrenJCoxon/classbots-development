@@ -37,8 +37,22 @@ const LoadingFallback = styled.div`
 // Separate component for content that uses search params
 function AuthContent() {
   const searchParams = useSearchParams();
-  const isStudentSignup = searchParams?.get('type') === 'student';
-  const [authType, setAuthType] = useState<'login' | 'signup'>(isStudentSignup ? 'signup' : 'login');
+  const urlAuthTypeParam = searchParams?.get('type'); // Get the 'type' param
+
+  // MODIFIED: Logic to determine initial authType
+  // Default to 'signup' if type includes 'signup' (e.g., 'student_signup', 'teacher_signup')
+  // or if it's just 'student' (which implies student signup).
+  // Otherwise, default to 'login'.
+  const determineInitialAuthType = () => {
+    if (urlAuthTypeParam) {
+      if (urlAuthTypeParam.includes('signup') || urlAuthTypeParam === 'student') {
+        return 'signup';
+      }
+    }
+    return 'login'; // Default to login if no specific signup type is indicated
+  };
+
+  const [authType, setAuthType] = useState<'login' | 'signup'>(determineInitialAuthType());
 
   return (
     <>

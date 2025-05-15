@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents'; // Removed HelpText
+import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents';
 
 const AuthCard = styled(Card)`
   max-width: 400px;
@@ -48,7 +48,7 @@ export default function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [countryCode, setCountryCode] = useState(''); // <--- ADDED for country selection
+  const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -84,14 +84,13 @@ export default function AuthForm({ type }: AuthFormProps) {
       if (type === 'signup') {
         const role = isStudentSignup ? 'student' : 'teacher';
         
-        // Prepare options.data, including country_code for teachers
         const signupData: { role: string; full_name: string; country_code?: string | null } = {
             role: role,
             full_name: fullName,
         };
 
         if (role === 'teacher') {
-            signupData.country_code = countryCode.trim() || null; // Add country_code if teacher and it's set
+            signupData.country_code = countryCode.trim() || null;
         }
         
         const { error: signUpError } = await supabase.auth.signUp({
@@ -99,7 +98,7 @@ export default function AuthForm({ type }: AuthFormProps) {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-            data: signupData // Use the prepared signupData
+            data: signupData
           },
         });
         
@@ -122,10 +121,10 @@ export default function AuthForm({ type }: AuthFormProps) {
               router.push(`/auth?type=login&redirect=${encodeURIComponent(redirectTo)}`);
             }, 3000);
           }
-        } else { // Teacher signup
+        } else { 
           alert('Check your email for the confirmation link! Please also check your spam folder.');
         }
-      } else { // Login
+      } else { 
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -144,7 +143,6 @@ export default function AuthForm({ type }: AuthFormProps) {
     }
   };
 
-  // Special UI for student signup
   if (isStudentSignup && type === 'signup') {
     return (
       <AuthCard>
@@ -195,15 +193,14 @@ export default function AuthForm({ type }: AuthFormProps) {
     );
   }
 
-  // Regular auth form for teachers (signup/login) or general login
   return (
     <AuthCard>
       <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
       
-      {type === 'signup' && ( // This block is for Teacher Signup or general Signup
+      {type === 'signup' && ( 
         <InfoBox>
           <p><strong>For Teachers:</strong> Sign up here to create your teacher account.</p>
-          {!isStudentSignup && ( // Only show student info if not already in student signup flow
+          {!isStudentSignup && ( 
              <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
           )}
         </InfoBox>
@@ -212,7 +209,7 @@ export default function AuthForm({ type }: AuthFormProps) {
       {error && <Alert variant="error">{error}</Alert>}
       
       <form onSubmit={handleSubmit}>
-        {type === 'signup' && ( // Fields specific to signup
+        {type === 'signup' && ( 
           <>
             <FormGroup>
               <Label htmlFor="fullName">Full Name</Label>
@@ -225,8 +222,7 @@ export default function AuthForm({ type }: AuthFormProps) {
                 required
               />
             </FormGroup>
-            {/* ADDED Country Code Dropdown FOR TEACHER SIGNUP */}
-            {!isStudentSignup && ( // Only show for teacher signup
+            {!isStudentSignup && ( 
                  <FormGroup>
                     <Label htmlFor="countryCode">Your Country (Optional)</Label>
                     <StyledSelect
@@ -241,8 +237,9 @@ export default function AuthForm({ type }: AuthFormProps) {
                         <option value="CA">Canada</option>
                         <option value="AU">Australia</option>
                         <option value="NZ">New Zealand</option>
-                        <option value="EU">EU</option>
-                        {/* Add more relevant countries as needed */}
+                        {/* MODIFIED: Added AE */}
+                        <option value="AE">United Arab Emirates</option> 
+                        <option value="EU">EU (Other)</option> {/* Renamed EU slightly for clarity */}
                     </StyledSelect>
                     <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
                  </FormGroup>

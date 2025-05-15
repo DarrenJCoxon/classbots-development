@@ -4,7 +4,7 @@
 import styled from 'styled-components';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client'; // Your client import
 import { Container, Button } from '@/styles/StyledComponents';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
@@ -58,7 +58,6 @@ const Nav = styled.nav`
   }
 `;
 
-// Modified NavLink to accept isActive prop
 const NavLink = styled(Link)<{ $isActive?: boolean }>`
   color: ${({ theme, $isActive }) => $isActive ? theme.colors.primary : theme.colors.text};
   text-decoration: none;
@@ -101,12 +100,23 @@ const HeaderButton = styled(Button)`
 export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const supabase = createClient();
-  const pathname = usePathname(); // Get current path for active link styling
+  const supabase = createClient(); // Supabase client initialized here
+  const pathname = usePathname();
+
+  // --- START OF CODE TO ADD/VERIFY ---
+  useEffect(() => {
+    // Expose supabase client to the window object FOR TESTING PURPOSES ONLY
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      // @ts-expect-error // TypeScript might complain, ignore for testing
+      window.supabaseClientInstance = supabase;
+      console.log("Supabase client instance EXPOSED to window.supabaseClientInstance for testing.");
+    }
+  }, [supabase]); // Dependency array includes supabase
+  // --- END OF CODE TO ADD/VERIFY ---
 
   useEffect(() => {
     const getUserInfo = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser(); // Renamed to avoid conflict
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       setUser(currentUser);
       
       if (currentUser) {
@@ -119,10 +129,10 @@ export default function Header() {
         if (profile) {
           setUserRole(profile.role);
         } else {
-          setUserRole(null); // Explicitly set to null if profile not found
+          setUserRole(null);
         }
       } else {
-        setUserRole(null); // No user, no role
+        setUserRole(null);
       }
     };
     
@@ -138,7 +148,7 @@ export default function Header() {
           .select('role')
           .eq('user_id', sessionUser.id)
           .single()
-          .then(({ data: profileData, error: profileError }) => { // Added error handling
+          .then(({ data: profileData, error: profileError }) => {
             if (profileError) {
               console.warn("Error fetching profile on auth state change:", profileError.message);
               setUserRole(null);
@@ -158,17 +168,15 @@ export default function Header() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase]); // supabase is already a dependency here
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    // Forcing a full page reload to clear all state after sign out
     window.location.href = '/'; 
   };
 
   const isLinkActive = (href: string) => {
     if (href === '/teacher-dashboard' || href === '/student/dashboard') {
-        // For dashboard links, consider active if the path starts with this href
         return pathname.startsWith(href);
     }
     return pathname === href;
@@ -182,7 +190,7 @@ export default function Header() {
             {APP_NAME}
           </Logo>
           
-          {user && userRole && ( // Ensure userRole is also present before rendering Nav
+          {user && userRole && (
             <Nav>
               {userRole === 'teacher' && (
                 <NavLink href="/teacher-dashboard" $isActive={isLinkActive('/teacher-dashboard')}>
@@ -192,9 +200,8 @@ export default function Header() {
               {userRole === 'student' && (
                 <NavLink href="/student/dashboard" $isActive={isLinkActive('/student/dashboard')}>
                   Dashboard 
-                </NavLink> // <<< MODIFIED LINK & TEXT
+                </NavLink>
               )}
-              {/* Add other common links here if any, e.g., /profile, /settings */}
             </Nav>
           )}
           
@@ -204,7 +211,6 @@ export default function Header() {
                 Sign Out
               </HeaderButton>
             ) : (
-              // Only show Sign In button if not on the auth page itself
               pathname !== '/auth' && (
                 <HeaderButton as={Link} href="/auth">
                   Sign In

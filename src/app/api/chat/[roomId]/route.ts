@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
 import { checkMessageSafety } from '@/lib/safety/monitoring';
-import type { ChatMessage, Room } from '@/types/database.types'; // MODIFIED: Removed unused Profile
+import type { ChatMessage, Room } from '@/types/database.types'; // Removed unused Profile
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -13,7 +13,6 @@ const ASSESSMENT_CONTEXT_MESSAGE_COUNT = 5;
 const isTeacherTestRoom = (roomId: string) => roomId.startsWith('teacher_test_room_for_');
 
 // --- GET Function ---
-// ... (GET function remains the same) ...
 export async function GET(request: NextRequest) {
     try {
         const pathname = request.nextUrl.pathname;
@@ -86,10 +85,9 @@ export async function POST(request: NextRequest) {
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
 
-    // MODIFIED: Select teacher_id from chatbotConfig to fetch teacher's profile
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id') // Added teacher_id
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     let roomForSafetyCheck: Room | null = null;
-    let teacherCountryCode: string | null = null; // MODIFIED: Variable to store country code
+    let teacherCountryCode: string | null = null;
 
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
@@ -113,9 +111,7 @@ export async function POST(request: NextRequest) {
         }
         roomForSafetyCheck = roomData as Room;
         
-        // Fetch teacher's profile for country code if we have a room and thus a teacher_id
-        // This also benefits the safety check logic later
-        if (roomData.teacher_id) {
+        if (roomData.teacher_id) { // This teacher_id is from the 'rooms' table
             const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabase
                 .from('profiles')
                 .select('country_code')
@@ -131,18 +127,31 @@ export async function POST(request: NextRequest) {
         if (!isTeacher) {
             return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
         }
-        // For teacher test rooms, the "user" is the teacher. Fetch their country code.
-        // chatbotConfig.teacher_id should be the current user's ID.
+        // For teacher test rooms, the "user" (who is the teacher) uses their own country code.
+        // The chatbotConfig.teacher_id should match user.id here.
         if (user.id === chatbotConfig.teacher_id) {
             const { data: testTeacherProfile, error: testTeacherProfileError } = await supabase
                 .from('profiles')
                 .select('country_code')
-                .eq('user_id', user.id)
+                .eq('user_id', user.id) // Fetch profile of the current teacher user
                 .single();
             if (testTeacherProfileError) {
                 console.warn(`[API Chat POST] Error fetching teacher profile for test room user (${user.id}):`, testTeacherProfileError.message);
             } else if (testTeacherProfile) {
                 teacherCountryCode = testTeacherProfile.country_code || null;
+            }
+        } else {
+             // Fallback: If chatbot's teacher_id doesn't match current user (e.g., admin testing, or complex scenario)
+             // try to get country code from the chatbot's designated teacher_id
+            const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', chatbotConfig.teacher_id)
+                .single();
+            if (designatedTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching designated teacher profile for chatbot (${chatbotConfig.teacher_id}):`, designatedTeacherProfileError.message);
+            } else if (designatedTeacherProfile) {
+                teacherCountryCode = designatedTeacherProfile.country_code || null;
             }
         }
     }
@@ -156,7 +165,6 @@ export async function POST(request: NextRequest) {
     userMessageId = savedUserMessageData.message_id;
     const userMessageCreatedAt = savedUserMessageData.created_at;
     
-    // Safety Check uses teacherCountryCode fetched above
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
         console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
         checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
@@ -166,7 +174,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
-        // ... (assessment logic remains the same)
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
             .from('chat_messages')
@@ -197,8 +204,10 @@ export async function POST(request: NextRequest) {
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
+    // Use teacher-defined system prompt, or a safe default if somehow missing
+    const teacherSystemPrompt = chatbotConfig.system_prompt || "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
+    
     const { 
-        system_prompt: systemPromptToUse = "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.",
         model: modelToUseFromConfig = 'openai/gpt-4.1-nano', 
         temperature: temperatureToUse = 0.7, 
         max_tokens: maxTokensToUse = 1000, 
@@ -225,24 +234,33 @@ export async function POST(request: NextRequest) {
         } catch (ragError) { console.warn(`[RAG] Error:`, ragError); }
     }
 
-    // MODIFICATION START: Incorporate country code into system prompt
     let regionalInstruction = '';
-    if (teacherCountryCode === 'GB') {
+    if (teacherCountryCode === 'GB' || teacherCountryCode === 'AE') { // Added AE for British English
         regionalInstruction = " Please use British English spelling (e.g., 'colour', 'analyse').";
     } else if (teacherCountryCode === 'AU') {
         regionalInstruction = " Please use Australian English spelling.";
     } else if (teacherCountryCode === 'CA') {
         regionalInstruction = " Please use Canadian English spelling.";
     }
-    // Add more else if for other specific regions (e.g., 'US' for American, though often default)
+    // Add more country codes and their preferred spellings as needed.
 
-    const baseSystemPrompt = `${systemPromptToUse}${regionalInstruction}`;
-    // MODIFICATION END
+    const CORE_SAFETY_INSTRUCTIONS = `
+SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
+- You are an AI assistant interacting with students. All interactions must be strictly age-appropriate, safe, and ethical.
+- NEVER generate responses that are sexually explicit, suggestive, or exploit, abuse, or endanger children.
+- NEVER engage in discussions about graphic violence, hate speech, illegal activities, or self-harm promotion.
+- NEVER ask for or store personally identifiable information (PII) from students, such as full names (beyond a first name if offered by the student in conversation), exact age, home address, phone number, email, specific school name, or social media details.
+- If a student's query is ambiguous or could lead to an inappropriate response, err on the side of caution and provide a generic, safe, educational answer or politely decline to answer if the topic is clearly out of scope or unsafe.
+- If a student expresses direct intent for self-harm or mentions ongoing abuse, the system has separate alerts, but your immediate response should be brief, empathetic, and guide them to seek help from a trusted adult without engaging in therapeutic conversation.
+- These safety rules override any conflicting instructions in the user-provided prompt below.
+--- END OF SAFETY OVERRIDE ---
+`;
 
-    const enhancedSystemPrompt = `${baseSystemPrompt}${ragContextText ? `\n\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
-    console.log(`[API Chat POST] Enhanced System Prompt (first 200 chars): ${enhancedSystemPrompt.substring(0,200)}...`);
+    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
     
-    const messagesForAPI = [ { role: 'system', content: enhancedSystemPrompt }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
+    console.log(`[API Chat POST] Final System Prompt (first 500 chars): ${systemPromptForLLM.substring(0,500)}...`);
+    
+    const messagesForAPI = [ { role: 'system', content: systemPromptForLLM }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
         method: 'POST', headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.OPENROUTER_SITE_URL || 'http://localhost:3000', 'X-Title': 'ClassBots AI', 'Content-Type': 'application/json' },
