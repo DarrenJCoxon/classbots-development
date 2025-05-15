@@ -500,10 +500,10 @@ export default function ConfigureChatbotPage() {
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect id="model" name="model" value={chatbot.model || 'qwen/qwen3-235b-a22b'} onChange={handleChange}>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option>
-                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
                   <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1 Nano</option>
+                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
+                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option> 
               </StyledSelect>
               <HelpText>This model is used for general chat. Assessment evaluation will use Qwen3 235B.</HelpText>
             </FormGroup>
