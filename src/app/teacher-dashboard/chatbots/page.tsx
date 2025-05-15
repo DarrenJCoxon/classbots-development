@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import styled, { useTheme } from 'styled-components'; // MODIFIED: Added useTheme
+import styled, { useTheme } from 'styled-components';
 import { useRouter } from 'next/navigation';
 import { Button, Alert, Card, Input, Select as StyledSelect, FormGroup, Label } from '@/styles/StyledComponents';
-import ChatbotList from '@/components/teacher/ChatbotList';
+import ChatbotList, { type ChatbotListProps } from '@/components/teacher/ChatbotList'; // Ensure type ChatbotListProps is imported
 import type { Chatbot, BotTypeEnum } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -60,7 +60,7 @@ export default function ManageChatbotsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const theme = useTheme(); // MODIFIED: Added useTheme hook
+  const theme = useTheme(); 
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBotType, setSelectedBotType] = useState<BotTypeEnum | ''>('');
@@ -129,12 +129,10 @@ export default function ManageChatbotsPage() {
     fetchChatbots();
   }, [fetchChatbots]);
 
-  // MODIFIED: Wrapped in useCallback
   const handleEditChatbot = useCallback((chatbotId: string) => {
       router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
   }, [router]);
 
-  // MODIFIED: Wrapped in useCallback
   const handleDeleteChatbot = useCallback(async (chatbotId: string, chatbotName: string) => {
       if (window.confirm(`Are you sure you want to delete the chatbot "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
           setError(null);
@@ -156,9 +154,8 @@ export default function ManageChatbotsPage() {
               setError(errorMessage);
           }
       }
-  }, [fetchChatbots]); // fetchChatbots is a dependency
+  }, [fetchChatbots]); 
   
-  // MODIFIED: Wrapped in useCallback
   const handleCreateNewChatbot = useCallback(() => {
       router.push(`/teacher-dashboard/chatbots/new/edit`);
   }, [router]);
@@ -179,17 +176,17 @@ export default function ManageChatbotsPage() {
       );
     }
     if (chatbots.length > 0) {
+      const propsForChatbotList: ChatbotListProps = { 
+        chatbots: chatbots,
+        onEdit: handleEditChatbot,     
+        onDelete: handleDeleteChatbot,
+        viewMode: viewMode
+      };
       return (
-        <ChatbotList
-          chatbots={chatbots}
-          onEdit={handleEditChatbot}     
-          onDelete={handleDeleteChatbot}
-          viewMode={viewMode}
-        />
+        <ChatbotList {...propsForChatbotList} /> 
       );
     }
     return null; 
-  // MODIFIED: Dependencies of useMemo are now stable
   }, [isLoading, error, chatbots, handleEditChatbot, handleDeleteChatbot, viewMode]);
 
 
@@ -200,7 +197,7 @@ export default function ManageChatbotsPage() {
         <Button onClick={handleCreateNewChatbot}>+ Create New Chatbot</Button>
       </PageHeader>
 
-      <ControlsContainer $accentSide="top" $accentColor={theme.colors.blue}> {/* MODIFIED: Passed theme.colors.blue directly */}
+      <ControlsContainer $accentSide="top" $accentColor={theme.colors.blue}>
         <FilterGrid>
           <FormGroup style={{ marginBottom: 0 }}> 
             <Label htmlFor="searchTerm">Search</Label>

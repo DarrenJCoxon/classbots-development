@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import styled from 'styled-components';
-import { Card, Button, Badge } from '@/styles/StyledComponents'; // MODIFIED: Added Badge
+import { Card, Button, Badge } from '@/styles/StyledComponents';
 import type { Chatbot } from '@/types/database.types';
 
 // Card View Styled Components (Existing)
@@ -74,7 +74,7 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
   }
 `;
 
-// MODIFIED: Added Styled Components for Table/List View
+// Styled Components for Table/List View
 const TableContainer = styled.div`
   width: 100%;
   overflow-x: auto;
@@ -85,7 +85,7 @@ const TableContainer = styled.div`
 
 const Table = styled.table`
   width: 100%;
-  min-width: 800px; /* Ensure table has a minimum width for readability */
+  min-width: 800px; 
   border-collapse: collapse;
   
   th, td {
@@ -126,7 +126,6 @@ const ActionButtonsContainer = styled.div`
   align-items: center;
 `;
 
-
 const getModelDisplayName = (model: string | undefined) => {
     if (!model) return 'Default Model';
     const modelNames: Record<string, string> = {
@@ -138,19 +137,17 @@ const getModelDisplayName = (model: string | undefined) => {
     return modelNames[model] || model;
 };
 
-// MODIFIED: Added viewMode to props
-interface ChatbotListProps {
+// Ensure this interface is EXPORTED
+export interface ChatbotListProps {
   chatbots: Chatbot[];
   onEdit: (chatbotId: string) => void;
-  onDelete: (chatbotId: string, chatbotName: string) => void;
-  viewMode: 'card' | 'list'; // New prop
+  onDelete: (chatbotId: string, chatbotName: string) => void; 
+  viewMode: 'card' | 'list';
 }
 
 export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: ChatbotListProps) {
 
   if (chatbots.length === 0) {
-    // This message might be better handled in the parent component (ManageChatbotsPage)
-    // if it needs to consider filters. For now, keeping a simple empty state here.
     return <Card><p>No chatbots found.</p></Card>;
   }
 
@@ -159,7 +156,6 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
     return new Date(dateString).toLocaleDateString();
   };
 
-  // MODIFIED: Conditional rendering based on viewMode
   if (viewMode === 'list') {
     return (
       <TableContainer>
@@ -224,7 +220,6 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
     );
   }
 
-  // Default to Card View (existing logic)
   return (
     <ListGrid>
       {chatbots.map((chatbot) => {

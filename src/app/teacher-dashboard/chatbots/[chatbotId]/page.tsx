@@ -86,13 +86,14 @@ export default function ChatbotsPage() {
 
       {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
-      {isLoading ? (
+            {isLoading ? (
         <Card style={{ textAlign: 'center', padding: '40px' }}><LoadingSpinner /> Loading chatbots...</Card>
       ) : (
         <ChatbotList
           chatbots={chatbots}
           onEdit={handleEditChatbot}
           onDelete={handleDeleteChatbot}
+          viewMode="card" // Or "list", depending on desired default
         />
       )}
 

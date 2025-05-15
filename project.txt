@@ -5,19 +5,19 @@ export interface StudentRoom extends Room {
   joined_at: string;
   chatbots: Chatbot[];
 }// src/types/knowledge-base.types.ts
-export type DocumentType = 'pdf' | 'docx' | 'txt';
+export type DocumentType = 'pdf' | 'docx' | 'txt' | 'webpage'; // MODIFIED: Added 'webpage'
 
-export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error';
+export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error' | 'fetched'; // MODIFIED: Added 'fetched' for URLs
 
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
 export interface Document {
   document_id: string;
   chatbot_id: string;
-  file_name: string;
-  file_path: string;
+  file_name: string; // For webpages, this might be the <title> or a truncated URL
+  file_path: string; // For webpages, this will be the original URL
   file_type: DocumentType;
-  file_size: number;
+  file_size: number; // For webpages, this could be the size of the extracted text
   status: DocumentStatus;
   error_message?: string;
   created_at: string;
@@ -37,7 +37,7 @@ export interface DocumentChunk {
 
 export interface DocumentUploadResponse {
   document: Document;
-  uploadUrl?: string;
+  uploadUrl?: string; // This might not be relevant for URLs
 }
 
 export interface ProcessingStats {
@@ -62,8 +62,8 @@ export type UserRole = 'teacher' | 'student' | 'school_admin';
 export type ConcernStatus = 'pending' | 'reviewing' | 'resolved' | 'false_positive';
 
 // Knowledge Base Types
-export type DocumentType = 'pdf' | 'docx' | 'txt';
-export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error';
+export type DocumentType = 'pdf' | 'docx' | 'txt' | 'webpage'; // MODIFIED: Added 'webpage'
+export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error' | 'fetched'; // MODIFIED: Added 'fetched'
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
 // Bot Type Enum
@@ -94,7 +94,7 @@ export interface Chatbot extends BaseTable {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
-  welcome_message?: string | null; // <-- ADDED
+  welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
 }
 
 export interface Room extends BaseTable {
@@ -130,7 +130,7 @@ export interface ChatMessage extends BaseTable {
         isAssessmentFeedback?: boolean;
         isAssessmentPlaceholder?: boolean;
         assessmentId?: string | null;
-        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification)
+        isWelcomeMessage?: boolean; // <-- ADDED (Optional, for client-side identification) (This was already correct in your original file)
         [key: string]: unknown;
     } | null;
 }
@@ -141,17 +141,18 @@ export interface Profile extends BaseTable {
   email: string;
   role: UserRole;
   school_id?: string | null;
-  country_code?: string | null; // <-- ADD THIS
+  country_code?: string | null; // <-- ADD THIS (This was already correct in your original file)
 }
 
+// THIS IS THE Document INTERFACE WITHIN database.types.ts
 export interface Document extends BaseTable {
   document_id: string;
   chatbot_id: string;
   file_name: string;
   file_path: string;
-  file_type: DocumentType;
+  file_type: DocumentType; // This now correctly uses the MODIFIED DocumentType above
   file_size: number;
-  status: DocumentStatus;
+  status: DocumentStatus;  // This now correctly uses the MODIFIED DocumentStatus above
   error_message?: string;
 }
 
@@ -215,7 +216,7 @@ export interface Database {
   room_chatbots: RoomChatbot;
   room_memberships: RoomMembership;
   chat_messages: ChatMessage;
-  documents: Document;
+  documents: Document; // This now refers to the locally defined Document interface
   document_chunks: DocumentChunk;
   flagged_messages: FlaggedMessage;
   student_assessments: StudentAssessment;
@@ -236,7 +237,7 @@ export interface CreateChatbotPayload {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
-  welcome_message?: string | null; // <-- ADDED
+  welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
 }
 
 export interface CreateRoomPayload {
@@ -355,7 +356,7 @@ export interface ChatbotConfig {
   name: string;
   description?: string;
   systemPrompt: string;
-  model?: 'x-ai/grok-3-mini-beta' | 'qwen/qwen3-235b-a22b' | 'google/gemini-2.5-flash-preview'; // Updated model options
+  model?: 'x-ai/grok-3-mini-beta' | 'qwen/qwen3-235b-a22b' | 'google/gemini-2.5-flash-preview' | 'openai/gpt-4.1-nano'; // MODIFIED
   maxTokens?: number;
   temperature?: number;
 }
@@ -1243,7 +1244,7 @@ import styled from 'styled-components';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Container, Alert } from '@/styles/StyledComponents';
-import Chat from '@/components/shared/Chat'; 
+import Chat from '@/components/shared/Chat';
 import type { Chatbot } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -1307,7 +1308,7 @@ interface RoomQueryResult {
   created_at: string;
   updated_at?: string;
   room_chatbots: {
-    chatbots: Chatbot;
+    chatbots: Chatbot; // This Chatbot type already includes welcome_message
   }[] | null;
 }
 
@@ -1354,13 +1355,13 @@ export default function ChatPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        initialFetchDoneRef.current = false; 
+        initialFetchDoneRef.current = false;
         throw new Error('Not authenticated');
       }
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
       if (!profile) {
-        initialFetchDoneRef.current = false; 
+        initialFetchDoneRef.current = false;
         throw new Error('User profile not found');
       }
 
@@ -1378,7 +1379,8 @@ export default function ChatPage() {
               temperature, 
               enable_rag, 
               bot_type, 
-              assessment_criteria_text
+              assessment_criteria_text,
+              welcome_message
             )
           )
         `)
@@ -1413,9 +1415,9 @@ export default function ChatPage() {
       setRoom(typedRoomData);
       if (typedRoomData.room_chatbots && typedRoomData.room_chatbots.length > 0 && typedRoomData.room_chatbots[0].chatbots) {
         setChatbot(typedRoomData.room_chatbots[0].chatbots);
-      } else { 
+      } else {
         initialFetchDoneRef.current = false;
-        throw new Error('Chatbot details missing in fetched room data.'); 
+        throw new Error('Chatbot details missing in fetched room data.');
       }
       initialFetchDoneRef.current = true; // Mark as done only on full success
     } catch (err) {
@@ -1590,8 +1592,22 @@ const LoadingFallback = styled.div`
 // Separate component for content that uses search params
 function AuthContent() {
   const searchParams = useSearchParams();
-  const isStudentSignup = searchParams?.get('type') === 'student';
-  const [authType, setAuthType] = useState<'login' | 'signup'>(isStudentSignup ? 'signup' : 'login');
+  const urlAuthTypeParam = searchParams?.get('type'); // Get the 'type' param
+
+  // MODIFIED: Logic to determine initial authType
+  // Default to 'signup' if type includes 'signup' (e.g., 'student_signup', 'teacher_signup')
+  // or if it's just 'student' (which implies student signup).
+  // Otherwise, default to 'login'.
+  const determineInitialAuthType = () => {
+    if (urlAuthTypeParam) {
+      if (urlAuthTypeParam.includes('signup') || urlAuthTypeParam === 'student') {
+        return 'signup';
+      }
+    }
+    return 'login'; // Default to login if no specific signup type is indicated
+  };
+
+  const [authType, setAuthType] = useState<'login' | 'signup'>(determineInitialAuthType());
 
   return (
     <>
@@ -3159,7 +3175,6 @@ import { createClient } from '@/lib/supabase/client';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
-// MODIFIED: Import CreateChatbotPayload
 import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType, CreateChatbotPayload } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -3183,7 +3198,6 @@ const MainTitle = styled.h1`
     font-size: 1.8rem;
     color: ${({ theme }) => theme.colors.text};
 `;
-
 
 const CheckboxGroup = styled.div`
   display: flex;
@@ -3247,19 +3261,53 @@ const LoadingStateContainer = styled.div`
     color: ${({ theme }) => theme.colors.textLight};
 `;
 
+// MODIFIED: Styled component for URL input section
+const UrlInputSection = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  background-color: ${({ theme }) => theme.colors.background}; // Slightly different background
+`;
+
+const UrlInputForm = styled.form`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  align-items: flex-start; // Align items to the start for better layout with potential error messages
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+  }
+`;
+
+const UrlInput = styled(Input)`
+  flex-grow: 1;
+`;
+
+const AddUrlButton = styled(Button)`
+  white-space: nowrap; // Prevent button text from wrapping
+  min-width: 120px; // Ensure button has a decent minimum width
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+  }
+`;
+
+
 const initialChatbotState: Chatbot = {
     chatbot_id: '',
     name: '',
     description: '',
     system_prompt: `You are a helpful AI assistant.`,
     teacher_id: '',
-    model: 'x-ai/grok-3-mini-beta',
+    model: 'openai/gpt-4.1-nano',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
     bot_type: 'learning',
     assessment_criteria_text: null,
-    welcome_message: null, // This was already correctly added by you
+    welcome_message: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
 };
@@ -3276,6 +3324,12 @@ export default function ConfigureChatbotPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // MODIFIED: Added states for URL input
+  const [webpageUrl, setWebpageUrl] = useState('');
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
 
   const params = useParams();
   const router = useRouter();
@@ -3377,12 +3431,10 @@ export default function ConfigureChatbotPage() {
 
     const currentBotType = chatbot.bot_type || 'learning';
 
-    // This payload is for the direct Supabase client .update() call
     const supabaseUpdatePayload: Partial<Omit<Chatbot, 'chatbot_id' | 'created_at' | 'updated_at' | 'teacher_id'>> & { teacher_id?: string } = {
         name: chatbot.name,
         description: chatbot.description || undefined,
         system_prompt: chatbot.system_prompt,
-        // teacher_id: currentUserId, // Not strictly needed for update if RLS is correct, but doesn't harm
         model: chatbot.model,
         max_tokens: (chatbot.max_tokens === undefined || chatbot.max_tokens === null || String(chatbot.max_tokens).trim() === ``) ? null : Number(chatbot.max_tokens),
         temperature: (chatbot.temperature === undefined || chatbot.temperature === null || String(chatbot.temperature).trim() === ``) ? null : Number(chatbot.temperature),
@@ -3393,15 +3445,13 @@ export default function ConfigureChatbotPage() {
     };
     if (supabaseUpdatePayload.description === undefined) delete supabaseUpdatePayload.description;
 
-
     try {
         if (isCreateMode) {
-            // Construct the payload for the API POST, matching CreateChatbotPayload
             const apiCreatePayload: CreateChatbotPayload = {
                 name: chatbot.name,
                 system_prompt: chatbot.system_prompt,
                 description: chatbot.description || undefined,
-                model: chatbot.model || 'qwen/qwen3-235b-a22b', // Ensure model has a default if chatbot.model is undefined
+                model: chatbot.model || 'qwen/qwen3-235b-a22b',
                 max_tokens: supabaseUpdatePayload.max_tokens,
                 temperature: supabaseUpdatePayload.temperature,
                 enable_rag: supabaseUpdatePayload.enable_rag,
@@ -3418,17 +3468,15 @@ export default function ConfigureChatbotPage() {
             const responseData = await response.json();
             if (!response.ok) throw new Error(responseData.error || 'Failed to create chatbot');
 
-            setSuccessMessage('Chatbot created successfully! You can now continue configuring or manage documents if RAG is enabled.');
-            const newBotData = responseData as Chatbot; // API returns the full Chatbot object
-            setChatbot(newBotData); // Update local state with the full new bot data
+            setSuccessMessage('Chatbot created successfully! You can now configure its knowledge base if RAG is enabled.');
+            const newBotData = responseData as Chatbot;
+            setChatbot(newBotData);
             setIsCreateMode(false);
             router.replace(`/teacher-dashboard/chatbots/${newBotData.chatbot_id}/edit`, { scroll: false });
 
         } else {
-            // Use supabaseUpdatePayload for the direct Supabase client update
-            // We don't need to spread teacher_id here as it's part of the .eq() condition
             const updateDataForSupabase = { ...supabaseUpdatePayload };
-            delete updateDataForSupabase.teacher_id; // teacher_id is for eq, not update payload itself
+            delete updateDataForSupabase.teacher_id;
 
             const { error: updateError } = await supabase
                 .from('chatbots')
@@ -3454,7 +3502,7 @@ export default function ConfigureChatbotPage() {
         processedValue = value === `` ? null : Number(value);
     } else if (name === "bot_type") {
         processedValue = value as BotType;
-    } else if (name === "enable_rag") { // Checkbox handled by handleCheckboxChange
+    } else if (name === "enable_rag") {
         return;
     }
     else if ((name === "welcome_message" || name === "assessment_criteria_text") && value.trim() === "") {
@@ -3479,6 +3527,7 @@ export default function ConfigureChatbotPage() {
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to start document processing'); }
       setDocuments(prevDocs => prevDocs.map(doc => doc.document_id === documentId ? { ...doc, status: 'processing' } : doc));
       setViewingDocumentId(documentId);
+      setSuccessMessage('Document processing started. You can monitor its status below.');
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not process document.'); }
   };
 
@@ -3490,6 +3539,7 @@ export default function ConfigureChatbotPage() {
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Failed to delete document'); }
       setDocuments(prevDocs => prevDocs.filter(doc => doc.document_id !== documentId));
       if (viewingDocumentId === documentId) { setViewingDocumentId(null); }
+      setSuccessMessage('Document deleted successfully.');
     } catch (err) { setDocsError(err instanceof Error ? err.message : 'Could not delete document.'); }
   };
 
@@ -3497,6 +3547,48 @@ export default function ConfigureChatbotPage() {
     if (!viewingDocumentId) return null;
     return documents.find(doc => doc.document_id === viewingDocumentId) || null;
   };
+
+  // MODIFIED: Function to handle adding a webpage URL
+  const handleAddWebpage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!webpageUrl.trim() || !chatbot.chatbot_id) {
+      setUrlError('Please enter a valid URL.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(webpageUrl)) {
+      setUrlError('URL must start with http:// or https://');
+      return;
+    }
+
+    setIsAddingUrl(true);
+    setUrlError(null);
+    setSuccessMessage(null);
+    setDocsError(null);
+
+    const formData = new FormData();
+    formData.append('url', webpageUrl);
+    formData.append('chatbotId', chatbot.chatbot_id);
+
+    try {
+      const response = await fetch('/api/teacher/documents', { // Uses the same POST endpoint
+        method: 'POST',
+        body: formData, // API will detect it's a URL based on form data
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add webpage');
+      }
+      setSuccessMessage(data.message || 'Webpage added successfully! Refreshing list...');
+      setWebpageUrl(''); // Clear input
+      fetchDocumentsData(chatbot.chatbot_id); // Refresh the document list
+    } catch (err) {
+      setUrlError(err instanceof Error ? err.message : 'Could not add webpage.');
+      console.error("Error adding webpage:", err);
+    } finally {
+      setIsAddingUrl(false);
+    }
+  };
+
 
   if (pageLoading) {
     return ( <PageWrapper><Container><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></Container></PageWrapper> );
@@ -3522,6 +3614,7 @@ export default function ConfigureChatbotPage() {
           {successMessage && <Alert variant="success" style={{ marginBottom: '16px'}}>{successMessage}</Alert>}
 
           <form onSubmit={handleSubmit}>
+            {/* ... (chatbot configuration form fields: name, description, bot_type, etc.) ... */}
             <FormGroup>
               <Label htmlFor="name">Chatbot Name</Label>
               <Input id="name" name="name" value={chatbot.name || ``} onChange={handleChange} required />
@@ -3552,7 +3645,6 @@ export default function ConfigureChatbotPage() {
               <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Bots, instructions from 'Assessment Criteria' are key.`}</HelpText>
             </FormGroup>
 
-            {/* Welcome Message Field - THIS IS THE NEWLY ADDED FIELD */}
             <FormGroup>
               <Label htmlFor="welcome_message">Welcome Message (Optional)</Label>
               <TextArea
@@ -3571,9 +3663,10 @@ export default function ConfigureChatbotPage() {
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect id="model" name="model" value={chatbot.model || 'qwen/qwen3-235b-a22b'} onChange={handleChange}>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option>
+                  <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1 Nano</option>
                   <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
+                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option> 
               </StyledSelect>
               <HelpText>This model is used for general chat. Assessment evaluation will use Qwen3 235B.</HelpText>
             </FormGroup>
@@ -3601,18 +3694,55 @@ export default function ConfigureChatbotPage() {
             </Button>
           </form>
 
+          {/* MODIFIED: Knowledge Base Section */}
           {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
                 <Divider />
                 <SectionTitle>Knowledge Base Documents (for RAG)</SectionTitle>
-                <HelpText>{`Upload PDF, Word, or TXT files. These will be processed and embedded for this chatbot's knowledge base.`}</HelpText>
+                
+                {/* URL Input Section */}
+                <UrlInputSection>
+                    <Label htmlFor="webpageUrl">Add Webpage by URL</Label>
+                    <UrlInputForm onSubmit={handleAddWebpage}>
+                        <UrlInput
+                            type="url"
+                            id="webpageUrl"
+                            name="webpageUrl"
+                            value={webpageUrl}
+                            onChange={(e) => { setWebpageUrl(e.target.value); setUrlError(null); }}
+                            placeholder="https://example.com/your-article-here"
+                            disabled={isAddingUrl}
+                        />
+                        <AddUrlButton type="submit" variant="outline" disabled={isAddingUrl || !webpageUrl.trim()}>
+                            {isAddingUrl ? 'Adding...' : 'Add URL'}
+                        </AddUrlButton>
+                    </UrlInputForm>
+                    {urlError && <Alert variant="error" style={{ marginTop: '8px' }}>{urlError}</Alert>}
+                    <HelpText style={{marginTop: '8px'}}>
+                        The system will attempt to extract the main content from the provided URL.
+                    </HelpText>
+                </UrlInputSection>
+
+                {/* Existing Document Uploader */}
+                <HelpText>{`Alternatively, upload PDF, Word, or TXT files directly.`}</HelpText>
                 {docsError && <Alert variant="error">{docsError}</Alert>}
-                <DocumentUploader chatbotId={chatbot.chatbot_id} onUploadSuccess={() => { setSuccessMessage("Document uploaded. Refreshing list..."); fetchDocumentsData(chatbot.chatbot_id!); }} />
+                <DocumentUploader 
+                    chatbotId={chatbot.chatbot_id} 
+                    onUploadSuccess={() => { 
+                        setSuccessMessage("Document uploaded. Refreshing list..."); 
+                        fetchDocumentsData(chatbot.chatbot_id!); 
+                    }} 
+                />
+                
+                {/* Document List and Status */}
                 {viewingDocumentId && getViewingDocument() && (
                     <EmbeddingStatus
                       document={{ ...getViewingDocument()!, updated_at: getViewingDocument()!.updated_at ?? new Date().toISOString() }}
                       chatbotId={chatbot.chatbot_id!}
-                      onRefresh={() => { setSuccessMessage("Document status refreshed."); fetchDocumentsData(chatbot.chatbot_id!); }}
+                      onRefresh={() => { 
+                          setSuccessMessage("Document status refreshed."); 
+                          fetchDocumentsData(chatbot.chatbot_id!); 
+                        }}
                     />
                 )}
                 {docsLoading ? ( <LoadingStateContainer><LoadingSpinner size="small"/><span>Loading documents...</span></LoadingStateContainer> ) : (
@@ -3626,7 +3756,7 @@ export default function ConfigureChatbotPage() {
             </>
           )}
           {isCreateMode && displayBotType === 'learning' && (
-            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads.</HelpText>
+            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads and URL additions.</HelpText>
           )}
         </Card>
       </Container>
@@ -4187,12 +4317,12 @@ export default function ChatbotsPage() {
 }// src/app/teacher-dashboard/chatbots/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import styled, { useTheme } from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { Button, Alert, Card } from '@/styles/StyledComponents';
-import ChatbotList from '@/components/teacher/ChatbotList';
-import type { Chatbot } from '@/types/database.types';
+import { Button, Alert, Card, Input, Select as StyledSelect, FormGroup, Label } from '@/styles/StyledComponents';
+import ChatbotList, { type ChatbotListProps } from '@/components/teacher/ChatbotList'; // Ensure type ChatbotListProps is imported
+import type { Chatbot, BotTypeEnum } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
@@ -4203,118 +4333,177 @@ const PageHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  flex-wrap: wrap; // Ensure responsiveness
+  margin-bottom: ${({ theme }) => theme.spacing.lg}; 
+  flex-wrap: wrap; 
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
 const Title = styled.h1`
   font-size: 1.8rem;
   color: ${({ theme }) => theme.colors.text};
-  margin: 0; // Remove default margin if PageHeader handles spacing
+  margin: 0; 
 `;
+
+const ControlsContainer = styled(Card)`
+  padding: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  background-color: ${({ theme }) => theme.colors.background}; 
+`;
+
+const FilterGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: ${({ theme }) => theme.spacing.md};
+  align-items: flex-end; 
+`;
+
+const ViewToggleContainer = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-left: auto; 
+  
+  @media (max-width: 768px) { 
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start; 
+    margin-top: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
 
 export default function ManageChatbotsPage() {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const theme = useTheme(); 
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBotType, setSelectedBotType] = useState<BotTypeEnum | ''>('');
+  const [selectedRagStatus, setSelectedRagStatus] = useState<'any' | 'true' | 'false'>('any');
+  const [sortBy, setSortBy] = useState('created_at_desc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); 
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
 
   const fetchChatbots = useCallback(async () => {
-    console.log('[ChatbotsPage] Fetching chatbots...');
+    console.log('[ChatbotsPage] Fetching chatbots with filters:', 
+        { debouncedSearchTerm, selectedBotType, selectedRagStatus, sortBy });
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/teacher/chatbots');
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) {
+        params.append('searchTerm', debouncedSearchTerm);
+      }
+      if (selectedBotType) {
+        params.append('botType', selectedBotType);
+      }
+      if (selectedRagStatus !== 'any') {
+        params.append('ragEnabled', selectedRagStatus);
+      }
+      if (sortBy) {
+        params.append('sortBy', sortBy);
+      }
+
+      const response = await fetch(`/api/teacher/chatbots?${params.toString()}`);
       if (!response.ok) {
         let errorMessage = `Failed to fetch chatbots (status ${response.status})`;
         try {
             const errData = await response.json();
             errorMessage = errData.error || errorMessage;
-        } catch {
-            // If parsing errorData fails, use the original message
-        }
+        } catch {}
         throw new Error(errorMessage);
       }
       const data = await response.json();
-      // Ensure data is an array before setting state
       if (Array.isArray(data)) {
         setChatbots(data as Chatbot[]);
       } else {
-        // If data is not an array, it might be an unexpected response format
-        // or an error object that wasn't caught by !response.ok
         console.warn('[ChatbotsPage] API returned non-array data for chatbots:', data);
-        setChatbots([]); // Default to empty array
-        // Optionally set an error if this case is unexpected
-        // setError("Received unexpected data format for chatbots.");
+        setChatbots([]);
       }
     } catch (err) {
       console.error('[ChatbotsPage] Error fetching chatbots:', err);
       setError(err instanceof Error ? err.message : 'Could not load your chatbots.');
-      setChatbots([]); // Ensure chatbots is an array on error
+      setChatbots([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [debouncedSearchTerm, selectedBotType, selectedRagStatus, sortBy]);
 
   useEffect(() => {
     fetchChatbots();
   }, [fetchChatbots]);
 
-  const handleEditChatbot = (chatbotId: string) => {
-    router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
-  };
+  const handleEditChatbot = useCallback((chatbotId: string) => {
+      router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
+  }, [router]);
 
-  const handleDeleteChatbot = async (chatbotId: string, chatbotName: string) => {
-    if (window.confirm(`Are you sure you want to delete the chatbot "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
-      setError(null);
-      try {
-        const response = await fetch(`/api/teacher/chatbots?chatbotId=${chatbotId}`, { method: 'DELETE' }); 
-        
-        if (!response.ok) {
-          let errorMessage = `Failed to delete chatbot (status ${response.status})`;
+  const handleDeleteChatbot = useCallback(async (chatbotId: string, chatbotName: string) => {
+      if (window.confirm(`Are you sure you want to delete the chatbot "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
+          setError(null);
           try {
-            const errData = await response.json();
-            errorMessage = errData.error || errorMessage;
-          } catch { /* Parsing failed, use default */ }
-          throw new Error(errorMessage);
-        }
-        
-        const result = await response.json();
-        alert(result.message || `Chatbot "${chatbotName}" deleted successfully.`);
-        fetchChatbots(); 
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to delete chatbot.';
-        setError(errorMessage);
-        // alert(`Error: ${errorMessage}`); // Alerting might be too noisy, error state is set
+              const response = await fetch(`/api/teacher/chatbots?chatbotId=${chatbotId}`, { method: 'DELETE' }); 
+              if (!response.ok) {
+                  let errorMessage = `Failed to delete chatbot (status ${response.status})`;
+                  try {
+                      const errData = await response.json();
+                      errorMessage = errData.error || errorMessage;
+                  } catch {}
+                  throw new Error(errorMessage);
+              }
+              const result = await response.json();
+              alert(result.message || `Chatbot "${chatbotName}" deleted successfully.`);
+              fetchChatbots(); 
+          } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : 'Failed to delete chatbot.';
+              setError(errorMessage);
+          }
       }
-    }
-  };
+  }, [fetchChatbots]); 
   
-  const handleCreateNewChatbot = () => {
-    router.push(`/teacher-dashboard/chatbots/new/edit`);
-  };
+  const handleCreateNewChatbot = useCallback(() => {
+      router.push(`/teacher-dashboard/chatbots/new/edit`);
+  }, [router]);
 
-  // Conditional rendering for loading/error/empty states
-  let content;
-  if (isLoading) {
-    content = (
-      <Card style={{ textAlign: 'center', padding: '40px' }}>
-        <LoadingSpinner /> Loading your chatbots...
-      </Card>
-    );
-  } else if (error) {
-    // Error is already displayed by the Alert component below
-    content = null; 
-  } else {
-    content = (
-      <ChatbotList
-        chatbots={chatbots} // chatbots is now guaranteed to be an array
-        onEdit={handleEditChatbot}
-        onDelete={handleDeleteChatbot}
-      />
-    );
-  }
+  const content = useMemo(() => {
+    if (isLoading && chatbots.length === 0) { 
+      return (
+        <Card style={{ textAlign: 'center', padding: '40px' }}>
+          <LoadingSpinner /> Loading your chatbots...
+        </Card>
+      );
+    } 
+    if (!isLoading && !error && chatbots.length === 0) {
+      return (
+        <Card style={{ textAlign: 'center', padding: '20px' }}>
+          <p>No chatbots found matching your current filters. Try adjusting them or create a new chatbot!</p>
+        </Card>
+      );
+    }
+    if (chatbots.length > 0) {
+      const propsForChatbotList: ChatbotListProps = { 
+        chatbots: chatbots,
+        onEdit: handleEditChatbot,     
+        onDelete: handleDeleteChatbot,
+        viewMode: viewMode
+      };
+      return (
+        <ChatbotList {...propsForChatbotList} /> 
+      );
+    }
+    return null; 
+  }, [isLoading, error, chatbots, handleEditChatbot, handleDeleteChatbot, viewMode]);
 
 
   return (
@@ -4324,8 +4513,84 @@ export default function ManageChatbotsPage() {
         <Button onClick={handleCreateNewChatbot}>+ Create New Chatbot</Button>
       </PageHeader>
 
+      <ControlsContainer $accentSide="top" $accentColor={theme.colors.blue}>
+        <FilterGrid>
+          <FormGroup style={{ marginBottom: 0 }}> 
+            <Label htmlFor="searchTerm">Search</Label>
+            <Input
+              type="text"
+              id="searchTerm"
+              placeholder="Search by name or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </FormGroup>
+          <FormGroup style={{ marginBottom: 0 }}>
+            <Label htmlFor="botTypeFilter">Bot Type</Label>
+            <StyledSelect
+              id="botTypeFilter"
+              value={selectedBotType}
+              onChange={(e) => setSelectedBotType(e.target.value as BotTypeEnum | '')}
+            >
+              <option value="">All Types</option>
+              <option value="learning">Learning</option>
+              <option value="assessment">Assessment</option>
+            </StyledSelect>
+          </FormGroup>
+          <FormGroup style={{ marginBottom: 0 }}>
+            <Label htmlFor="ragStatusFilter">RAG Status</Label>
+            <StyledSelect
+              id="ragStatusFilter"
+              value={selectedRagStatus}
+              onChange={(e) => setSelectedRagStatus(e.target.value as 'any' | 'true' | 'false')}
+            >
+              <option value="any">Any RAG Status</option>
+              <option value="true">RAG Enabled</option>
+              <option value="false">RAG Disabled</option>
+            </StyledSelect>
+          </FormGroup>
+          <FormGroup style={{ marginBottom: 0 }}>
+            <Label htmlFor="sortBy">Sort By</Label>
+            <StyledSelect
+              id="sortBy"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="created_at_desc">Newest First</option>
+              <option value="created_at_asc">Oldest First</option>
+              <option value="name_asc">Name (A-Z)</option>
+              <option value="name_desc">Name (Z-A)</option>
+              <option value="updated_at_desc">Last Modified</option>
+            </StyledSelect>
+          </FormGroup>
+          <ViewToggleContainer>
+            <Button
+              variant={viewMode === 'card' ? 'primary' : 'outline'}
+              onClick={() => setViewMode('card')}
+              size="small"
+              title="Card View"
+            >
+              🗂️ Card
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'primary' : 'outline'}
+              onClick={() => setViewMode('list')}
+              size="small"
+              title="List View"
+            >
+              📄 List
+            </Button>
+          </ViewToggleContainer>
+        </FilterGrid>
+      </ControlsContainer>
+
       {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
       
+      {isLoading && chatbots.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '10px' }}>
+          <LoadingSpinner size="small" /> Updating list...
+        </div>
+      )}
       {content}
 
     </PageWrapper>
@@ -5879,13 +6144,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
-
-// ONLY import what is DIRECTLY CALLED by THIS file.
-// checkMessageSafety is the function we call from monitoring.ts.
 import { checkMessageSafety } from '@/lib/safety/monitoring';
-
-// Import specific types needed in THIS file.
-import type { ChatMessage, Room } from '@/types/database.types';
+import type { ChatMessage, Room } from '@/types/database.types'; // Removed unused Profile
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -5936,6 +6196,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
+
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
   let userMessageId: string | null = null;
@@ -5949,7 +6210,7 @@ export async function POST(request: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
-
+    
     const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
@@ -5967,7 +6228,7 @@ export async function POST(request: NextRequest) {
 
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -5977,6 +6238,8 @@ export async function POST(request: NextRequest) {
     }
 
     let roomForSafetyCheck: Room | null = null;
+    let teacherCountryCode: string | null = null;
+
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
             .from('rooms')
@@ -5988,9 +6251,52 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 }); 
         }
         roomForSafetyCheck = roomData as Room;
-    } else if (isTeacherTestRoom(roomId) && !isTeacher) {
-        return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
+        
+        if (roomData.teacher_id) { // This teacher_id is from the 'rooms' table
+            const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', roomData.teacher_id)
+                .single();
+            if (roomTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching teacher profile for room's teacher (${roomData.teacher_id}):`, roomTeacherProfileError.message);
+            } else if (roomTeacherProfile) {
+                teacherCountryCode = roomTeacherProfile.country_code || null;
+            }
+        }
+    } else if (isTeacherTestRoom(roomId)) {
+        if (!isTeacher) {
+            return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
+        }
+        // For teacher test rooms, the "user" (who is the teacher) uses their own country code.
+        // The chatbotConfig.teacher_id should match user.id here.
+        if (user.id === chatbotConfig.teacher_id) {
+            const { data: testTeacherProfile, error: testTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', user.id) // Fetch profile of the current teacher user
+                .single();
+            if (testTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching teacher profile for test room user (${user.id}):`, testTeacherProfileError.message);
+            } else if (testTeacherProfile) {
+                teacherCountryCode = testTeacherProfile.country_code || null;
+            }
+        } else {
+             // Fallback: If chatbot's teacher_id doesn't match current user (e.g., admin testing, or complex scenario)
+             // try to get country code from the chatbot's designated teacher_id
+            const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await supabase
+                .from('profiles')
+                .select('country_code')
+                .eq('user_id', chatbotConfig.teacher_id)
+                .single();
+            if (designatedTeacherProfileError) {
+                console.warn(`[API Chat POST] Error fetching designated teacher profile for chatbot (${chatbotConfig.teacher_id}):`, designatedTeacherProfileError.message);
+            } else if (designatedTeacherProfile) {
+                teacherCountryCode = designatedTeacherProfile.country_code || null;
+            }
+        }
     }
+
 
     const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string } } = {
       room_id: roomId, user_id: user.id, role: 'user' as const, content: trimmedContent, metadata: { chatbotId: chatbot_id }
@@ -6000,38 +6306,14 @@ export async function POST(request: NextRequest) {
     userMessageId = savedUserMessageData.message_id;
     const userMessageCreatedAt = savedUserMessageData.created_at;
     
-    // Safety Check Trigger
     if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        let teacherCountryCode: string | null = null;
-        try {
-            if (roomForSafetyCheck.teacher_id) {
-                const { data: teacherProfileData, error: teacherProfileError } = await supabase
-                    .from('profiles')
-                    .select('country_code')
-                    .eq('user_id', roomForSafetyCheck.teacher_id)
-                    .single();
-
-                if (teacherProfileError) {
-                    console.warn(`[API Chat POST] Error fetching teacher profile for safety check (teacher_id: ${roomForSafetyCheck.teacher_id}):`, teacherProfileError.message);
-                } else if (teacherProfileData) {
-                    teacherCountryCode = teacherProfileData.country_code || null;
-                }
-            } else {
-                console.warn(`[API Chat POST] Teacher ID not found in roomForSafetyCheck object. Cannot fetch country for safety check.`);
-            }
-        } catch (countryFetchError) {
-            console.warn(`[API Chat POST] Exception while trying to fetch teacher's country for safety check:`, countryFetchError);
-        }
-
         console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
-        // *** CORRECTED CALL: Added teacherCountryCode as the 6th argument ***
         checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
             .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
     } else {
         console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}, roomForSafetyCheck: ${!!roomForSafetyCheck}`);
     }
 
-    // --- ASSESSMENT TRIGGER LOGIC ---
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabase
@@ -6055,9 +6337,7 @@ export async function POST(request: NextRequest) {
         }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
         return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
-    // --- END OF ASSESSMENT TRIGGER LOGIC ---
 
-    // Regular Chat Logic (RAG, LLM Call, Streaming)
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
       .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
@@ -6065,9 +6345,11 @@ export async function POST(request: NextRequest) {
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
+    // Use teacher-defined system prompt, or a safe default if somehow missing
+    const teacherSystemPrompt = chatbotConfig.system_prompt || "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
+    
     const { 
-        system_prompt: systemPromptToUse = "You are a helpful AI assistant.",
-        model: modelToUseFromConfig = 'x-ai/grok-3-mini-beta', 
+        model: modelToUseFromConfig = 'openai/gpt-4.1-nano', 
         temperature: temperatureToUse = 0.7, 
         max_tokens: maxTokensToUse = 1000, 
         enable_rag: enableRagFromConfig = false 
@@ -6082,19 +6364,44 @@ export async function POST(request: NextRequest) {
             const searchResults = await queryVectors(queryEmbedding, chatbot_id, 3);
             if (searchResults && searchResults.length > 0) {
                 ragContextText = "\n\nRelevant information from knowledge base:\n";
-                searchResults.forEach((result, index) => {
+                searchResults.forEach((result) => { 
                     if (result.metadata?.text) {
                         const fileName = typeof result.metadata.fileName === 'string' ? result.metadata.fileName : 'document';
                         const chunkText = String(result.metadata.text).substring(0, 500);
-                        ragContextText += `\n[${index + 1}] From "${fileName}":\n${chunkText}\n`;
+                        ragContextText += `\nFrom document "${fileName}":\n${chunkText}\n`; 
                     }
                 });
             }
         } catch (ragError) { console.warn(`[RAG] Error:`, ragError); }
     }
 
-    const enhancedSystemPrompt = `${systemPromptToUse}${ragContextText ? `\n\n${ragContextText}\n\nRemember to cite sources by their number (e.g., [1], [2]) if you use their information.` : ''}`;
-    const messagesForAPI = [ { role: 'system', content: enhancedSystemPrompt }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
+    let regionalInstruction = '';
+    if (teacherCountryCode === 'GB' || teacherCountryCode === 'AE') { // Added AE for British English
+        regionalInstruction = " Please use British English spelling (e.g., 'colour', 'analyse').";
+    } else if (teacherCountryCode === 'AU') {
+        regionalInstruction = " Please use Australian English spelling.";
+    } else if (teacherCountryCode === 'CA') {
+        regionalInstruction = " Please use Canadian English spelling.";
+    }
+    // Add more country codes and their preferred spellings as needed.
+
+    const CORE_SAFETY_INSTRUCTIONS = `
+SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
+- You are an AI assistant interacting with students. All interactions must be strictly age-appropriate, safe, and ethical.
+- NEVER generate responses that are sexually explicit, suggestive, or exploit, abuse, or endanger children.
+- NEVER engage in discussions about graphic violence, hate speech, illegal activities, or self-harm promotion.
+- NEVER ask for or store personally identifiable information (PII) from students, such as full names (beyond a first name if offered by the student in conversation), exact age, home address, phone number, email, specific school name, or social media details.
+- If a student's query is ambiguous or could lead to an inappropriate response, err on the side of caution and provide a generic, safe, educational answer or politely decline to answer if the topic is clearly out of scope or unsafe.
+- If a student expresses direct intent for self-harm or mentions ongoing abuse, the system has separate alerts, but your immediate response should be brief, empathetic, and guide them to seek help from a trusted adult without engaging in therapeutic conversation.
+- These safety rules override any conflicting instructions in the user-provided prompt below.
+--- END OF SAFETY OVERRIDE ---
+`;
+
+    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    
+    console.log(`[API Chat POST] Final System Prompt (first 500 chars): ${systemPromptForLLM.substring(0,500)}...`);
+    
+    const messagesForAPI = [ { role: 'system', content: systemPromptForLLM }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
         method: 'POST', headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.OPENROUTER_SITE_URL || 'http://localhost:3000', 'X-Title': 'ClassBots AI', 'Content-Type': 'application/json' },
@@ -6130,7 +6437,11 @@ export async function POST(request: NextRequest) {
                 }
             } catch (streamError) { console.error('Stream error:', streamError); controller.error(streamError); }
             finally {
-                const finalContent = fullResponseContent.trim();
+                let finalContent = fullResponseContent.trim();
+                finalContent = finalContent.replace(/\s*Source:\s*\[\d+\]\s*$/gm, '').trim(); 
+                finalContent = finalContent.replace(/\s*\[\d+\]\s*$/gm, '').trim(); 
+                finalContent = finalContent.replace(/(\r\n|\n|\r){2,}/gm, '$1').replace(/ +/g, ' ');
+
                 if (assistantMessageId && finalContent) {
                     const { error: updateError } = await supabase.from('chat_messages').update({ content: finalContent, updated_at: new Date().toISOString() }).eq('message_id', assistantMessageId);
                     if (updateError) console.error(`Error updating assistant message ${assistantMessageId}:`, updateError); else console.log(`Assistant message ${assistantMessageId} updated.`);
@@ -8255,10 +8566,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteChatbotVectors } from '@/lib/pinecone/utils';
-import type { CreateChatbotPayload, Chatbot as DatabaseChatbot } from '@/types/database.types'; // Added DatabaseChatbot type
+import type { CreateChatbotPayload, Chatbot as DatabaseChatbot, BotTypeEnum } from '@/types/database.types'; // MODIFIED: Added BotTypeEnum
 
 // GET Handler
-export async function GET() {
+export async function GET(request: NextRequest) { // MODIFIED: Added request parameter
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -8277,11 +8588,48 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { data: chatbots, error: fetchError } = await supabase
+    // MODIFIED: Extract query parameters for filtering and sorting
+    const { searchParams } = new URL(request.url);
+    const searchTerm = searchParams.get('searchTerm');
+    const botType = searchParams.get('botType') as BotTypeEnum | null;
+    const ragEnabledParam = searchParams.get('ragEnabled'); // Will be 'true' or 'false' as string
+    const sortBy = searchParams.get('sortBy') || 'created_at_desc'; // Default sort
+
+    let query = supabase
       .from('chatbots')
-      .select('*') // This will now include welcome_message if the DB column exists
-      .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('*')
+      .eq('teacher_id', user.id);
+
+    // Apply search term filter (searches name and description)
+    if (searchTerm) {
+      // Using .or() for searching in multiple columns.
+      // The syntax `description.ilike.%${searchTerm}%` means description case-insensitive LIKE '%searchTerm%'
+      query = query.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+    }
+
+    // Apply botType filter
+    if (botType && (botType === 'learning' || botType === 'assessment')) {
+      query = query.eq('bot_type', botType);
+    }
+
+    // Apply ragEnabled filter
+    if (ragEnabledParam === 'true') {
+      query = query.eq('enable_rag', true);
+    } else if (ragEnabledParam === 'false') {
+      query = query.eq('enable_rag', false);
+    }
+
+    // Apply sorting
+    // Example: sortBy = "name_asc" or "created_at_desc"
+    const [sortField, sortOrder] = sortBy.split('_');
+    if (sortField && sortOrder && ['name', 'created_at', 'updated_at', 'bot_type'].includes(sortField)) {
+      query = query.order(sortField as keyof DatabaseChatbot, { ascending: sortOrder === 'asc' });
+    } else {
+      // Default sort if sortBy parameter is invalid or not provided fully
+      query = query.order('created_at', { ascending: false });
+    }
+    
+    const { data: chatbots, error: fetchError } = await query;
 
     if (fetchError) {
       console.error('Error fetching chatbots:', fetchError);
@@ -8299,6 +8647,7 @@ export async function GET() {
 }
 
 // POST Handler
+// ... (POST Handler remains the same as you provided)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -8328,22 +8677,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Assessment criteria are required for assessment bots.' }, { status: 400 });
     }
 
-    // Explicitly type the object being inserted to match a subset of DatabaseChatbot
     const chatbotDataToInsert: Omit<DatabaseChatbot, 'chatbot_id' | 'created_at' | 'updated_at'> & { teacher_id: string } = {
       name: body.name,
-      description: body.description || undefined, // Keep undefined if not provided
+      description: body.description || undefined, 
       system_prompt: body.system_prompt,
       teacher_id: user.id,
-      model: body.model || 'x-ai/grok-3-mini-beta',
+      model: body.model || 'openai/gpt-4.1-nano',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
       enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
       bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
-      welcome_message: body.welcome_message || null, // <-- ADDED: ensure null if empty/undefined
+      welcome_message: body.welcome_message || null, 
     };
     if (chatbotDataToInsert.description === undefined) {
-        delete chatbotDataToInsert.description; // Remove if undefined to avoid inserting 'undefined'
+        delete chatbotDataToInsert.description; 
     }
 
 
@@ -8373,6 +8721,7 @@ export async function POST(request: NextRequest) {
 
 
 // DELETE Handler
+// ... (DELETE Handler remains the same as you provided)
 export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const chatbotId = searchParams.get('chatbotId');
@@ -8537,8 +8886,9 @@ export async function GET() {
 }// src/app/api/teacher/documents/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { DocumentType } from '@/types/knowledge-base.types'; // Use DocumentType only
-import { createAdminClient } from '@/lib/supabase/admin'; // For potential cascade deletes or privileged ops if needed
+import type { DocumentType, DocumentStatus } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentStatus
+import { createAdminClient } from '@/lib/supabase/admin';
+import { extractContentFromUrl } from '@/lib/scraping/content-extractor'; // MODIFIED: Import new utility
 
 // Helper function to determine file type
 function getFileTypeFromFile(file: File): DocumentType | null {
@@ -8548,6 +8898,7 @@ function getFileTypeFromFile(file: File): DocumentType | null {
         case 'pdf': return 'pdf';
         case 'doc': case 'docx': return 'docx';
         case 'txt': return 'txt';
+        // 'webpage' type is handled differently
         default: return null;
     }
 }
@@ -8610,11 +8961,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// --- POST Handler: Upload a new document for a chatbot ---
+// --- POST Handler: Upload a new document (file or URL) for a chatbot ---
 export async function POST(request: NextRequest) {
-  console.log("[API /documents POST] Document upload request received");
+  console.log("[API /documents POST] Document/URL add request received");
   try {
-    const supabase = await createServerSupabaseClient(); // User-context client
+    const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -8623,12 +8974,20 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const url = formData.get('url') as string | null; // MODIFIED: Get URL from form data
     const chatbotId = formData.get('chatbotId') as string | null;
 
-    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    if (!chatbotId) return NextResponse.json({ error: 'Chatbot ID not provided in form data' }, { status: 400 });
-    
-    console.log(`[API /documents POST] Processing for chatbot ID: ${chatbotId}, File: ${file.name}`);
+    if (!chatbotId) {
+        return NextResponse.json({ error: 'Chatbot ID not provided in form data' }, { status: 400 });
+    }
+    if (!file && !url) {
+        return NextResponse.json({ error: 'No file or URL provided' }, { status: 400 });
+    }
+    if (file && url) {
+        return NextResponse.json({ error: 'Provide either a file or a URL, not both' }, { status: 400 });
+    }
+
+    console.log(`[API /documents POST] Processing for chatbot ID: ${chatbotId}`);
 
     // Verify user owns the chatbot
     const { data: chatbot, error: chatbotOwnerError } = await supabase
@@ -8638,67 +8997,112 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (chatbotOwnerError || !chatbot) {
-      return NextResponse.json({ error: 'Chatbot not found for upload' }, { status: 404 });
+      return NextResponse.json({ error: 'Chatbot not found for upload/add' }, { status: 404 });
     }
     if (chatbot.teacher_id !== user.id) {
-        return NextResponse.json({ error: 'Not authorized to upload documents to this chatbot' }, { status: 403 });
+        return NextResponse.json({ error: 'Not authorized to add documents to this chatbot' }, { status: 403 });
     }
 
-    const fileType = getFileTypeFromFile(file);
-    if (!fileType) return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
-    
-    // Max file size check (e.g., 10MB)
-    const MAX_FILE_SIZE_MB = 10;
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        return NextResponse.json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.` }, { status: 413 });
+    let documentRecordData;
+
+    if (file) {
+        // --- File Upload Logic (Existing) ---
+        console.log(`[API /documents POST] Processing file: ${file.name}`);
+        const fileType = getFileTypeFromFile(file);
+        if (!fileType) return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
+
+        const MAX_FILE_SIZE_MB = 10;
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+            return NextResponse.json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.` }, { status: 413 });
+        }
+
+        const filePath = `${user.id}/${chatbotId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9_.\-]/g, '_')}`;
+        const buffer = await file.arrayBuffer();
+
+        console.log(`[API /documents POST] Uploading to storage path: ${filePath}`);
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, buffer, { contentType: file.type, upsert: false });
+
+        if (uploadError) {
+          console.error("[API /documents POST] Storage upload error:", uploadError);
+          return NextResponse.json({ error: `Failed to upload file to storage: ${uploadError.message}` }, { status: 500 });
+        }
+        console.log(`[API /documents POST] File uploaded to storage successfully.`);
+
+        const { data: dbDocument, error: documentInsertError } = await supabase
+          .from('documents')
+          .insert({
+            chatbot_id: chatbotId,
+            file_name: file.name,
+            file_path: filePath,
+            file_type: fileType,
+            file_size: file.size,
+            status: 'uploaded' as DocumentStatus,
+          })
+          .select()
+          .single();
+
+        if (documentInsertError) {
+          console.error("[API /documents POST] Document DB insert error (file):", documentInsertError);
+          await supabase.storage.from('documents').remove([filePath]);
+          return NextResponse.json({ error: `Failed to create document record: ${documentInsertError.message}` }, { status: 500 });
+        }
+        documentRecordData = dbDocument;
+        console.log(`[API /documents POST] File document record created: ${documentRecordData.document_id}`);
+    } else if (url) {
+        // --- URL Processing Logic (New) ---
+        console.log(`[API /documents POST] Processing URL: ${url}`);
+        if (!/^https?:\/\//i.test(url)) {
+            return NextResponse.json({ error: 'Invalid URL format. Must start with http:// or https://' }, { status: 400 });
+        }
+
+        const extractedData = await extractContentFromUrl(url);
+
+        if (extractedData.error || !extractedData.textContent) {
+            console.error(`[API /documents POST] Error extracting content from URL ${url}:`, extractedData.error);
+            return NextResponse.json({ error: extractedData.error || 'Failed to extract content from URL. The page might be inaccessible or have no readable content.' }, { status: 400 });
+        }
+        
+        // For webpages, file_path will store the original URL.
+        // file_name will store the extracted title (or a truncated URL).
+        // file_size will be the length of the extracted text.
+        const fileNameForDb = extractedData.title.substring(0, 255); // Max length for file_name
+        const fileSizeForDb = extractedData.textContent.length;
+
+        const { data: dbDocument, error: documentInsertError } = await supabase
+          .from('documents')
+          .insert({
+            chatbot_id: chatbotId,
+            file_name: fileNameForDb,
+            file_path: url, // Store the original URL as the "path"
+            file_type: 'webpage' as DocumentType,
+            file_size: fileSizeForDb,
+            status: 'fetched' as DocumentStatus, // New status for successfully fetched URL content
+          })
+          .select()
+          .single();
+
+        if (documentInsertError) {
+          console.error("[API /documents POST] Document DB insert error (URL):", documentInsertError);
+          return NextResponse.json({ error: `Failed to create document record for URL: ${documentInsertError.message}` }, { status: 500 });
+        }
+        documentRecordData = dbDocument;
+        console.log(`[API /documents POST] Webpage document record created: ${documentRecordData.document_id}`);
+    } else {
+        // This case should not be reached due to earlier checks, but as a safeguard:
+        return NextResponse.json({ error: 'No file or URL provided (safeguard).' }, { status: 400 });
     }
-
-
-    const filePath = `${user.id}/${chatbotId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9_.\-]/g, '_')}`; // Sanitize file name slightly
-    const buffer = await file.arrayBuffer();
-
-    console.log(`[API /documents POST] Uploading to storage path: ${filePath}`);
-    const { error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(filePath, buffer, { contentType: file.type, upsert: false });
-
-    if (uploadError) {
-      console.error("[API /documents POST] Storage upload error:", uploadError);
-      return NextResponse.json({ error: `Failed to upload file to storage: ${uploadError.message}` }, { status: 500 });
-    }
-    console.log(`[API /documents POST] File uploaded to storage successfully.`);
-
-    const { data: documentRecord, error: documentInsertError } = await supabase
-      .from('documents')
-      .insert({
-        chatbot_id: chatbotId,
-        file_name: file.name,
-        file_path: filePath,
-        file_type: fileType,
-        file_size: file.size,
-        status: 'uploaded'
-      })
-      .select()
-      .single();
-
-    if (documentInsertError) {
-      console.error("[API /documents POST] Document DB insert error:", documentInsertError);
-      // Attempt to clean up storage if DB insert fails
-      console.log(`[API /documents POST] Attempting to remove orphaned file from storage: ${filePath}`);
-      await supabase.storage.from('documents').remove([filePath]);
-      return NextResponse.json({ error: `Failed to create document record in database: ${documentInsertError.message}` }, { status: 500 });
-    }
-    console.log(`[API /documents POST] Document record created in DB: ${documentRecord.document_id}`);
 
     return NextResponse.json({
-      document: documentRecord,
-      message: 'Document uploaded successfully. Processing can now be initiated.'
+      document: documentRecordData,
+      message: file ? 'File uploaded successfully. Processing can now be initiated.' : 'Webpage added successfully. Processing can now be initiated.'
     }, { status: 201 });
 
   } catch (error) {
     console.error('[API /documents POST] General Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to upload document due to an unexpected error' },
+      { error: error instanceof Error ? error.message : 'Failed to process request due to an unexpected error' },
       { status: 500 }
     );
   }
@@ -8716,18 +9120,17 @@ export async function DELETE(request: NextRequest) {
   console.log(`[API /documents DELETE] Request for documentId: ${documentId}`);
 
   try {
-    const supabase = await createServerSupabaseClient(); // User-context for initial checks
-    const adminSupabase = createAdminClient(); // Admin client for actual deletion to ensure cascades work if RLS is restrictive
+    const supabase = await createServerSupabaseClient(); 
+    const adminSupabase = createAdminClient(); 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Fetch the document to get its chatbot_id and file_path, and to verify ownership indirectly
     const { data: document, error: docFetchError } = await supabase
         .from('documents')
-        .select('document_id, chatbot_id, file_path')
+        .select('document_id, chatbot_id, file_path, file_type') // MODIFIED: Added file_type
         .eq('document_id', documentId)
         .single();
 
@@ -8736,7 +9139,6 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Verify the user (teacher) owns the chatbot associated with this document
     const { data: chatbot, error: chatbotFetchError } = await supabase
         .from('chatbots')
         .select('teacher_id')
@@ -8748,11 +9150,8 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized to delete this document or its parent chatbot not found' }, { status: 403 });
     }
 
-    // Proceed with deletion using admin client for broader permissions if needed for cascade
-    // 1. Delete from 'documents' table (and 'document_chunks' via cascade if RLS on chunks allows or if admin client bypasses)
-    // For cascading deletes to work reliably, ensure your foreign key constraint from document_chunks to documents has ON DELETE CASCADE.
     console.log(`[API /documents DELETE] Deleting document record ${documentId} from database.`);
-    const { error: dbDeleteError } = await adminSupabase // Using admin for delete operation
+    const { error: dbDeleteError } = await adminSupabase
       .from('documents')
       .delete()
       .eq('document_id', documentId);
@@ -8763,24 +9162,20 @@ export async function DELETE(request: NextRequest) {
     }
     console.log(`[API /documents DELETE] Document record ${documentId} deleted from database.`);
 
-    // 2. Delete from storage
-    if (document.file_path) {
+    // MODIFIED: Only delete from storage if it's not a 'webpage' type (where file_path is the URL)
+    if (document.file_type !== 'webpage' && document.file_path) {
         console.log(`[API /documents DELETE] Deleting file from storage: ${document.file_path}`);
-        const { error: storageError } = await adminSupabase.storage.from('documents').remove([document.file_path]); // Use admin for storage ops too
+        const { error: storageError } = await adminSupabase.storage.from('documents').remove([document.file_path]);
         if (storageError) {
             console.error(`[API /documents DELETE] Error deleting file ${document.file_path} from storage:`, storageError);
-            // Log this but don't necessarily fail the whole operation if DB record was deleted.
-            // The document is effectively gone from the app's perspective. Orphaned storage files can be cleaned up later.
         } else {
             console.log(`[API /documents DELETE] File ${document.file_path} deleted from storage.`);
         }
+    } else if (document.file_type === 'webpage') {
+        console.log(`[API /documents DELETE] Document type is 'webpage', skipping storage deletion for URL: ${document.file_path}`);
     }
     
-    // 3. TODO: Delete associated vectors from Pinecone (this requires a separate utility call)
-    // import { deleteDocumentVectors } from '@/lib/pinecone/utils';
-    // await deleteDocumentVectors(documentId).catch(pineconeError => {
-    //    console.error(`[API /documents DELETE] Error deleting vectors from Pinecone for document ${documentId}:`, pineconeError);
-    // });
+    // TODO: Implement Pinecone vector deletion for document
     console.log(`[API /documents DELETE] TODO: Implement Pinecone vector deletion for document ${documentId}.`);
 
 
@@ -10743,7 +11138,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents'; // Removed HelpText
+import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents';
 
 const AuthCard = styled(Card)`
   max-width: 400px;
@@ -10786,7 +11181,7 @@ export default function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [countryCode, setCountryCode] = useState(''); // <--- ADDED for country selection
+  const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -10822,14 +11217,13 @@ export default function AuthForm({ type }: AuthFormProps) {
       if (type === 'signup') {
         const role = isStudentSignup ? 'student' : 'teacher';
         
-        // Prepare options.data, including country_code for teachers
         const signupData: { role: string; full_name: string; country_code?: string | null } = {
             role: role,
             full_name: fullName,
         };
 
         if (role === 'teacher') {
-            signupData.country_code = countryCode.trim() || null; // Add country_code if teacher and it's set
+            signupData.country_code = countryCode.trim() || null;
         }
         
         const { error: signUpError } = await supabase.auth.signUp({
@@ -10837,7 +11231,7 @@ export default function AuthForm({ type }: AuthFormProps) {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-            data: signupData // Use the prepared signupData
+            data: signupData
           },
         });
         
@@ -10860,10 +11254,10 @@ export default function AuthForm({ type }: AuthFormProps) {
               router.push(`/auth?type=login&redirect=${encodeURIComponent(redirectTo)}`);
             }, 3000);
           }
-        } else { // Teacher signup
+        } else { 
           alert('Check your email for the confirmation link! Please also check your spam folder.');
         }
-      } else { // Login
+      } else { 
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -10882,7 +11276,6 @@ export default function AuthForm({ type }: AuthFormProps) {
     }
   };
 
-  // Special UI for student signup
   if (isStudentSignup && type === 'signup') {
     return (
       <AuthCard>
@@ -10933,15 +11326,14 @@ export default function AuthForm({ type }: AuthFormProps) {
     );
   }
 
-  // Regular auth form for teachers (signup/login) or general login
   return (
     <AuthCard>
       <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
       
-      {type === 'signup' && ( // This block is for Teacher Signup or general Signup
+      {type === 'signup' && ( 
         <InfoBox>
           <p><strong>For Teachers:</strong> Sign up here to create your teacher account.</p>
-          {!isStudentSignup && ( // Only show student info if not already in student signup flow
+          {!isStudentSignup && ( 
              <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
           )}
         </InfoBox>
@@ -10950,7 +11342,7 @@ export default function AuthForm({ type }: AuthFormProps) {
       {error && <Alert variant="error">{error}</Alert>}
       
       <form onSubmit={handleSubmit}>
-        {type === 'signup' && ( // Fields specific to signup
+        {type === 'signup' && ( 
           <>
             <FormGroup>
               <Label htmlFor="fullName">Full Name</Label>
@@ -10963,8 +11355,7 @@ export default function AuthForm({ type }: AuthFormProps) {
                 required
               />
             </FormGroup>
-            {/* ADDED Country Code Dropdown FOR TEACHER SIGNUP */}
-            {!isStudentSignup && ( // Only show for teacher signup
+            {!isStudentSignup && ( 
                  <FormGroup>
                     <Label htmlFor="countryCode">Your Country (Optional)</Label>
                     <StyledSelect
@@ -10979,8 +11370,9 @@ export default function AuthForm({ type }: AuthFormProps) {
                         <option value="CA">Canada</option>
                         <option value="AU">Australia</option>
                         <option value="NZ">New Zealand</option>
-                        <option value="EU">EU</option>
-                        {/* Add more relevant countries as needed */}
+                        {/* MODIFIED: Added AE */}
+                        <option value="AE">United Arab Emirates</option> 
+                        <option value="EU">EU (Other)</option> {/* Renamed EU slightly for clarity */}
                     </StyledSelect>
                     <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
                  </FormGroup>
@@ -11088,7 +11480,7 @@ export default function Footer() {
 import styled from 'styled-components';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client'; // Your client import
 import { Container, Button } from '@/styles/StyledComponents';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
@@ -11142,7 +11534,6 @@ const Nav = styled.nav`
   }
 `;
 
-// Modified NavLink to accept isActive prop
 const NavLink = styled(Link)<{ $isActive?: boolean }>`
   color: ${({ theme, $isActive }) => $isActive ? theme.colors.primary : theme.colors.text};
   text-decoration: none;
@@ -11185,12 +11576,23 @@ const HeaderButton = styled(Button)`
 export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const supabase = createClient();
-  const pathname = usePathname(); // Get current path for active link styling
+  const supabase = createClient(); // Supabase client initialized here
+  const pathname = usePathname();
+
+  // --- START OF CODE TO ADD/VERIFY ---
+  useEffect(() => {
+    // Expose supabase client to the window object FOR TESTING PURPOSES ONLY
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      // @ts-expect-error // TypeScript might complain, ignore for testing
+      window.supabaseClientInstance = supabase;
+      console.log("Supabase client instance EXPOSED to window.supabaseClientInstance for testing.");
+    }
+  }, [supabase]); // Dependency array includes supabase
+  // --- END OF CODE TO ADD/VERIFY ---
 
   useEffect(() => {
     const getUserInfo = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser(); // Renamed to avoid conflict
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       setUser(currentUser);
       
       if (currentUser) {
@@ -11203,10 +11605,10 @@ export default function Header() {
         if (profile) {
           setUserRole(profile.role);
         } else {
-          setUserRole(null); // Explicitly set to null if profile not found
+          setUserRole(null);
         }
       } else {
-        setUserRole(null); // No user, no role
+        setUserRole(null);
       }
     };
     
@@ -11222,7 +11624,7 @@ export default function Header() {
           .select('role')
           .eq('user_id', sessionUser.id)
           .single()
-          .then(({ data: profileData, error: profileError }) => { // Added error handling
+          .then(({ data: profileData, error: profileError }) => {
             if (profileError) {
               console.warn("Error fetching profile on auth state change:", profileError.message);
               setUserRole(null);
@@ -11242,17 +11644,15 @@ export default function Header() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase]); // supabase is already a dependency here
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    // Forcing a full page reload to clear all state after sign out
     window.location.href = '/'; 
   };
 
   const isLinkActive = (href: string) => {
     if (href === '/teacher-dashboard' || href === '/student/dashboard') {
-        // For dashboard links, consider active if the path starts with this href
         return pathname.startsWith(href);
     }
     return pathname === href;
@@ -11266,7 +11666,7 @@ export default function Header() {
             {APP_NAME}
           </Logo>
           
-          {user && userRole && ( // Ensure userRole is also present before rendering Nav
+          {user && userRole && (
             <Nav>
               {userRole === 'teacher' && (
                 <NavLink href="/teacher-dashboard" $isActive={isLinkActive('/teacher-dashboard')}>
@@ -11276,9 +11676,8 @@ export default function Header() {
               {userRole === 'student' && (
                 <NavLink href="/student/dashboard" $isActive={isLinkActive('/student/dashboard')}>
                   Dashboard 
-                </NavLink> // <<< MODIFIED LINK & TEXT
+                </NavLink>
               )}
-              {/* Add other common links here if any, e.g., /profile, /settings */}
             </Nav>
           )}
           
@@ -11288,7 +11687,6 @@ export default function Header() {
                 Sign Out
               </HeaderButton>
             ) : (
-              // Only show Sign In button if not on the auth page itself
               pathname !== '/auth' && (
                 <HeaderButton as={Link} href="/auth">
                   Sign In
@@ -14934,7 +15332,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     name: '',
     description: '',
     system_prompt: '',
-    model: 'x-ai/grok-3-mini-beta',
+    model: 'openai/gpt-4.1-nano',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
@@ -15134,9 +15532,10 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                   value={formData.model}
                   onChange={handleChange}
               >
+                  <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1 Nano</option>
+                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
                   <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta (Paid)</option>
                   <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B (Free)</option>
-                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
               </StyledSelect>
               <HelpText>
                   This model is used for the chatbot&apos;s direct replies to students. The assessment evaluation will use a dedicated model (Qwen3 235B by default for now).
@@ -15544,13 +15943,15 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
 }// src/components/teacher/DashboardOverview.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // MODIFIED: Added useCallback
 import styled from 'styled-components';
 import StatsCard from './StatsCard'; 
 import { Button, Alert, Card } from '@/styles/StyledComponents'; 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // MODIFIED: Added Link for the "Create one now" message
 import LoadingSpinner from '@/components/shared/LoadingSpinner'; 
 import RoomForm from '@/components/teacher/RoomForm'; 
+import ChatbotList from '@/components/teacher/ChatbotList'; // MODIFIED: Make sure this is imported
 import type { Chatbot } from '@/types/database.types'; 
 
 const OverviewWrapper = styled.div`
@@ -15611,54 +16012,80 @@ export default function DashboardOverview() {
   const [showRoomForm, setShowRoomForm] = useState(false); 
   const [availableChatbots, setAvailableChatbots] = useState<Chatbot[]>([]); 
   const [loadingChatbots, setLoadingChatbots] = useState(false); 
+  // MODIFIED: State for recent chatbots to display in overview
+  const [recentChatbots, setRecentChatbots] = useState<Chatbot[]>([]);
+  const [loadingRecentChatbots, setLoadingRecentChatbots] = useState(true);
+
 
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoadingStats(true);
-      setStatsError(null);
-      setLoadingChatbots(true); 
-
-      try {
-        const [statsResponse, chatbotsResponse] = await Promise.all([
-          fetch('/api/teacher/dashboard-stats'),
-          fetch('/api/teacher/chatbots') 
-        ]);
-
-        if (!statsResponse.ok) {
-          const errorData = await statsResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to fetch stats (status ${statsResponse.status})`);
-        }
-        const statsData: DashboardStats = await statsResponse.json();
-        setStats(statsData);
-
-        if (!chatbotsResponse.ok) {
-          const errorData = await chatbotsResponse.json().catch(() => ({}));
-          console.error(errorData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`);
-          setStatsError(prev => prev ? `${prev}\nFailed to load chatbots for Room Creation.` : 'Failed to load chatbots for Room Creation.');
-          setAvailableChatbots([]);
-        } else {
-          const chatbotsData: Chatbot[] = await chatbotsResponse.json();
-          setAvailableChatbots(chatbotsData);
-        }
-
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        const errorMessage = err instanceof Error ? err.message : 'Could not load dashboard overview.';
-        // Set error for the main stats, which might also include the chatbot fetch error contextually
-        setStatsError(errorMessage); 
-        // Ensure stats is null if the primary fetch (dashboard-stats) failed
-        if (!(err instanceof Error && err.message.includes("Failed to load chatbots"))) { // Avoid double error message if only chatbot fetch failed
-            setStats(null);
-        }
-      } finally {
-        setLoadingStats(false);
-        setLoadingChatbots(false);
+  // MODIFIED: Separated fetching logic slightly
+  const fetchDashboardStats = useCallback(async () => {
+    setLoadingStats(true);
+    // Don't reset statsError here if chatbots are also loading, let chatbot fetch handle its part
+    try {
+      const statsResponse = await fetch('/api/teacher/dashboard-stats');
+      if (!statsResponse.ok) {
+        const errorData = await statsResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch stats (status ${statsResponse.status})`);
       }
-    };
-    fetchDashboardData();
+      const statsData: DashboardStats = await statsResponse.json();
+      setStats(statsData);
+    } catch (err) {
+      console.error("Error fetching dashboard stats:", err);
+      const errorMessage = err instanceof Error ? err.message : 'Could not load dashboard statistics.';
+      setStatsError(prev => prev ? `${prev}\n${errorMessage}` : errorMessage);
+      setStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
   }, []);
+
+  const fetchTeacherChatbots = useCallback(async (isForQuickActions = false) => {
+    if (isForQuickActions) {
+      setLoadingChatbots(true);
+    } else {
+      setLoadingRecentChatbots(true);
+    }
+    // Don't reset statsError here
+    try {
+      const chatbotsResponse = await fetch('/api/teacher/chatbots'); // Fetches all chatbots
+      if (!chatbotsResponse.ok) {
+        const errorData = await chatbotsResponse.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`;
+        console.error(errorMsg);
+        setStatsError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
+        if (isForQuickActions) setAvailableChatbots([]); else setRecentChatbots([]);
+        return;
+      }
+      const chatbotsData: Chatbot[] = await chatbotsResponse.json();
+      if (isForQuickActions) {
+        setAvailableChatbots(chatbotsData);
+      } else {
+        // For overview, maybe show most recent 3-4 or filter them differently
+        setRecentChatbots(chatbotsData.slice(0, 4)); // Example: show first 4
+        if (availableChatbots.length === 0) { // Also populate availableChatbots if not already fetched
+            setAvailableChatbots(chatbotsData);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching chatbots:", err);
+      const errorMsg = err instanceof Error ? err.message : 'Could not load chatbots.';
+      setStatsError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
+      if (isForQuickActions) setAvailableChatbots([]); else setRecentChatbots([]);
+    } finally {
+      if (isForQuickActions) setLoadingChatbots(false); else setLoadingRecentChatbots(false);
+    }
+  }, [availableChatbots.length]); // Rerun if availableChatbots length changes (e.g., from empty)
+
+  useEffect(() => {
+    fetchDashboardStats();
+    fetchTeacherChatbots(false); // Fetch for recent chatbots list
+    // If availableChatbots is needed for quick actions and not populated by recent fetch
+    if(availableChatbots.length === 0) {
+        fetchTeacherChatbots(true); // Fetch for quick actions if not already populated
+    }
+  }, [fetchDashboardStats, fetchTeacherChatbots, availableChatbots.length]); // Added availableChatbots.length
 
   const handleCreateNewChatbot = () => {
     router.push('/teacher-dashboard/chatbots/new/edit'); 
@@ -15667,23 +16094,27 @@ export default function DashboardOverview() {
   const handleRoomCreated = () => {
     setShowRoomForm(false);
     alert("Room created successfully!");
-     const fetchStatsOnly = async () => {
-        // No need to setLoadingStats(true) here if we want a less jarring update,
-        // or set it true if you prefer a loading indicator during this quick refresh.
-        try {
-            const response = await fetch('/api/teacher/dashboard-stats');
-            if (!response.ok) throw new Error('Failed to refresh stats');
-            const data: DashboardStats = await response.json();
-            setStats(data); // Just update stats
-        } catch (e) { 
-            console.error("Failed to refresh stats after room creation", e); 
-            // Optionally set a non-blocking error message here if needed
-        }
-    };
-    fetchStatsOnly();
+    fetchDashboardStats(); // Refresh stats which includes room counts
   };
 
-  if (loadingStats) { 
+  // MODIFIED: Placeholder handlers for ChatbotList in overview
+  const handleEditChatbotOverview = (chatbotId: string) => {
+    router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
+  };
+
+  const handleDeleteChatbotOverview = async (chatbotId: string, chatbotName: string) => {
+    if (window.confirm(`Are you sure you want to delete "${chatbotName}"? This will navigate you to the main chatbots page to confirm further.`)) {
+      // Or, directly call the delete API and refresh data here if preferred
+      // For now, just navigate to the main chatbots page where full delete logic exists
+      router.push('/teacher-dashboard/chatbots');
+      // To make it fully functional here, you'd replicate the delete logic from ManageChatbotsPage
+      // and call fetchTeacherChatbots(false) and fetchDashboardStats() on success.
+      alert(`Deletion for "${chatbotName}" would be handled on the main chatbots page or via a shared hook/service.`);
+    }
+  };
+
+
+  if (loadingStats || loadingRecentChatbots) { 
     return (
         <Card style={{ textAlign: 'center', padding: '40px' }}>
             <LoadingSpinner size="large" />
@@ -15692,8 +16123,7 @@ export default function DashboardOverview() {
     );
   }
 
-  // If there's a general stats error, show it prominently
-  if (statsError && !stats) { // Show if stats failed to load entirely
+  if (statsError && !stats && recentChatbots.length === 0) {
     return (
         <Alert variant="error" style={{ marginBottom: '16px' }}>
             {statsError}
@@ -15702,15 +16132,11 @@ export default function DashboardOverview() {
     );
   }
   
-  // If stats loaded but there was a secondary error (like chatbot loading for RoomForm)
-  // that error will be displayed above the stats grid if statsError is set.
-
   return (
     <OverviewWrapper>
-      {/* Display statsError if it exists, even if stats are partially loaded */}
       {statsError && <Alert variant="error" style={{ marginBottom: '16px' }}>{statsError}</Alert>}
 
-      {stats ? ( // Check if stats object exists before trying to access its properties
+      {stats && (
         <StatsGrid>
           <StatsCard
             title="Pending Concerns"
@@ -15737,11 +16163,9 @@ export default function DashboardOverview() {
             variant="orange_secondary" 
           />
         </StatsGrid>
-      ) : (
-        !loadingStats && !statsError && <Alert variant="info">Dashboard statistics are currently unavailable.</Alert>
       )}
 
-      <Section>
+      <Section $accentSide="top" $accentColor="magenta">
         <SectionHeader>
           <SectionTitle>Quick Actions</SectionTitle>
         </SectionHeader>
@@ -15763,6 +16187,31 @@ export default function DashboardOverview() {
             </Alert>
         )}
       </Section>
+
+      {/* MODIFIED: Section to display recent chatbots */}
+      <Section $accentSide="top" $accentColor="blue">
+        <SectionHeader>
+          <SectionTitle>My Recent Chatbots</SectionTitle>
+          {stats && stats.totalChatbots > recentChatbots.length && (
+            <Button variant="outline" size="small" onClick={() => router.push('/teacher-dashboard/chatbots')}>
+              View All ({stats.totalChatbots})
+            </Button>
+          )}
+        </SectionHeader>
+        {loadingRecentChatbots && recentChatbots.length === 0 ? (
+            <div style={{textAlign: 'center', padding: '20px'}}><LoadingSpinner /> Loading chatbots...</div>
+        ) : recentChatbots.length > 0 ? (
+          <ChatbotList
+            chatbots={recentChatbots} 
+            onEdit={handleEditChatbotOverview}
+            onDelete={handleDeleteChatbotOverview}
+            viewMode="card" // MODIFIED: Provide the viewMode prop, defaulting to 'card' for overview
+          />
+        ) : (
+          <p>No chatbots created yet. <Link href="/teacher-dashboard/chatbots/new/edit" style={{textDecoration: 'underline', fontWeight: '500'}}>Create one now!</Link></p>
+        )}
+      </Section>
+
 
       {showRoomForm && (
         <RoomForm
@@ -16053,10 +16502,11 @@ export default function StudentList({ roomId }: StudentListProps) {
 'use client';
 
 import Link from 'next/link';
-import styled from 'styled-components'; // Removed useTheme as it's not directly used now
-import { Card, Button } from '@/styles/StyledComponents'; 
+import styled from 'styled-components';
+import { Card, Button, Badge } from '@/styles/StyledComponents';
 import type { Chatbot } from '@/types/database.types';
 
+// Card View Styled Components (Existing)
 const ListGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -16068,8 +16518,6 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
   position: relative;
   display: flex;
   flex-direction: column;
-
-  /* Optional: Apply a passed accent color to the top border */
   ${({ $cardAccentColor }) => 
     $cardAccentColor && `border-top: 4px solid ${$cardAccentColor};`}
 
@@ -16104,27 +16552,78 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
   }
   .actions {
     display: flex;
-    gap: ${({ theme }) => theme.spacing.md}; // Adjusted gap for two buttons
+    gap: ${({ theme }) => theme.spacing.md};
     margin-top: auto; 
     padding-top: ${({ theme }) => theme.spacing.md}; 
-    flex-wrap: no-wrap; // Prevent wrapping if space allows for two buttons
+    flex-wrap: no-wrap; 
     
-    button { // Target button elements directly for sizing
+    button { 
         flex-grow: 1; 
-        /* Each button can take up to 50% of the space minus gap */
         flex-basis: calc(50% - ${({ theme }) => `calc(${theme.spacing.md} / 2)`});
         max-width: calc(50% - ${({ theme }) => `calc(${theme.spacing.md} / 2)`});
         text-align: center; 
 
-         @media (max-width: 380px) { // Stricter breakpoint for stacking two buttons
+         @media (max-width: 380px) { 
             flex-basis: 100%; 
             max-width: 100%;
             &:not(:last-child) {
-              margin-bottom: ${({ theme }) => theme.spacing.sm}; // Add margin if they stack
+              margin-bottom: ${({ theme }) => theme.spacing.sm};
             }
          }
     }
   }
+`;
+
+// Styled Components for Table/List View
+const TableContainer = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+`;
+
+const Table = styled.table`
+  width: 100%;
+  min-width: 800px; 
+  border-collapse: collapse;
+  
+  th, td {
+    padding: ${({ theme }) => theme.spacing.md};
+    text-align: left;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    vertical-align: middle;
+  }
+
+  th {
+    background-color: ${({ theme }) => theme.colors.backgroundCard};
+    color: ${({ theme }) => theme.colors.textLight};
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td {
+    font-size: 0.9rem;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+  
+  .description-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
+
+const ActionButtonsContainer = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  align-items: center;
 `;
 
 const getModelDisplayName = (model: string | undefined) => {
@@ -16132,32 +16631,101 @@ const getModelDisplayName = (model: string | undefined) => {
     const modelNames: Record<string, string> = {
         'x-ai/grok-3-mini-beta': 'Grok 3 Mini',
         'qwen/qwen3-235b-a22b': 'Qwen3 235B',
-        'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash'
+        'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash',
+        'openai/gpt-4.1-nano': 'GPT-4.1 Nano', 
     };
     return modelNames[model] || model;
 };
 
-interface ChatbotListProps {
+// Ensure this interface is EXPORTED
+export interface ChatbotListProps {
   chatbots: Chatbot[];
   onEdit: (chatbotId: string) => void;
-  onDelete: (chatbotId: string, chatbotName: string) => void;
+  onDelete: (chatbotId: string, chatbotName: string) => void; 
+  viewMode: 'card' | 'list';
 }
 
-export default function ChatbotList({ chatbots, onEdit, onDelete }: ChatbotListProps) {
-  // const theme = useTheme(); // Not strictly needed if not applying accents directly here
+export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: ChatbotListProps) {
 
   if (chatbots.length === 0) {
-    return <Card><p>No chatbots created yet. Click &quot;+ Create Chatbot&quot; to get started!</p></Card>;
+    return <Card><p>No chatbots found.</p></Card>;
+  }
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  if (viewMode === 'list') {
+    return (
+      <TableContainer>
+        <Table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Model</th>
+              <th>RAG</th>
+              <th>Last Modified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chatbots.map((chatbot) => (
+              <tr key={chatbot.chatbot_id}>
+                <td>
+                  <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`} title={`Test chat with ${chatbot.name}`}>
+                    {chatbot.name}
+                  </Link>
+                </td>
+                <td>
+                  <Badge variant={chatbot.bot_type === 'assessment' ? 'warning' : 'default'}>
+                    {chatbot.bot_type ? chatbot.bot_type.charAt(0).toUpperCase() + chatbot.bot_type.slice(1) : 'N/A'}
+                  </Badge>
+                </td>
+                <td className="description-cell" title={chatbot.description || undefined}>
+                  {chatbot.description || '-'}
+                </td>
+                <td>{getModelDisplayName(chatbot.model)}</td>
+                <td>
+                  <Badge variant={chatbot.enable_rag ? 'success' : 'default'}>
+                    {chatbot.enable_rag ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </td>
+                <td>{formatDate(chatbot.updated_at || chatbot.created_at)}</td>
+                <td>
+                  <ActionButtonsContainer>
+                    <Button
+                      size="small"
+                      variant="outline"
+                      onClick={() => onEdit(chatbot.chatbot_id)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="magenta"
+                      onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
+                    >
+                      Delete
+                    </Button>
+                  </ActionButtonsContainer>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </TableContainer>
+    );
   }
 
   return (
     <ListGrid>
-      {chatbots.map((chatbot) => { // Removed index as it wasn't used for key
+      {chatbots.map((chatbot) => {
         return (
           <StyledChatbotCard 
               key={chatbot.chatbot_id}
-              // Example: if you wanted to cycle card accents:
-              // $cardAccentColor={cardAccentColors[index % cardAccentColors.length]} 
           >
             <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`} title={`Test chat with ${chatbot.name}`}>
               <h3>{chatbot.name}</h3>
@@ -16173,12 +16741,11 @@ export default function ChatbotList({ chatbots, onEdit, onDelete }: ChatbotListP
                 onClick={() => onEdit(chatbot.chatbot_id)}
                 title="Edit chatbot settings and knowledge base"
               >
-                Edit {/* CHANGED from "Configure" */}
+                Edit
               </Button>
-              {/* "Knowledge" Button has been REMOVED */}
               <Button
                   size="small"
-                  variant="magenta" // Using magenta variant
+                  variant="magenta"
                   onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
                   title="Delete this chatbot"
               >
@@ -16464,24 +17031,24 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Card, Button, Badge, Alert } from '@/styles/StyledComponents';
-import type { Document as KnowledgeDocument, DocumentStatus } from '@/types/knowledge-base.types';
+import type { Document as KnowledgeDocument, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
 
 const ListContainer = styled(Card)`
   margin-top: ${({ theme }) => theme.spacing.lg};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
-  overflow-x: auto; // Ensure table is scrollable horizontally if it overflows
+  overflow-x: auto; 
 `;
 
 const Table = styled.table`
   width: 100%;
-  min-width: 700px; // Ensure table has a minimum width for all columns
-  border-collapse: collapse; // Corrected from seperate to collapse
+  min-width: 700px; 
+  border-collapse: collapse; 
   
   th, td {
     text-align: left;
     padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    vertical-align: middle; // Changed from top for better alignment with buttons
+    vertical-align: middle; 
   }
 
   th {
@@ -16490,7 +17057,7 @@ const Table = styled.table`
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    white-space: nowrap; // Prevent headers from wrapping
+    white-space: nowrap; 
   }
 
   td {
@@ -16499,19 +17066,20 @@ const Table = styled.table`
   }
 
   .actions-cell {
-    width: 1%; // Allow this column to shrink but also expand for multiple buttons
+    width: 1%; 
     white-space: nowrap;
   }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    /* Forcing table display for now, mobile list can be a future enhancement */
-    /* display: none; */ 
+  
+  .filename-cell { // MODIFIED: Added for better filename display
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `;
 
-// MobileList and related components are kept but not used if Table is always displayed
 const MobileList = styled.div`
-  display: none; /* Hidden for now, enable if switching views */
+  display: none; 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     /* display: block; */
   }
@@ -16532,7 +17100,7 @@ const MobileHeader = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
-const FileNameMobile = styled.div` // Renamed to avoid conflict with Table's FileName
+const FileNameMobile = styled.div`
   font-weight: 500;
   color: ${({ theme }) => theme.colors.text};
   word-break: break-all;
@@ -16570,18 +17138,15 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-// StatusBadge is imported from StyledComponents, so it should use its defined props
-// The $status prop was correct if Badge in StyledComponents expects it for styling.
-// If Badge in StyledComponents uses 'variant', then we adjust.
-// Assuming Badge uses 'variant' prop and we map status to variant:
-// Removed unused StyledStatusBadge
 
+// MODIFIED: getStatusBadgeVariant to include 'fetched' status
 const getStatusBadgeVariant = (status: DocumentStatus): 'success' | 'warning' | 'error' | 'default' => {
     switch (status) {
       case 'completed': return 'success';
-      case 'processing': return 'default'; // Or a 'info' / 'blue' if you have one
+      case 'processing': return 'default';
       case 'error': return 'error';
-      case 'uploaded': return 'warning'; // 'uploaded' might be better as 'warning' or 'default'
+      case 'uploaded': return 'warning';
+      case 'fetched': return 'warning'; // 'fetched' can also be warning or default
       default: return 'default';
     }
 };
@@ -16609,19 +17174,27 @@ export default function DocumentList({
     return new Date(dateString).toLocaleString();
   };
 
-  const formatFileSize = (bytes: number): string => {
+  // MODIFIED: formatFileSize to handle webpage type (size is text length)
+  const formatFileSize = (bytes: number, fileType: DocumentType): string => {
+    if (fileType === 'webpage') {
+        // For webpages, 'bytes' is actually character count of extracted text
+        if (bytes === 0) return 'No text extracted';
+        return `${bytes.toLocaleString()} chars`;
+    }
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + ['Bytes', 'KB', 'MB', 'GB', 'TB'][i];
   };
 
+  // MODIFIED: getStatusLabel to include 'fetched'
   const getStatusLabel = (status: DocumentStatus): string => {
     const labels: Record<DocumentStatus, string> = {
       uploaded: 'Uploaded',
       processing: 'Processing',
       completed: 'Completed',
       error: 'Error',
+      fetched: 'Fetched', // New label
     };
     return labels[status] || status;
   };
@@ -16657,7 +17230,7 @@ export default function DocumentList({
     return (
       <ListContainer>
         <EmptyState>
-          <p>No documents have been uploaded for this chatbot yet.</p>
+          <p>No documents have been added to this chatbot&apos;s knowledge base yet.</p>
         </EmptyState>
       </ListContainer>
     );
@@ -16665,12 +17238,13 @@ export default function DocumentList({
 
   const renderActions = (doc: KnowledgeDocument) => (
     <>
-      {doc.status === 'uploaded' && (
+      {/* MODIFIED: Allow processing for 'fetched' status as well */}
+      {(doc.status === 'uploaded' || doc.status === 'fetched') && (
         <Button
           size="small"
           onClick={() => handleProcess(doc.document_id)}
           disabled={processingId === doc.document_id}
-          title="Process this document for RAG"
+          title="Process this document/webpage for RAG"
         >
           {processingId === doc.document_id ? 'Starting...' : 'Process'}
         </Button>
@@ -16690,16 +17264,12 @@ export default function DocumentList({
         variant="danger" 
         onClick={() => handleDelete(doc.document_id, doc.file_name)}
         disabled={deletingId === doc.document_id}
-        title="Delete this document"
+        title="Delete this document/webpage"
       >
         {deletingId === doc.document_id ? 'Deleting...' : 'Delete'}
       </Button>
     </>
   );
-
-  // The main issue was likely `className` on `TableHeader` and `TableCell` which are styled components.
-  // Styled components pass props directly, or use transient props ($prop) for styling only.
-  // For `actions-cell`, it's better to create a specific styled TD or handle width via CSS.
 
   return (
     <ListContainer>
@@ -16707,22 +17277,30 @@ export default function DocumentList({
       <Table>
         <thead>
           <tr>
-            <th>Name</th> {/* Changed from TableHeader component to direct th */}
+            <th>Name / URL</th> 
             <th>Type</th>
-            <th>Size</th>
+            <th>Size / Content Length</th>
             <th>Status</th>
-            <th>Uploaded</th>
-            <th className="actions-cell">Actions</th> {/* Using a className for specific styling */}
+            <th>Added</th>
+            <th className="actions-cell">Actions</th>
           </tr>
         </thead>
         <tbody>
           {documents.map((doc) => (
             <tr key={doc.document_id}>
-              <td title={doc.file_name}>{doc.file_name}</td> {/* Changed from TableCell to direct td */}
+              {/* MODIFIED: Display filename for files, and file_path (URL) for webpages */}
+              <td className="filename-cell" title={doc.file_type === 'webpage' ? doc.file_path : doc.file_name}>
+                {doc.file_type === 'webpage' ? 
+                  <a href={doc.file_path} target="_blank" rel="noopener noreferrer" title={`Open: ${doc.file_path}`}>
+                    {doc.file_name} {/* file_name for webpage is its title */}
+                  </a>
+                  : doc.file_name
+                }
+              </td>
               <td>{doc.file_type.toUpperCase()}</td>
-              <td>{formatFileSize(doc.file_size)}</td>
+              {/* MODIFIED: Pass file_type to formatFileSize */}
+              <td>{formatFileSize(doc.file_size, doc.file_type)}</td>
               <td>
-                {/* Using the imported Badge and determining its variant */}
                 <Badge variant={getStatusBadgeVariant(doc.status)}>
                   {getStatusLabel(doc.status)}
                 </Badge>
@@ -16738,12 +17316,19 @@ export default function DocumentList({
         </tbody>
       </Table>
 
-      {/* MobileList remains unchanged for now, as the focus is fixing the table errors */}
       <MobileList>
         {documents.map((doc) => (
-          <MobileCard key={doc.document_id}>
+          <MobileCard key={`mobile-${doc.document_id}`}> {/* MODIFIED: Added unique key prefix for mobile */}
             <MobileHeader>
-              <FileNameMobile title={doc.file_name}>{doc.file_name}</FileNameMobile>
+              {/* MODIFIED: Mobile display for filename/URL */}
+              <FileNameMobile title={doc.file_type === 'webpage' ? doc.file_path : doc.file_name}>
+                {doc.file_type === 'webpage' ? 
+                  <a href={doc.file_path} target="_blank" rel="noopener noreferrer">
+                    {doc.file_name}
+                  </a>
+                  : doc.file_name
+                }
+              </FileNameMobile>
               <Badge variant={getStatusBadgeVariant(doc.status)}>
                 {getStatusLabel(doc.status)}
               </Badge>
@@ -16752,8 +17337,9 @@ export default function DocumentList({
               <span className="label">Type:</span>
               <span className="value">{doc.file_type.toUpperCase()}</span>
               <span className="label">Size:</span>
-              <span className="value">{formatFileSize(doc.file_size)}</span>
-              <span className="label">Uploaded:</span>
+              {/* MODIFIED: Pass file_type to formatFileSize for mobile */}
+              <span className="value">{formatFileSize(doc.file_size, doc.file_type)}</span>
+              <span className="label">Added:</span>
               <span className="value">{formatDate(doc.created_at)}</span>
               {doc.error_message && (
                 <>
@@ -16804,6 +17390,170 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     return this.props.children;
+  }
+}// src/lib/scraping/content-extractor.ts
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
+import fetch from 'node-fetch'; // Using node-fetch for server-side consistency
+
+interface ExtractedWebPageContent {
+  title: string;
+  textContent: string;
+  excerpt?: string;
+  url: string;
+  error?: string; // To capture any errors during fetching or parsing
+}
+
+// Function to fetch and parse robots.txt
+async function isUrlScrapingAllowed(targetUrl: string, userAgent: string = 'SkolrBot/1.0'): Promise<boolean> {
+  try {
+    const urlObj = new URL(targetUrl);
+    const robotsUrl = `${urlObj.protocol}//${urlObj.hostname}/robots.txt`;
+    console.log(`[ContentExtractor] Fetching robots.txt from: ${robotsUrl}`);
+
+    const response = await fetch(robotsUrl, {
+      headers: { 'User-Agent': userAgent },
+    });
+
+    if (!response.ok) {
+      console.log(`[ContentExtractor] robots.txt not found or non-200 status (${response.status}) for ${urlObj.hostname}. Assuming allowed.`);
+      return true; // If robots.txt is missing or inaccessible, often implies scraping is allowed
+    }
+
+    const robotsTxt = await response.text();
+    const lines = robotsTxt.split('\n');
+    let specificAgentRules = false;
+    let generalAgentRules = false;
+    let relevantRules: string[] = [];
+
+    // Check for rules specific to our user agent
+    for (const line of lines) {
+      if (line.toLowerCase().startsWith(`user-agent: ${userAgent.toLowerCase()}`)) {
+        specificAgentRules = true;
+        relevantRules = []; // Start collecting rules for this agent
+        continue;
+      }
+      if (line.toLowerCase().startsWith('user-agent: *')) {
+        generalAgentRules = true;
+        if (!specificAgentRules) relevantRules = []; // Start collecting rules for general agent if no specific ones yet
+        continue;
+      }
+      if (specificAgentRules && line.toLowerCase().startsWith('disallow:')) {
+        relevantRules.push(line.substring('disallow:'.length).trim());
+      } else if (generalAgentRules && !specificAgentRules && line.toLowerCase().startsWith('disallow:')) {
+        relevantRules.push(line.substring('disallow:'.length).trim());
+      }
+    }
+    
+    // If User-agent: * is present but no User-agent: SkolrBot/1.0, then User-agent: * rules apply.
+    // If both are present, User-agent: SkolrBot/1.0 rules take precedence.
+
+    const path = urlObj.pathname || '/';
+    for (const rule of relevantRules) {
+      if (rule === '/') { // Disallows everything
+          if (path.startsWith(rule)) {
+            console.log(`[ContentExtractor] Scraping disallowed by rule: Disallow: ${rule} for path: ${path}`);
+            return false;
+          }
+      } else if (rule && path.startsWith(rule)) {
+        console.log(`[ContentExtractor] Scraping disallowed by rule: Disallow: ${rule} for path: ${path}`);
+        return false;
+      }
+    }
+    console.log(`[ContentExtractor] Scraping allowed for ${targetUrl} based on robots.txt rules.`);
+    return true;
+  } catch (error) {
+    console.error(`[ContentExtractor] Error fetching or parsing robots.txt for ${targetUrl}:`, error);
+    return true; // Fail open: if robots.txt can't be processed, assume allowed but log error
+  }
+}
+
+
+export async function extractContentFromUrl(url: string): Promise<ExtractedWebPageContent> {
+  console.log(`[ContentExtractor] Attempting to extract content from URL: ${url}`);
+  try {
+    // 1. Check robots.txt
+    const allowed = await isUrlScrapingAllowed(url);
+    if (!allowed) {
+      const errorMessage = `Scraping disallowed by robots.txt for ${url}`;
+      console.warn(`[ContentExtractor] ${errorMessage}`);
+      return {
+        title: url,
+        textContent: '',
+        url: url,
+        error: errorMessage,
+      };
+    }
+
+    // 2. Fetch the webpage with timeout using AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15-second timeout
+
+    let response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          'User-Agent': 'SkolrBot/1.0 (+https://skolr.com/bot)', // Be a good bot citizen
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+      const errorMessage = `Failed to fetch URL: ${url}. Status: ${response.status} ${response.statusText}`;
+      console.error(`[ContentExtractor] ${errorMessage}`);
+      return { title: url, textContent: '', url, error: errorMessage };
+    }
+
+    const html = await response.text();
+    console.log(`[ContentExtractor] Successfully fetched HTML for ${url}. Length: ${html.length}`);
+
+    // 3. Parse HTML with JSDOM
+    const dom = new JSDOM(html, { url }); // Providing the URL helps Readability resolve relative links if needed
+    const document = dom.window.document;
+
+    // 4. Use Readability to extract main content
+    const reader = new Readability(document);
+    const article = reader.parse();
+
+    if (!article || !article.textContent) {
+      console.warn(`[ContentExtractor] Readability could not parse main content for ${url}. Falling back to body.textContent.`);
+      // Fallback: try to get all text content if Readability fails
+      const bodyText = document.body?.textContent?.replace(/\s\s+/g, ' ').trim() || '';
+      const titleFromTag = document.title || url;
+      if (!bodyText) {
+        const errorMessage = `Failed to extract any meaningful text content from ${url}.`;
+        console.error(`[ContentExtractor] ${errorMessage}`);
+        return { title: titleFromTag, textContent: '', url, error: errorMessage };
+      }
+      console.log(`[ContentExtractor] Using fallback text content for ${url}. Length: ${bodyText.length}`);
+      return {
+        title: titleFromTag,
+        textContent: bodyText,
+        url: url,
+      };
+    }
+
+    console.log(`[ContentExtractor] Successfully extracted content using Readability for ${url}. Title: ${article.title}`);
+    return {
+      title: article.title || url, // Use URL as fallback title
+      textContent: article.textContent.replace(/\s\s+/g, ' ').trim(), // Clean up whitespace
+      excerpt: article.excerpt ?? undefined,
+      url: url,
+    };
+
+  } catch (error) {
+    const errorMessage = `Error processing URL ${url}: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[ContentExtractor] ${errorMessage}`, error);
+    return {
+      title: url,
+      textContent: '',
+      url: url,
+      error: errorMessage,
+    };
   }
 }// src/lib/openrouter/client.ts
 import type { ChatMessage } from '@/types/database.types';
@@ -16913,7 +17663,7 @@ export const ROUTES = {
 
 // Default Chatbot Config
 export const DEFAULT_CHATBOT_CONFIG = {
-  model: 'x-ai/grok-3-mini-beta', 
+  model: 'openai/gpt-4.1-nano', 
   maxTokens: 1500,
   temperature: 0.7,
 } as const;
@@ -17008,7 +17758,8 @@ import { splitTextIntoChunks, estimateTokenCount } from './chunker';
 import { generateEmbeddings } from '@/lib/openai/embeddings';
 import { upsertVectors } from '@/lib/pinecone/utils';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { Document, DocumentChunk, DocumentStatus } from '@/types/knowledge-base.types';
+import { Document, DocumentChunk, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
+import { extractContentFromUrl } from '@/lib/scraping/content-extractor'; // MODIFIED: Import new utility
 
 // Mock embedding function for fallback - using 1536 dimensions for OpenAI
 function createMockEmbedding(): number[] {
@@ -17020,36 +17771,53 @@ function createMockEmbedding(): number[] {
  * Process a document by extracting text, chunking, and generating embeddings
  */
 export async function processDocument(document: Document): Promise<void> {
-  console.log(`[PROCESSOR] Starting document processing for doc ID: ${document.document_id}, file: ${document.file_name}`);
+  console.log(`[PROCESSOR] Starting document processing for doc ID: ${document.document_id}, name: ${document.file_name}, type: ${document.file_type}`);
   const supabase = await createServerSupabaseClient();
 
   try {
-    // Update document status to processing (already done by caller, but good for robustness)
+    // Update document status to processing
     await supabase
       .from('documents')
       .update({ status: 'processing' as DocumentStatus, updated_at: new Date().toISOString() })
       .eq('document_id', document.document_id);
     console.log(`[PROCESSOR ${document.document_id}] Status set to processing.`);
 
-    // Download file from storage
-    console.log(`[PROCESSOR ${document.document_id}] Downloading file from storage: ${document.file_path}`);
-    const { data: fileData, error: fileError } = await supabase
-      .storage
-      .from('documents')
-      .download(document.file_path);
+    let extractedText: string;
 
-    if (fileError || !fileData) {
-      throw new Error(`Failed to download file: ${fileError?.message}`);
+    // MODIFIED: Handle text extraction based on document type
+    if (document.file_type === 'webpage') {
+      console.log(`[PROCESSOR ${document.document_id}] Extracting content from URL: ${document.file_path}`);
+      const webContent = await extractContentFromUrl(document.file_path); // file_path holds the URL
+      if (webContent.error || !webContent.textContent) {
+        throw new Error(`Failed to extract content from URL ${document.file_path}: ${webContent.error || 'No text content found'}`);
+      }
+      extractedText = webContent.textContent;
+      console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters from URL.`);
+      // Optionally, update document_size if it wasn't set correctly at creation
+      if (document.file_size !== extractedText.length) {
+        await supabase.from('documents').update({ file_size: extractedText.length }).eq('document_id', document.document_id);
+      }
+    } else {
+      // Existing logic for file-based documents
+      console.log(`[PROCESSOR ${document.document_id}] Downloading file from storage: ${document.file_path}`);
+      const { data: fileData, error: fileError } = await supabase
+        .storage
+        .from('documents')
+        .download(document.file_path);
+
+      if (fileError || !fileData) {
+        throw new Error(`Failed to download file ${document.file_path}: ${fileError?.message}`);
+      }
+      console.log(`[PROCESSOR ${document.document_id}] File downloaded successfully.`);
+
+      console.log(`[PROCESSOR ${document.document_id}] Extracting text from file type: ${document.file_type}`);
+      // We know document.file_type cannot be 'webpage' here, so direct cast is safer
+      extractedText = await extractTextFromFile(
+        Buffer.from(await fileData.arrayBuffer()),
+        document.file_type as Exclude<DocumentType, 'webpage'> 
+      );
+      console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters from file.`);
     }
-    console.log(`[PROCESSOR ${document.document_id}] File downloaded successfully.`);
-
-    // Extract text from file
-    console.log(`[PROCESSOR ${document.document_id}] Extracting text from file type: ${document.file_type}`);
-    const extractedText = await extractTextFromFile(
-      Buffer.from(await fileData.arrayBuffer()),
-      document.file_type
-    );
-    console.log(`[PROCESSOR ${document.document_id}] Extracted ${extractedText.length} characters.`);
 
     // Split text into chunks
     console.log(`[PROCESSOR ${document.document_id}] Splitting text into chunks.`);
@@ -17115,14 +17883,14 @@ export async function processDocument(document: Document): Promise<void> {
           .eq('document_id', document.document_id);
       }
       if (chunks.length > openAIbatchSize) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Avoid hitting rate limits too quickly if there are many batches
+        await new Promise(resolve => setTimeout(resolve, 500)); 
       }
     }
     console.log(`[PROCESSOR ${document.document_id}] Generated ${embeddings.length} embeddings. ${usingMockEmbeddings ? '(Used MOCK embeddings for some)' : '(Used REAL embeddings)'}`);
 
-    // Build vectors array with an initial filter to remove nulls
+    // Build vectors array
     const preparedVectors = [];
-    
     for (let i = 0; i < embeddings.length; i++) {
       const chunkId = insertedChunks[i]?.chunk_id;
       if (!chunkId) {
@@ -17137,10 +17905,10 @@ export async function processDocument(document: Document): Promise<void> {
           chatbotId: document.chatbot_id,
           documentId: document.document_id,
           chunkId: chunkId,
-          text: chunks[i],
-          fileName: document.file_name,
-          fileType: document.file_type,
-          isMockEmbedding: usingMockEmbeddings ? "true" : "false" // Use string to avoid type conflicts
+          text: chunks[i], // The actual chunk text
+          fileName: document.file_name, // For webpages, this is the title or URL
+          fileType: document.file_type, // Will be 'webpage' for URLs
+          isMockEmbedding: usingMockEmbeddings ? "true" : "false"
         }
       });
     }
@@ -17149,50 +17917,58 @@ export async function processDocument(document: Document): Promise<void> {
         console.error(`[PROCESSOR ${document.document_id}] No vectors prepared for Pinecone, though chunks exist. This indicates an issue with chunk_id mapping.`);
         throw new Error("Failed to prepare vectors for Pinecone due to chunk ID mismatch.");
     }
-
     console.log(`[PROCESSOR ${document.document_id}] Prepared ${preparedVectors.length} vectors for Pinecone.`);
 
     let vectorsUpsertedSuccessfully = false;
-    try {
-      console.log(`[PROCESSOR ${document.document_id}] Upserting ${preparedVectors.length} vectors to Pinecone via SDK.`);
-      await upsertVectors(preparedVectors);
-      vectorsUpsertedSuccessfully = true;
-      console.log(`[PROCESSOR ${document.document_id}] Successfully upserted vectors to Pinecone.`);
-    } catch (pineconeError) {
-        console.error(`[PROCESSOR ${document.document_id}] Error upserting vectors to Pinecone:`, pineconeError);
+    if (preparedVectors.length > 0) { // MODIFIED: Only upsert if there are vectors
+        try {
+          console.log(`[PROCESSOR ${document.document_id}] Upserting ${preparedVectors.length} vectors to Pinecone via SDK.`);
+          await upsertVectors(preparedVectors);
+          vectorsUpsertedSuccessfully = true;
+          console.log(`[PROCESSOR ${document.document_id}] Successfully upserted vectors to Pinecone.`);
+        } catch (pineconeError) {
+            console.error(`[PROCESSOR ${document.document_id}] Error upserting vectors to Pinecone:`, pineconeError);
+        }
+    } else {
+        console.log(`[PROCESSOR ${document.document_id}] No vectors to upsert to Pinecone.`);
+        // If there were chunks but no vectors prepared, it's an error handled above.
+        // If there were no chunks initially, this part is skipped.
+        // If RAG is based on chunks, and no chunks, then "completed" is okay if no other error.
+        if (chunks.length === 0) vectorsUpsertedSuccessfully = true; 
     }
 
+
     console.log(`[PROCESSOR ${document.document_id}] Updating chunk statuses in DB.`);
-    for (const insertedChunk of insertedChunks) {
+    for (const insertedChunk of insertedChunks) { // This loop will only run if chunks were inserted
         const vectorAttempted = preparedVectors.find(v => v.id === insertedChunk.chunk_id);
-        if (vectorAttempted) {
-            await supabase
-                .from('document_chunks')
-                .update({
-                    status: vectorsUpsertedSuccessfully ? 'embedded' : 'error',
-                    embedding_id: vectorsUpsertedSuccessfully ? insertedChunk.chunk_id : null
-                })
-                .eq('chunk_id', insertedChunk.chunk_id);
-        } else {
-            await supabase
-                .from('document_chunks')
-                .update({ status: 'error' })
-                .eq('chunk_id', insertedChunk.chunk_id);
-        }
+        const chunkStatus = vectorsUpsertedSuccessfully && vectorAttempted ? 'embedded' : 'error';
+        
+        await supabase
+            .from('document_chunks')
+            .update({
+                status: chunkStatus,
+                embedding_id: (chunkStatus === 'embedded' && vectorAttempted) ? insertedChunk.chunk_id : null // Set embedding_id only if successfully embedded
+            })
+            .eq('chunk_id', insertedChunk.chunk_id);
     }
     console.log(`[PROCESSOR ${document.document_id}] Chunk statuses updated.`);
 
+    // Determine final document status
     const finalDocStatus = vectorsUpsertedSuccessfully ? 'completed' : 'error';
     let finalErrorMessage = vectorsUpsertedSuccessfully ? null : 'Failed to upsert vectors to Pinecone.';
-    if (usingMockEmbeddings && vectorsUpsertedSuccessfully) {
+    if (usingMockEmbeddings && vectorsUpsertedSuccessfully) { // If mock embeddings were used but upsert was "successful"
         finalErrorMessage = (finalErrorMessage ? finalErrorMessage + " " : "") + "Warning: Some or all embeddings are MOCK data.";
     }
+    if (chunks.length === 0 && !document.error_message) { // If no chunks and no prior error, consider it completed (nothing to process)
+         // Status already set to completed above for this case. Message already set.
+    }
+
 
     await supabase
       .from('documents')
       .update({
         status: finalDocStatus as DocumentStatus,
-        error_message: finalErrorMessage,
+        error_message: finalErrorMessage, // This might overwrite "No content to process." if an error occurs later.
         updated_at: new Date().toISOString()
       })
       .eq('document_id', document.document_id);

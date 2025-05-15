@@ -1,13 +1,15 @@
 // src/components/teacher/DashboardOverview.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // MODIFIED: Added useCallback
 import styled from 'styled-components';
 import StatsCard from './StatsCard'; 
 import { Button, Alert, Card } from '@/styles/StyledComponents'; 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // MODIFIED: Added Link for the "Create one now" message
 import LoadingSpinner from '@/components/shared/LoadingSpinner'; 
 import RoomForm from '@/components/teacher/RoomForm'; 
+import ChatbotList from '@/components/teacher/ChatbotList'; // MODIFIED: Make sure this is imported
 import type { Chatbot } from '@/types/database.types'; 
 
 const OverviewWrapper = styled.div`
@@ -68,54 +70,80 @@ export default function DashboardOverview() {
   const [showRoomForm, setShowRoomForm] = useState(false); 
   const [availableChatbots, setAvailableChatbots] = useState<Chatbot[]>([]); 
   const [loadingChatbots, setLoadingChatbots] = useState(false); 
+  // MODIFIED: State for recent chatbots to display in overview
+  const [recentChatbots, setRecentChatbots] = useState<Chatbot[]>([]);
+  const [loadingRecentChatbots, setLoadingRecentChatbots] = useState(true);
+
 
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoadingStats(true);
-      setStatsError(null);
-      setLoadingChatbots(true); 
-
-      try {
-        const [statsResponse, chatbotsResponse] = await Promise.all([
-          fetch('/api/teacher/dashboard-stats'),
-          fetch('/api/teacher/chatbots') 
-        ]);
-
-        if (!statsResponse.ok) {
-          const errorData = await statsResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to fetch stats (status ${statsResponse.status})`);
-        }
-        const statsData: DashboardStats = await statsResponse.json();
-        setStats(statsData);
-
-        if (!chatbotsResponse.ok) {
-          const errorData = await chatbotsResponse.json().catch(() => ({}));
-          console.error(errorData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`);
-          setStatsError(prev => prev ? `${prev}\nFailed to load chatbots for Room Creation.` : 'Failed to load chatbots for Room Creation.');
-          setAvailableChatbots([]);
-        } else {
-          const chatbotsData: Chatbot[] = await chatbotsResponse.json();
-          setAvailableChatbots(chatbotsData);
-        }
-
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        const errorMessage = err instanceof Error ? err.message : 'Could not load dashboard overview.';
-        // Set error for the main stats, which might also include the chatbot fetch error contextually
-        setStatsError(errorMessage); 
-        // Ensure stats is null if the primary fetch (dashboard-stats) failed
-        if (!(err instanceof Error && err.message.includes("Failed to load chatbots"))) { // Avoid double error message if only chatbot fetch failed
-            setStats(null);
-        }
-      } finally {
-        setLoadingStats(false);
-        setLoadingChatbots(false);
+  // MODIFIED: Separated fetching logic slightly
+  const fetchDashboardStats = useCallback(async () => {
+    setLoadingStats(true);
+    // Don't reset statsError here if chatbots are also loading, let chatbot fetch handle its part
+    try {
+      const statsResponse = await fetch('/api/teacher/dashboard-stats');
+      if (!statsResponse.ok) {
+        const errorData = await statsResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch stats (status ${statsResponse.status})`);
       }
-    };
-    fetchDashboardData();
+      const statsData: DashboardStats = await statsResponse.json();
+      setStats(statsData);
+    } catch (err) {
+      console.error("Error fetching dashboard stats:", err);
+      const errorMessage = err instanceof Error ? err.message : 'Could not load dashboard statistics.';
+      setStatsError(prev => prev ? `${prev}\n${errorMessage}` : errorMessage);
+      setStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
   }, []);
+
+  const fetchTeacherChatbots = useCallback(async (isForQuickActions = false) => {
+    if (isForQuickActions) {
+      setLoadingChatbots(true);
+    } else {
+      setLoadingRecentChatbots(true);
+    }
+    // Don't reset statsError here
+    try {
+      const chatbotsResponse = await fetch('/api/teacher/chatbots'); // Fetches all chatbots
+      if (!chatbotsResponse.ok) {
+        const errorData = await chatbotsResponse.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`;
+        console.error(errorMsg);
+        setStatsError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
+        if (isForQuickActions) setAvailableChatbots([]); else setRecentChatbots([]);
+        return;
+      }
+      const chatbotsData: Chatbot[] = await chatbotsResponse.json();
+      if (isForQuickActions) {
+        setAvailableChatbots(chatbotsData);
+      } else {
+        // For overview, maybe show most recent 3-4 or filter them differently
+        setRecentChatbots(chatbotsData.slice(0, 4)); // Example: show first 4
+        if (availableChatbots.length === 0) { // Also populate availableChatbots if not already fetched
+            setAvailableChatbots(chatbotsData);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching chatbots:", err);
+      const errorMsg = err instanceof Error ? err.message : 'Could not load chatbots.';
+      setStatsError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
+      if (isForQuickActions) setAvailableChatbots([]); else setRecentChatbots([]);
+    } finally {
+      if (isForQuickActions) setLoadingChatbots(false); else setLoadingRecentChatbots(false);
+    }
+  }, [availableChatbots.length]); // Rerun if availableChatbots length changes (e.g., from empty)
+
+  useEffect(() => {
+    fetchDashboardStats();
+    fetchTeacherChatbots(false); // Fetch for recent chatbots list
+    // If availableChatbots is needed for quick actions and not populated by recent fetch
+    if(availableChatbots.length === 0) {
+        fetchTeacherChatbots(true); // Fetch for quick actions if not already populated
+    }
+  }, [fetchDashboardStats, fetchTeacherChatbots, availableChatbots.length]); // Added availableChatbots.length
 
   const handleCreateNewChatbot = () => {
     router.push('/teacher-dashboard/chatbots/new/edit'); 
@@ -124,23 +152,27 @@ export default function DashboardOverview() {
   const handleRoomCreated = () => {
     setShowRoomForm(false);
     alert("Room created successfully!");
-     const fetchStatsOnly = async () => {
-        // No need to setLoadingStats(true) here if we want a less jarring update,
-        // or set it true if you prefer a loading indicator during this quick refresh.
-        try {
-            const response = await fetch('/api/teacher/dashboard-stats');
-            if (!response.ok) throw new Error('Failed to refresh stats');
-            const data: DashboardStats = await response.json();
-            setStats(data); // Just update stats
-        } catch (e) { 
-            console.error("Failed to refresh stats after room creation", e); 
-            // Optionally set a non-blocking error message here if needed
-        }
-    };
-    fetchStatsOnly();
+    fetchDashboardStats(); // Refresh stats which includes room counts
   };
 
-  if (loadingStats) { 
+  // MODIFIED: Placeholder handlers for ChatbotList in overview
+  const handleEditChatbotOverview = (chatbotId: string) => {
+    router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
+  };
+
+  const handleDeleteChatbotOverview = async (chatbotId: string, chatbotName: string) => {
+    if (window.confirm(`Are you sure you want to delete "${chatbotName}"? This will navigate you to the main chatbots page to confirm further.`)) {
+      // Or, directly call the delete API and refresh data here if preferred
+      // For now, just navigate to the main chatbots page where full delete logic exists
+      router.push('/teacher-dashboard/chatbots');
+      // To make it fully functional here, you'd replicate the delete logic from ManageChatbotsPage
+      // and call fetchTeacherChatbots(false) and fetchDashboardStats() on success.
+      alert(`Deletion for "${chatbotName}" would be handled on the main chatbots page or via a shared hook/service.`);
+    }
+  };
+
+
+  if (loadingStats || loadingRecentChatbots) { 
     return (
         <Card style={{ textAlign: 'center', padding: '40px' }}>
             <LoadingSpinner size="large" />
@@ -149,8 +181,7 @@ export default function DashboardOverview() {
     );
   }
 
-  // If there's a general stats error, show it prominently
-  if (statsError && !stats) { // Show if stats failed to load entirely
+  if (statsError && !stats && recentChatbots.length === 0) {
     return (
         <Alert variant="error" style={{ marginBottom: '16px' }}>
             {statsError}
@@ -159,15 +190,11 @@ export default function DashboardOverview() {
     );
   }
   
-  // If stats loaded but there was a secondary error (like chatbot loading for RoomForm)
-  // that error will be displayed above the stats grid if statsError is set.
-
   return (
     <OverviewWrapper>
-      {/* Display statsError if it exists, even if stats are partially loaded */}
       {statsError && <Alert variant="error" style={{ marginBottom: '16px' }}>{statsError}</Alert>}
 
-      {stats ? ( // Check if stats object exists before trying to access its properties
+      {stats && (
         <StatsGrid>
           <StatsCard
             title="Pending Concerns"
@@ -194,11 +221,9 @@ export default function DashboardOverview() {
             variant="orange_secondary" 
           />
         </StatsGrid>
-      ) : (
-        !loadingStats && !statsError && <Alert variant="info">Dashboard statistics are currently unavailable.</Alert>
       )}
 
-      <Section>
+      <Section $accentSide="top" $accentColor="magenta">
         <SectionHeader>
           <SectionTitle>Quick Actions</SectionTitle>
         </SectionHeader>
@@ -220,6 +245,31 @@ export default function DashboardOverview() {
             </Alert>
         )}
       </Section>
+
+      {/* MODIFIED: Section to display recent chatbots */}
+      <Section $accentSide="top" $accentColor="blue">
+        <SectionHeader>
+          <SectionTitle>My Recent Chatbots</SectionTitle>
+          {stats && stats.totalChatbots > recentChatbots.length && (
+            <Button variant="outline" size="small" onClick={() => router.push('/teacher-dashboard/chatbots')}>
+              View All ({stats.totalChatbots})
+            </Button>
+          )}
+        </SectionHeader>
+        {loadingRecentChatbots && recentChatbots.length === 0 ? (
+            <div style={{textAlign: 'center', padding: '20px'}}><LoadingSpinner /> Loading chatbots...</div>
+        ) : recentChatbots.length > 0 ? (
+          <ChatbotList
+            chatbots={recentChatbots} 
+            onEdit={handleEditChatbotOverview}
+            onDelete={handleDeleteChatbotOverview}
+            viewMode="card" // MODIFIED: Provide the viewMode prop, defaulting to 'card' for overview
+          />
+        ) : (
+          <p>No chatbots created yet. <Link href="/teacher-dashboard/chatbots/new/edit" style={{textDecoration: 'underline', fontWeight: '500'}}>Create one now!</Link></p>
+        )}
+      </Section>
+
 
       {showRoomForm && (
         <RoomForm
