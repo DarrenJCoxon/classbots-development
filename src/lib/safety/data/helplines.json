@@ -55,6 +55,10 @@
     { "name": "Child Protection Centre (Ministry of Interior)", "phone": "116111", "website": "moi-cpc.ae", "short_desc": "Child protection helpline" },
     { "name": "Dubai Foundation for Women and Children", "phone": "800111", "website": "dfwac.ae", "short_desc": "Support for women & children (violence/abuse)" }
   ],
+  "MY": [
+    { "name": "Buddy Bear Helpline", "phone": "1-800-18-BEAR (2327)", "short_desc": "Support helpline for children" },
+    { "name": "PS The Children (Protect and Save The Children)", "phone": "+603-7957 4344", "short_desc": "Child protection services" }
+  ],
   "DEFAULT": [
     { "name": "Your Local Emergency Services", "short_desc": "Contact if in immediate danger (e.g., 911, 112, 999, 000)." },
     { "name": "A Trusted Adult", "short_desc": "Speak to a teacher, school counselor, parent, or another family member." },

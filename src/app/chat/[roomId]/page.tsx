@@ -85,7 +85,7 @@ export default function ChatPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const roomId = params?.roomId as string;
+  const roomId = params?.roomId ? String(params.roomId) : null;
   const chatbotIdFromUrl = searchParams.get('chatbot');
   const initialFetchDoneRef = useRef(false);
 
@@ -222,7 +222,7 @@ export default function ChatPage() {
             {'< Back to Room'}
           </BackButton>
         </Header>
-        <Chat roomId={roomId} chatbot={chatbot} />
+        {roomId && <Chat roomId={roomId} chatbot={chatbot} />}
       </Container>
     </PageWrapper>
   );

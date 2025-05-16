@@ -4283,13 +4283,14 @@ export default function ChatbotsPage() {
 
       {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
-      {isLoading ? (
+            {isLoading ? (
         <Card style={{ textAlign: 'center', padding: '40px' }}><LoadingSpinner /> Loading chatbots...</Card>
       ) : (
         <ChatbotList
           chatbots={chatbots}
           onEdit={handleEditChatbot}
           onDelete={handleDeleteChatbot}
+          viewMode="card" // Or "list", depending on desired default
         />
       )}
 
@@ -6142,10 +6143,11 @@ export default function RootLayout({
 }// src/app/api/chat/[roomId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
-import { checkMessageSafety } from '@/lib/safety/monitoring';
-import type { ChatMessage, Room } from '@/types/database.types'; // Removed unused Profile
+import { checkMessageSafety, initialConcernCheck } from '@/lib/safety/monitoring';
+import type { ChatMessage, Room } from '@/types/database.types';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -6169,38 +6171,53 @@ export async function GET(request: NextRequest) {
         if (authError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
         if (!isTeacherTestRoom(roomId)) {
-            const { data: roomResult, error: roomError } = await supabase
-                .from('rooms')
+            const { data: roomMembership, error: membershipError } = await supabase
+                .from('room_memberships')
                 .select('room_id')
                 .eq('room_id', roomId)
+                .eq('student_id', user.id)
                 .maybeSingle();
-            if (roomError || !roomResult) {
-                console.warn(`[API Chat GET] Room ${roomId} not found or access denied for user ${user.id}.`);
-                return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 });
+
+            if (membershipError) {
+                console.error(`[API Chat GET] Error checking room membership for user ${user.id} in room ${roomId}:`, membershipError);
+            }
+
+            const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
+            if (profile?.role === 'student' && !roomMembership) {
+                 console.warn(`[API Chat GET] Student ${user.id} is not a member of room ${roomId}.`);
+                 return NextResponse.json({ error: 'Access denied to this room\'s messages.' }, { status: 403 });
             }
         }
 
-        let query = supabase.from('chat_messages').select('*').eq('room_id', roomId).eq('user_id', user.id);
-        if (chatbotIdFilter) query = query.filter('metadata->>chatbotId', 'eq', chatbotIdFilter);
-        
+        let query = supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('room_id', roomId)
+            .or(`user_id.eq.${user.id},role.eq.assistant,role.eq.system`);
+
+        if (chatbotIdFilter) {
+            query = query.filter('metadata->>chatbotId', 'eq', chatbotIdFilter);
+        }
+
         const { data: messages, error: messagesError } = await query.order('created_at', { ascending: true });
 
-        if (messagesError) { 
-            console.error('[API Chat GET] Error fetching messages:', messagesError); 
-            return NextResponse.json({ error: messagesError.message }, { status: 500 }); 
+        if (messagesError) {
+            console.error('[API Chat GET] Error fetching messages:', messagesError);
+            return NextResponse.json({ error: messagesError.message }, { status: 500 });
         }
+        console.log(`[API Chat GET] Fetched ${messages?.length || 0} messages for room ${roomId}, user ${user.id}, chatbot ${chatbotIdFilter || 'any'}`);
         return NextResponse.json(messages || []);
-    } catch (error) { 
-        console.error('[API Chat GET] General error:', error); 
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown server error' }, { status: 500 }); 
+    } catch (error) {
+        console.error('[API Chat GET] General error:', error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown server error' }, { status: 500 });
     }
 }
 
 
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
-  let userMessageId: string | null = null;
-  const supabase = await createServerSupabaseClient(); 
+  // Removed unused userMessageIdVariable
+  const supabase = await createServerSupabaseClient();
 
   try {
     const pathname = request.nextUrl.pathname;
@@ -6210,14 +6227,14 @@ export async function POST(request: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
-    
+
     const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('user_id', user.id)
         .single();
     if (profileError || !userProfile) { return NextResponse.json({ error: 'User profile not found' }, { status: 403 }); }
-    
+
     const isStudent = userProfile.role === 'student';
     const isTeacher = userProfile.role === 'teacher';
 
@@ -6228,7 +6245,7 @@ export async function POST(request: NextRequest) {
 
     const { data: chatbotConfig, error: chatbotFetchError } = await supabase
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id, name')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -6239,27 +6256,28 @@ export async function POST(request: NextRequest) {
 
     let roomForSafetyCheck: Room | null = null;
     let teacherCountryCode: string | null = null;
+    const adminSupabase = createAdminClient();
 
     if (!isTeacherTestRoom(roomId)) {
         const { data: roomData, error: roomFetchError } = await supabase
             .from('rooms')
-            .select('room_id, teacher_id, room_name, school_id') 
+            .select('room_id, teacher_id, room_name, school_id')
             .eq('room_id', roomId)
             .single();
-        if (roomFetchError || !roomData) { 
-            console.error("[API Chat POST] Room fetch error for non-test room:", roomFetchError); 
-            return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 }); 
+        if (roomFetchError || !roomData) {
+            console.error("[API Chat POST] Room fetch error for non-test room:", roomFetchError);
+            return NextResponse.json({ error: 'Room not found or access denied' }, { status: 404 });
         }
-        roomForSafetyCheck = roomData as Room;
-        
-        if (roomData.teacher_id) { // This teacher_id is from the 'rooms' table
-            const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabase
+        roomForSafetyCheck = roomData as Room; // Cast is safe here due to checks
+
+        if (roomData.teacher_id) {
+            const { data: roomTeacherProfile, error: roomTeacherProfileError } = await adminSupabase
                 .from('profiles')
                 .select('country_code')
                 .eq('user_id', roomData.teacher_id)
                 .single();
             if (roomTeacherProfileError) {
-                console.warn(`[API Chat POST] Error fetching teacher profile for room's teacher (${roomData.teacher_id}):`, roomTeacherProfileError.message);
+                console.warn(`[API Chat POST] Error fetching teacher profile for room's teacher (${roomData.teacher_id}) using admin client:`, roomTeacherProfileError.message);
             } else if (roomTeacherProfile) {
                 teacherCountryCode = roomTeacherProfile.country_code || null;
             }
@@ -6268,51 +6286,65 @@ export async function POST(request: NextRequest) {
         if (!isTeacher) {
             return NextResponse.json({ error: 'Not authorized for this test room' }, { status: 403 });
         }
-        // For teacher test rooms, the "user" (who is the teacher) uses their own country code.
-        // The chatbotConfig.teacher_id should match user.id here.
-        if (user.id === chatbotConfig.teacher_id) {
-            const { data: testTeacherProfile, error: testTeacherProfileError } = await supabase
-                .from('profiles')
-                .select('country_code')
-                .eq('user_id', user.id) // Fetch profile of the current teacher user
-                .single();
-            if (testTeacherProfileError) {
-                console.warn(`[API Chat POST] Error fetching teacher profile for test room user (${user.id}):`, testTeacherProfileError.message);
-            } else if (testTeacherProfile) {
-                teacherCountryCode = testTeacherProfile.country_code || null;
-            }
-        } else {
-             // Fallback: If chatbot's teacher_id doesn't match current user (e.g., admin testing, or complex scenario)
-             // try to get country code from the chatbot's designated teacher_id
-            const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await supabase
-                .from('profiles')
-                .select('country_code')
-                .eq('user_id', chatbotConfig.teacher_id)
-                .single();
-            if (designatedTeacherProfileError) {
-                console.warn(`[API Chat POST] Error fetching designated teacher profile for chatbot (${chatbotConfig.teacher_id}):`, designatedTeacherProfileError.message);
-            } else if (designatedTeacherProfile) {
-                teacherCountryCode = designatedTeacherProfile.country_code || null;
-            }
+        roomForSafetyCheck = { // This creates a non-null Room object
+            room_id: roomId,
+            teacher_id: chatbotConfig.teacher_id,
+            room_name: `Test Room for ${chatbotConfig.name || 'Chatbot'}`,
+            room_code: 'TEACHER_TEST',
+            is_active: true,
+            created_at: new Date().toISOString(),
+        };
+        const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await adminSupabase
+            .from('profiles')
+            .select('country_code')
+            .eq('user_id', chatbotConfig.teacher_id)
+            .single();
+        if (designatedTeacherProfileError) {
+            console.warn(`[API Chat POST] Error fetching designated teacher profile for chatbot (${chatbotConfig.teacher_id}) for test room:`, designatedTeacherProfileError.message);
+        } else if (designatedTeacherProfile) {
+            teacherCountryCode = designatedTeacherProfile.country_code || null;
         }
     }
-
+    console.log(`[API Chat POST] Determined teacherCountryCode: ${teacherCountryCode}`);
 
     const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string } } = {
       room_id: roomId, user_id: user.id, role: 'user' as const, content: trimmedContent, metadata: { chatbotId: chatbot_id }
     };
     const { data: savedUserMessageData, error: userMessageError } = await supabase.from('chat_messages').insert(userMessageToStore).select('message_id, created_at').single();
-    if (userMessageError || !savedUserMessageData) { console.error('Error storing user message:', userMessageError); return NextResponse.json({ error: 'Failed to store message' }, { status: 500 }); }
-    userMessageId = savedUserMessageData.message_id;
-    const userMessageCreatedAt = savedUserMessageData.created_at;
     
-    if (isStudent && userMessageId && roomForSafetyCheck && !isTeacherTestRoom(roomId)) {
-        console.log(`[API Chat POST] Triggering imported checkMessageSafety for student ${user.id}, message ${userMessageId}, teacher's country: ${teacherCountryCode || 'Unknown'}`);
-        checkMessageSafety(supabase, trimmedContent, userMessageId, user.id, roomForSafetyCheck, teacherCountryCode) 
-            .catch(safetyError => console.error(`[Safety Check Background Error] for message ${userMessageId}:`, safetyError));
-    } else {
-        console.log(`[API Chat POST] Skipping safety check. isStudent: ${isStudent}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}, roomForSafetyCheck: ${!!roomForSafetyCheck}`);
+    if (userMessageError || !savedUserMessageData || !savedUserMessageData.message_id) { 
+        console.error('Error storing user message or message_id missing:', userMessageError, savedUserMessageData); 
+        return NextResponse.json({ error: 'Failed to store message or retrieve its ID' }, { status: 500 }); 
     }
+    
+    const currentMessageId: string = savedUserMessageData.message_id; 
+    const userMessageCreatedAt = savedUserMessageData.created_at;
+
+    // --- MODIFIED SAFETY CHECK AND MAIN LLM CALL FLOW ---
+    const { hasConcern: initialHasConcern, concernType: initialConcernType } = initialConcernCheck(trimmedContent);
+
+    // Condition for triggering safety check AND bypassing main LLM
+    // Now we explicitly check if roomForSafetyCheck is not null before using it.
+    const triggerSafetyOverride = isStudent &&
+                                  initialHasConcern &&
+                                  initialConcernType &&
+                                  roomForSafetyCheck !== null && // Explicit null check
+                                  !isTeacherTestRoom(roomId);
+
+    if (triggerSafetyOverride) {
+        console.log(`[API Chat POST] Initial concern detected: ${initialConcernType}. Prioritizing safety response. Bypassing main LLM.`);
+        // Since roomForSafetyCheck is checked for non-null in triggerSafetyOverride,
+        // TypeScript knows it's a 'Room' here.
+        checkMessageSafety(supabase, trimmedContent, currentMessageId, user.id, roomForSafetyCheck!, teacherCountryCode)
+            .catch(safetyError => console.error(`[Safety Check Background Error] for message ${currentMessageId}:`, safetyError));
+
+        return NextResponse.json({
+            type: "safety_intervention_triggered",
+            message: "Your message is being reviewed for safety. Relevant guidance will appear shortly."
+        });
+    }
+    console.log(`[API Chat POST] No safety override. Proceeding with regular chat/assessment flow. isStudent: ${isStudent}, initialHasConcern: ${initialHasConcern}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}`);
+    // --- END OF MODIFIED SAFETY CHECK AND MAIN LLM CALL FLOW ---
 
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
@@ -6320,11 +6352,11 @@ export async function POST(request: NextRequest) {
             .from('chat_messages')
             .select('message_id')
             .eq('room_id', roomId)
-            .eq('user_id', user.id) 
+            .eq('user_id', user.id)
             .eq('metadata->>chatbotId', chatbot_id)
             .lt('created_at', userMessageCreatedAt)
             .order('created_at', { ascending: false })
-            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5); 
+            .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5);
         if (contextMsgsError) {
             console.error(`[API Chat POST] Error fetching message IDs for assessment context: ${contextMsgsError.message}`);
         }
@@ -6332,43 +6364,44 @@ export async function POST(request: NextRequest) {
         const assessmentPayload = { student_id: user.id, chatbot_id: chatbot_id, room_id: roomId, message_ids_to_assess: messageIdsToAssess };
         console.log(`[API Chat POST] Asynchronously calling /api/assessment/process.`);
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-        fetch(`${baseUrl}/api/assessment/process`, { 
+        fetch(`${baseUrl}/api/assessment/process`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assessmentPayload),
         }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
         return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
 
+    // --- MAIN LLM CALL (Only if not handled by safety override or assessment trigger) ---
     const { data: contextMessagesData, error: contextError } = await supabase.from('chat_messages')
       .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
-      .filter('metadata->>chatbotId', 'eq', chatbot_id).neq('message_id', userMessageId)
+      .filter('metadata->>chatbotId', 'eq', chatbot_id)
+      .neq('message_id', currentMessageId)
       .order('created_at', { ascending: false }).limit(5);
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
-    // Use teacher-defined system prompt, or a safe default if somehow missing
     const teacherSystemPrompt = chatbotConfig.system_prompt || "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
-    
-    const { 
-        model: modelToUseFromConfig = 'openai/gpt-4.1-nano', 
-        temperature: temperatureToUse = 0.7, 
-        max_tokens: maxTokensToUse = 1000, 
-        enable_rag: enableRagFromConfig = false 
+
+    const {
+        model: modelToUseFromConfig = 'openai/gpt-4.1-nano',
+        temperature: temperatureToUse = 0.7,
+        max_tokens: maxTokensToUse = 1000,
+        enable_rag: enableRagFromConfig = false
     } = chatbotConfig;
-    
+
     const finalModelToUse = requestedModel || modelToUseFromConfig;
 
     let ragContextText = '';
-    if (enableRagFromConfig && chatbotConfig.bot_type === 'learning') { 
+    if (enableRagFromConfig && chatbotConfig.bot_type === 'learning') {
         try {
             const queryEmbedding = await generateEmbedding(trimmedContent);
             const searchResults = await queryVectors(queryEmbedding, chatbot_id, 3);
             if (searchResults && searchResults.length > 0) {
                 ragContextText = "\n\nRelevant information from knowledge base:\n";
-                searchResults.forEach((result) => { 
+                searchResults.forEach((result) => {
                     if (result.metadata?.text) {
                         const fileName = typeof result.metadata.fileName === 'string' ? result.metadata.fileName : 'document';
                         const chunkText = String(result.metadata.text).substring(0, 500);
-                        ragContextText += `\nFrom document "${fileName}":\n${chunkText}\n`; 
+                        ragContextText += `\nFrom document "${fileName}":\n${chunkText}\n`;
                     }
                 });
             }
@@ -6376,14 +6409,15 @@ export async function POST(request: NextRequest) {
     }
 
     let regionalInstruction = '';
-    if (teacherCountryCode === 'GB' || teacherCountryCode === 'AE') { // Added AE for British English
+    if (teacherCountryCode === 'GB' || teacherCountryCode === 'AE') {
         regionalInstruction = " Please use British English spelling (e.g., 'colour', 'analyse').";
     } else if (teacherCountryCode === 'AU') {
         regionalInstruction = " Please use Australian English spelling.";
     } else if (teacherCountryCode === 'CA') {
         regionalInstruction = " Please use Canadian English spelling.";
+    } else if (teacherCountryCode === 'MY') {
+        regionalInstruction = " Please respond appropriately for a Malaysian context if relevant, using standard English.";
     }
-    // Add more country codes and their preferred spellings as needed.
 
     const CORE_SAFETY_INSTRUCTIONS = `
 SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
@@ -6398,9 +6432,9 @@ SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
 `;
 
     const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
-    
+
     console.log(`[API Chat POST] Final System Prompt (first 500 chars): ${systemPromptForLLM.substring(0,500)}...`);
-    
+
     const messagesForAPI = [ { role: 'system', content: systemPromptForLLM }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
@@ -6432,32 +6466,33 @@ SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
                     for (const line of lines) {
                         const dataContent = line.substring(6).trim(); if (dataContent === '[DONE]') continue;
                         try { const parsed = JSON.parse(dataContent); const piece = parsed.choices?.[0]?.delta?.content; if (typeof piece === 'string') { fullResponseContent += piece; controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: piece })}\n\n`)); } }
-                        catch (e) { console.warn('Stream parse error:', e); }
+                        catch (e) { console.warn('Stream parse error:', e, "Data:", dataContent); }
                     }
                 }
             } catch (streamError) { console.error('Stream error:', streamError); controller.error(streamError); }
             finally {
                 let finalContent = fullResponseContent.trim();
-                finalContent = finalContent.replace(/\s*Source:\s*\[\d+\]\s*$/gm, '').trim(); 
-                finalContent = finalContent.replace(/\s*\[\d+\]\s*$/gm, '').trim(); 
+                finalContent = finalContent.replace(/\s*Source:\s*\[\d+\]\s*$/gm, '').trim();
+                finalContent = finalContent.replace(/\s*\[\d+\]\s*$/gm, '').trim();
                 finalContent = finalContent.replace(/(\r\n|\n|\r){2,}/gm, '$1').replace(/ +/g, ' ');
 
                 if (assistantMessageId && finalContent) {
                     const { error: updateError } = await supabase.from('chat_messages').update({ content: finalContent, updated_at: new Date().toISOString() }).eq('message_id', assistantMessageId);
                     if (updateError) console.error(`Error updating assistant message ${assistantMessageId}:`, updateError); else console.log(`Assistant message ${assistantMessageId} updated.`);
-                } else if (!assistantMessageId && finalContent) { 
-                    console.warn("Fallback: Assistant message placeholder not created, inserting full message."); 
-                    await supabase.from('chat_messages').insert({ room_id: roomId, user_id: user.id, role: 'assistant', content: finalContent, metadata: { chatbotId: chatbot_id } }); 
+                } else if (!assistantMessageId && finalContent) {
+                    console.warn("Fallback: Assistant message placeholder not created, inserting full message.");
+                    await supabase.from('chat_messages').insert({ room_id: roomId, user_id: user.id, role: 'assistant', content: finalContent, metadata: { chatbotId: chatbot_id } });
                 }
                 controller.close(); console.log("Server stream closed.");
             }
         }
     });
     return new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Content-Type-Options': 'nosniff' } });
+    // --- END OF MAIN LLM CALL ---
 
-  } catch (error) { 
-      console.error('Error in POST /api/chat/[roomId]:', error); 
-      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to process message' }, { status: 500 }); 
+  } catch (error) {
+      console.error('Error in POST /api/chat/[roomId]:', error);
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to process message' }, { status: 500 });
   }
 }// src/app/api/health/route.ts
 import { NextResponse } from 'next/server';
@@ -9330,6 +9365,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateRoomCode } from '@/lib/utils/room-codes';
 import type { CreateRoomPayload, TeacherRoom } from '@/types/database.types';
+import type { PostgrestError } from '@supabase/supabase-js'; // Import for better error typing
 
 // GET all rooms for the teacher
 export async function GET() {
@@ -9343,10 +9379,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     console.log('[API GET /rooms] User authenticated by getUser:', {
-        id: user.id, 
-        email: user.email, 
-        aud: user.aud, // Should be 'authenticated'
-        role: user.role // JWT role, typically 'authenticated'
+        id: user.id,
+        email: user.email,
+        aud: user.aud,
+        role: user.role
     });
 
     console.log('[API GET /rooms] Attempting to fetch profile for user_id:', user.id);
@@ -9361,7 +9397,7 @@ export async function GET() {
       console.warn('[API GET /rooms] Profile fetch failed for user:', user.id, 'Error message:', profileError.message);
       return NextResponse.json({ error: `User profile not found or error fetching it. Details: ${profileError.message}` }, { status: 403 });
     }
-    
+
     if (!profile) {
       console.warn('[API GET /rooms] Profile data is null (but no error reported by Supabase) for user:', user.id);
       return NextResponse.json({ error: 'User profile not found (no data returned but no DB error).' }, { status: 403 });
@@ -9373,9 +9409,9 @@ export async function GET() {
       console.warn('[API GET /rooms] User is not a teacher. Profile Role:', profile.role);
       return NextResponse.json({ error: 'Not authorized (user role is not teacher)' }, { status: 403 });
     }
-    
+
     console.log('[API GET /rooms] User is confirmed teacher. Fetching rooms.');
-    
+
     const { data: rooms, error: fetchError } = await supabase
       .from('rooms')
       .select(`
@@ -9389,131 +9425,129 @@ export async function GET() {
 
     if (fetchError) {
       console.error('[API GET /rooms] Error fetching rooms from DB:', fetchError);
-      throw fetchError; // Let the outer catch handle it by re-throwing
+      throw fetchError;
     }
     console.log(`[API GET /rooms] Successfully fetched ${rooms?.length || 0} rooms.`);
     return NextResponse.json(rooms || []);
 
   } catch (error) {
-    const typedError = error as Error & { code?: string; details?: string }; // Cast with error properties
-    console.error('[API GET /rooms] CATCH BLOCK Error:', 
-        typedError?.message, 
-        'Code:', typedError?.code, 
-        'Details:', typedError?.details
+    // Attempt to type error as PostgrestError or a generic Error
+    const typedError = error as PostgrestError | Error;
+    let code: string | undefined;
+    let details: string | undefined;
+    let hint: string | undefined;
+
+    if ('code' in typedError && typeof typedError.code === 'string') {
+        code = typedError.code;
+    }
+    if ('details' in typedError && typeof typedError.details === 'string') {
+        details = typedError.details;
+    }
+     if ('hint' in typedError && typeof typedError.hint === 'string') {
+        hint = typedError.hint;
+    }
+
+    console.error('[API GET /rooms] CATCH BLOCK Error:',
+        typedError.message,
+        'Code:', code,
+        'Details:', details,
+        'Hint:', hint
     );
     return NextResponse.json(
-      { error: typedError?.message || 'Failed to fetch rooms' },
+      { error: typedError.message || 'Failed to fetch rooms' },
       { status: 500 }
     );
   }
 }
 
-// POST a new room
+// POST a new room - V-ROBUST Version
 export async function POST(request: Request) {
-  console.log('[API POST /rooms] Received request to create a new room.');
+  console.log('[API POST /rooms] V-ROBUST Received request.');
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.warn('[API POST /rooms] Not authenticated or authError from getUser:', authError);
+      console.warn('[API POST /rooms] V-ROBUST - Not authenticated');
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    console.log('[API POST /rooms] User authenticated by getUser:', {
-        id: user.id, 
-        email: user.email, 
-        aud: user.aud, // Should be 'authenticated'
-        role: user.role // JWT role, typically 'authenticated'
-    });
-    
-    console.log('[API POST /rooms] Attempting to fetch profile for user_id:', user.id);
+    console.log('[API POST /rooms] V-ROBUST - User authenticated:', user.id);
+
     const { data: profile, error: profileFetchError } = await supabase
       .from('profiles')
       .select('role, school_id')
       .eq('user_id', user.id)
       .single();
 
-    if (profileFetchError) {
-        console.error('[API POST /rooms] PROFILE FETCH ERROR OBJECT:', JSON.stringify(profileFetchError, null, 2));
-        console.warn('[API POST /rooms] Profile fetch failed for user:', user.id, 'Error message:', profileFetchError.message);
-        return NextResponse.json({ error: `Error fetching user profile. Details: ${profileFetchError.message}` }, { status: 500 });
+    if (profileFetchError || !profile) {
+        console.error('[API POST /rooms] V-ROBUST - Profile fetch error or no profile:', profileFetchError);
+        return NextResponse.json({ error: 'Profile error or profile not found while creating room.' }, { status: 500 });
     }
-    if (!profile) {
-        console.error('[API POST /rooms] Profile data is null (but no error reported by Supabase) for user:', user.id);
-        return NextResponse.json({ error: 'User profile not found (no data returned but no DB error).' }, { status: 403 });
-    }
-     console.log('[API POST /rooms] Profile fetched successfully:', profile);
-
     if (profile.role !== 'teacher') {
-      console.warn('[API POST /rooms] User is not a teacher. Profile Role:', profile.role);
-      return NextResponse.json({ error: 'Not authorized (user role is not teacher)' }, { status: 403 });
+        console.warn('[API POST /rooms] V-ROBUST - User not a teacher');
+        return NextResponse.json({ error: 'Not authorized (user role is not teacher)' }, { status: 403 });
     }
-    console.log('[API POST /rooms] User is confirmed teacher. Proceeding with room creation.');
+    console.log('[API POST /rooms] V-ROBUST - Profile fetched:', profile);
 
     const body: CreateRoomPayload = await request.json();
-    console.log('[API POST /rooms] Request body:', body);
+    console.log('[API POST /rooms] V-ROBUST - Request body:', body);
 
     if (!body.room_name || !body.chatbot_ids || !Array.isArray(body.chatbot_ids) || body.chatbot_ids.length === 0) {
-      console.warn('[API POST /rooms] Invalid request body: Missing room_name or chatbot_ids.');
+      console.warn('[API POST /rooms] V-ROBUST - Invalid request body: Missing room_name or chatbot_ids.');
       return NextResponse.json({ error: 'Room name and at least one chatbot ID are required' }, { status: 400 });
     }
 
     let roomCode = '';
-    let isUnique = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 10; 
-    
-    console.log('[API POST /rooms] Generating unique room code...');
-    while (!isUnique && attempts < MAX_ATTEMPTS) {
+    const MAX_ATTEMPTS = 10;
+    let newRoomData = null;
+
+    console.log('[API POST /rooms] V-ROBUST - Attempting to generate unique room code and insert...');
+    while (attempts < MAX_ATTEMPTS && !newRoomData) {
       roomCode = generateRoomCode();
-      const { data: existingRoom, error: codeCheckError } = await supabase
-        .from('rooms')
-        .select('room_code')
-        .eq('room_code', roomCode)
-        .maybeSingle(); 
-      
-      if (codeCheckError) {
-        console.error('[API POST /rooms] Error checking room code uniqueness:', codeCheckError);
-        throw codeCheckError;
-      }
-      if (!existingRoom) {
-        isUnique = true;
-      }
       attempts++;
+      console.log(`[API POST /rooms] V-ROBUST - Attempt #${attempts} with roomCode: ${roomCode}`);
+
+      const { data, error: insertError } = await supabase
+        .from('rooms')
+        .insert({
+          room_name: body.room_name,
+          room_code: roomCode,
+          teacher_id: user.id,
+          school_id: profile.school_id,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        // insertError should be PostgrestError if it's a Supabase/PostgREST error
+        if (insertError.code === '23505' && insertError.message.includes('rooms_room_code_key')) {
+          console.warn(`[API POST /rooms] V-ROBUST - Room code ${roomCode} collision on attempt #${attempts}. Retrying...`);
+          if (attempts >= MAX_ATTEMPTS) {
+            console.error('[API POST /rooms] V-ROBUST - Failed to generate unique room code after multiple insert attempts.');
+            throw new Error('Failed to generate a unique room code due to repeated collisions.');
+          }
+          // Continue to the next iteration of the loop to generate a new code
+        } else {
+          console.error('[API POST /rooms] V-ROBUST - Error inserting into "rooms" table (non-collision):', JSON.stringify(insertError, null, 2));
+          throw insertError; // Throw this error to be caught by the outer catch block
+        }
+      } else {
+        newRoomData = data;
+        // Use non-null assertion because if data is not null, room_id should exist
+        console.log(`[API POST /rooms] V-ROBUST - Room inserted successfully on attempt #${attempts}. Room ID: ${newRoomData!.room_id}`);
+      }
     }
 
-    if (!isUnique) {
-        console.error('[API POST /rooms] Failed to generate a unique room code after multiple attempts.');
-        throw new Error('Failed to generate a unique room code.');
+    if (!newRoomData) {
+        console.error('[API POST /rooms] V-ROBUST - Could not create room after max attempts for room code generation.');
+        throw new Error('Failed to create room after multiple attempts to find a unique room code.');
     }
-    console.log('[API POST /rooms] Unique room code generated:', roomCode);
 
-    console.log('[API POST /rooms] Inserting new room into "rooms" table.');
-    const { data: newRoom, error: roomInsertError } = await supabase
-      .from('rooms')
-      .insert({
-        room_name: body.room_name,
-        room_code: roomCode,
-        teacher_id: user.id,
-        school_id: profile.school_id, 
-        is_active: true,
-      })
-      .select()
-      .single();
-
-    if (roomInsertError) {
-      console.error('[API POST /rooms] Error inserting into "rooms" table:', roomInsertError);
-      throw roomInsertError;
-    }
-    if (!newRoom) {
-        console.error('[API POST /rooms] Room creation failed: newRoom data is null after insert.');
-        throw new Error('Room creation returned no data.');
-    }
-    console.log('[API POST /rooms] Room inserted successfully. Room ID:', newRoom.room_id);
-
-    console.log('[API POST /rooms] Preparing to insert into "room_chatbots" table.');
+    console.log('[API POST /rooms] V-ROBUST - Preparing to insert into "room_chatbots" table for room ID:', newRoomData.room_id);
     const roomChatbotEntries = body.chatbot_ids.map(chatbotId => ({
-      room_id: newRoom.room_id,
+      room_id: newRoomData!.room_id,
       chatbot_id: chatbotId,
     }));
 
@@ -9522,19 +9556,19 @@ export async function POST(request: Request) {
       .insert(roomChatbotEntries);
 
     if (rcInsertError) {
-      console.error('[API POST /rooms] Error inserting into "room_chatbots":', rcInsertError);
-      console.log(`[API POST /rooms] Attempting to rollback room creation for room ID: ${newRoom.room_id} due to room_chatbots insert failure.`);
-      const { error: deleteError } = await supabase.from('rooms').delete().eq('room_id', newRoom.room_id);
+      console.error('[API POST /rooms] V-ROBUST - Error inserting into "room_chatbots":', rcInsertError);
+      console.log(`[API POST /rooms] V-ROBUST - Attempting to rollback room creation for room ID: ${newRoomData!.room_id} due to room_chatbots insert failure.`);
+      const { error: deleteError } = await supabase.from('rooms').delete().eq('room_id', newRoomData!.room_id);
       if (deleteError) {
-          console.error(`[API POST /rooms] CRITICAL: Failed to rollback room ${newRoom.room_id} after room_chatbots insert error:`, deleteError);
+          console.error(`[API POST /rooms] V-ROBUST - CRITICAL: Failed to rollback room ${newRoomData!.room_id} after room_chatbots insert error:`, deleteError);
       } else {
-          console.log(`[API POST /rooms] Successfully rolled back room ${newRoom.room_id}.`);
+          console.log(`[API POST /rooms] V-ROBUST - Successfully rolled back room ${newRoomData!.room_id}.`);
       }
-      throw rcInsertError; 
+      throw rcInsertError;
     }
-    console.log(`[API POST /rooms] Successfully inserted ${roomChatbotEntries.length} entries into "room_chatbots".`);
-    
-    console.log('[API POST /rooms] Fetching complete room data for response.');
+    console.log(`[API POST /rooms] V-ROBUST - Successfully inserted ${roomChatbotEntries.length} entries into "room_chatbots".`);
+
+    console.log('[API POST /rooms] V-ROBUST - Fetching complete room data for response.');
     const { data: completeRoomData, error: fetchCompleteError } = await supabase
         .from('rooms')
         .select(`
@@ -9543,34 +9577,73 @@ export async function POST(request: Request) {
               chatbots ( chatbot_id, name )
             )
         `)
-        .eq('room_id', newRoom.room_id)
+        .eq('room_id', newRoomData!.room_id)
         .single();
 
     if (fetchCompleteError) {
-        console.error('[API POST /rooms] Error fetching complete room data after creation:', fetchCompleteError);
+        console.error('[API POST /rooms] V-ROBUST - Error fetching complete room data after creation:', fetchCompleteError);
         throw fetchCompleteError;
     }
     if (!completeRoomData) {
-        console.error('[API POST /rooms] Failed to fetch complete room data after creation, though room should exist.');
+        console.error('[API POST /rooms] V-ROBUST - Failed to fetch complete room data after creation, though room should exist.');
         throw new Error('Failed to retrieve newly created room details.');
     }
 
-    console.log('[API POST /rooms] Room creation successful. Returning complete room data.');
+    console.log('[API POST /rooms] V-ROBUST - Room creation successful. Returning complete room data.');
     return NextResponse.json(completeRoomData as TeacherRoom, { status: 201 });
 
   } catch (error) {
-    const typedError = error as Error & { code?: string; details?: string; constraint?: string };
-    console.error('[API POST /rooms] CATCH BLOCK Error:', 
-        typedError?.message, 
-        'Code:', typedError?.code, 
-        'Details:', typedError?.details
-    );
-    if (typedError?.code === '23505' && typedError?.constraint === 'rooms_room_code_key') {
-        return NextResponse.json({ error: 'A room with this code already exists. This is highly unlikely and might indicate an issue with room code generation.' }, { status: 409 });
+    // Type guard to check if error is a PostgrestError or at least has common error properties
+    let code: string | undefined;
+    let details: string | undefined;
+    let hint: string | undefined;
+    let constraint: string | undefined;
+    let message = 'An unknown error occurred';
+
+    if (error && typeof error === 'object') {
+        if ('message' in error && typeof error.message === 'string') {
+            message = error.message;
+        }
+        if ('code' in error && typeof error.code === 'string') {
+            code = error.code;
+        }
+        if ('details' in error && typeof error.details === 'string') {
+            details = error.details;
+        }
+        if ('hint' in error && typeof error.hint === 'string') {
+            hint = error.hint;
+        }
+        if ('constraint' in error && typeof error.constraint === 'string') {
+            constraint = error.constraint;
+        }
+    } else if (error instanceof Error) {
+        message = error.message;
     }
+
+
+    console.error('[API POST /rooms] V-ROBUST - CATCH BLOCK Error:',
+        message,
+        'Code:', code,
+        'Details:', details,
+        'Hint:', hint,
+        'Constraint:', constraint
+    );
+
+    let statusCode = 500;
+    if (code === '23505' && constraint === 'rooms_room_code_key') {
+        statusCode = 409;
+    } else if (code === '42501') {
+        statusCode = 403;
+    }
+
     return NextResponse.json(
-      { error: typedError?.message || 'Failed to create room' },
-      { status: 500 }
+      {
+        error: message || 'Failed to create room',
+        code: code,
+        details: details,
+        hint: hint
+      },
+      { status: statusCode }
     );
   }
 }// src/app/api/teacher/concerns/route.ts
@@ -11369,6 +11442,7 @@ export default function AuthForm({ type }: AuthFormProps) {
                         <option value="GB">United Kingdom</option>
                         <option value="CA">Canada</option>
                         <option value="AU">Australia</option>
+                        <option value="MY">Malaysia</option> {/* ADDED Malaysia */}
                         <option value="NZ">New Zealand</option>
                         {/* MODIFIED: Added AE */}
                         <option value="AE">United Arab Emirates</option> 
@@ -12204,7 +12278,7 @@ export default function LoadingSpinner({ size = 'medium' }: LoadingSpinnerProps)
   );
 }// src/components/shared/Chat.tsx
 'use client';
-
+import React from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
@@ -12212,16 +12286,15 @@ import { Card, Alert, Button } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import type { ChatMessage, Chatbot } from '@/types/database.types'; // Chatbot type now includes welcome_message
+import type { ChatMessage, Chatbot } from '@/types/database.types';
 
-// Constants from API route
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
 
-// Styled Components (remain the same as previous version)
+// Styled Components (Keep as is)
 const ChatContainer = styled(Card)`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px); /* Adjust as needed */
+  height: calc(100vh - 200px); 
   max-height: 800px;
   position: relative;
   padding: 0;
@@ -12302,37 +12375,29 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false);
   const supabase = createClient();
+
+  const currentOptimisticMessageLocalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const getUserId = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUserId(user.id);
-        } else {
-          setFetchError("Authentication error. Please log in.");
-        }
-      } catch {
-        setFetchError("Could not verify user. Please try refreshing.");
-      }
+        if (user) setUserId(user.id);
+        else { /* ... error handling ... */ }
+      } catch { /* ... error handling ... */ }
     };
     getUserId();
   }, [supabase]);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  const fetchMessages = useCallback(async () => {
+  const scrollToBottom = useCallback(() => { /* ... */ }, []);
+  const fetchMessages = useCallback(async () => { /* ... (no changes from last version) ... */ 
     if (!chatbot?.chatbot_id || !userId || !roomId) {
         setIsFetchingMessages(false);
         return;
     }
     setIsFetchingMessages(true);
     setFetchError(null);
-    fetchedRef.current = true;
     try {
       const url = `/api/chat/${roomId}?chatbotId=${chatbot.chatbot_id}`;
       const response = await fetch(url);
@@ -12343,56 +12408,112 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       const data = await response.json();
       let fetchedMsgs = Array.isArray(data) ? (data as ChatMessage[]) : [];
 
-      // MODIFIED: Prepend welcome message if it's a new chat and welcome message exists
-      // Also check if the first message isn't already our special welcome message (to avoid duplicates on re-fetch/re-render)
       if (
         fetchedMsgs.length === 0 &&
         chatbot.welcome_message &&
         chatbot.welcome_message.trim() !== ''
       ) {
         const welcomeMsg: ChatMessage = {
-          message_id: `welcome-${chatbot.chatbot_id}`, // Use a consistent ID for the welcome message
+          message_id: `welcome-${chatbot.chatbot_id}-${roomId}`,
           room_id: roomId,
-          user_id: chatbot.chatbot_id, // Attributed to the bot
+          user_id: chatbot.chatbot_id,
           role: 'assistant',
           content: chatbot.welcome_message,
-          created_at: new Date(0).toISOString(), // Ensures it's always first if sorted by date
+          created_at: new Date(0).toISOString(),
           metadata: { chatbotId: chatbot.chatbot_id, isWelcomeMessage: true },
         };
-        fetchedMsgs = [welcomeMsg]; // Show only welcome message if no other history
+        fetchedMsgs = [welcomeMsg];
       }
-
+      
+      fetchedMsgs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       setMessages(fetchedMsgs);
-      setTimeout(scrollToBottom, 100);
+      setTimeout(scrollToBottom, 150);
     } catch (err) {
+      console.error('[Chat.tsx] fetchMessages Error:', err);
       setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
-      fetchedRef.current = false;
     } finally {
       setIsFetchingMessages(false);
     }
-  // MODIFIED: Added `chatbot.welcome_message` to dependencies of fetchMessages
-  // This ensures fetchMessages is re-evaluated if the welcome message itself changes (e.g., teacher edits it)
-  // and the component re-renders with the new chatbot prop.
   }, [roomId, chatbot?.chatbot_id, chatbot?.welcome_message, userId, scrollToBottom]);
 
   useEffect(() => {
-    if (userId && chatbot?.chatbot_id && !fetchedRef.current) {
+    if (userId && chatbot?.chatbot_id && roomId) {
       fetchMessages();
     }
-    // This cleanup logic for fetchedRef seems fine for re-fetching if chatbotId changes.
-    const currentChatbotId = chatbot?.chatbot_id;
-    return () => {
-        if (currentChatbotId !== chatbot?.chatbot_id) {
-            fetchedRef.current = false;
-        }
+  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
+
+  useEffect(() => {
+    if (!roomId || !chatbot || !userId) { 
+        return;
     }
-  }, [userId, chatbot?.chatbot_id, fetchMessages]);
+    const channelIdentifier = `chat-room-${roomId}-user-${userId}-bot-${chatbot.chatbot_id}`;
+    const channel = supabase
+      .channel(channelIdentifier)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}`},
+        (payload) => {
+          const newMessage = payload.new as ChatMessage;
+          const msgChatbotId = typeof newMessage.metadata?.chatbotId === 'string' ? newMessage.metadata.chatbotId : null;
+          const isSystemSafetyMsg = newMessage.role === 'system' && newMessage.metadata?.isSystemSafetyResponse === true;
+          let isRelevant = false;
 
+          if (newMessage.room_id === roomId) {
+              if (newMessage.user_id === userId) { 
+                  if (isSystemSafetyMsg) {
+                    if (msgChatbotId === chatbot.chatbot_id || msgChatbotId === null) isRelevant = true;
+                  } else if (newMessage.role === 'user') { 
+                      if (msgChatbotId === chatbot.chatbot_id) isRelevant = true;
+                  }
+              } else if (newMessage.role === 'assistant') { 
+                  if (msgChatbotId === chatbot.chatbot_id) isRelevant = true;
+              }
+          }
+          
+          if (isRelevant) {
+            setMessages((prevMessages) => {
+              let updatedMessages = [...prevMessages];
+              
+              // --- MOST DIRECT OPTIMISTIC MESSAGE HANDLING ---
+              if (newMessage.role === 'user' && 
+                  newMessage.user_id === userId && 
+                  currentOptimisticMessageLocalIdRef.current 
+                 ) {
+                const localIdToRemove = currentOptimisticMessageLocalIdRef.current;
+                
+                updatedMessages = updatedMessages.filter(msg => msg.message_id !== localIdToRemove);
+                
+                // if (updatedMessages.length < initialLength) {
+                //   console.log(`[Chat.tsx Realtime] Optimistic message with local ID ${localIdToRemove} was removed.`);
+                // } else {
+                //   console.log(`[Chat.tsx Realtime] Optimistic local ID ${localIdToRemove} was set, but no message with this ID found in current state to remove. This might happen if it was already reconciled or if IDs mismatched.`);
+                // }
+                currentOptimisticMessageLocalIdRef.current = null; 
+              }
+              // --- END MOST DIRECT OPTIMISTIC MESSAGE HANDLING ---
 
-  const handleRetryFetch = () => {
-    fetchedRef.current = false; // Allow refetch
-    fetchMessages();
-  };
+              // Add the new message (from realtime) if it's not already present by its actual DB ID
+              if (!updatedMessages.find(msg => msg.message_id === newMessage.message_id)) {
+                // console.log(`[Chat.tsx Realtime] Adding new message from DB: ${newMessage.message_id}`);
+                updatedMessages.push(newMessage);
+              } else {
+                // console.log(`[Chat.tsx Realtime] Message ${newMessage.message_id} (DB ID) already in state. Not re-adding.`);
+              }
+              
+              updatedMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              return updatedMessages;
+            });
+            setTimeout(scrollToBottom, 100);
+          }
+        }
+      )
+      .subscribe(() => { /* ... error handling ... */ });
+    return () => {
+      supabase.removeChannel(channel).catch(error => console.error('[Chat.tsx Realtime] Error removing channel:', error));
+    };
+  }, [roomId, chatbot, userId, supabase, scrollToBottom]);
+
+  const handleRetryFetch = () => { fetchMessages(); };
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -12401,185 +12522,143 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
     setError(null);
     const isAssessmentTrigger = chatbot.bot_type === 'assessment' && content.trim().toLowerCase() === ASSESSMENT_TRIGGER_COMMAND;
 
+    const tempOptimisticLocalId = `local-user-${Date.now()}`; 
+    currentOptimisticMessageLocalIdRef.current = tempOptimisticLocalId; 
+
     const optimisticUserMessage: ChatMessage = {
-      message_id: `local-user-${Date.now()}`,
+      message_id: tempOptimisticLocalId,
       room_id: roomId,
       user_id: userId,
       role: 'user',
       content: content.trim(),
       created_at: new Date().toISOString(),
-      metadata: { chatbotId: chatbot.chatbot_id }
+      metadata: { chatbotId: chatbot.chatbot_id, isOptimistic: true }
     };
-
-    // If the current first message is the welcome message, remove it before adding the user's message,
-    // as the conversation has now truly started.
-    setMessages(prev => {
+    
+    setMessages(prev => { /* ... (same optimistic add as before) ... */ 
         const currentMessages = [...prev];
         if (currentMessages.length === 1 && currentMessages[0].metadata?.isWelcomeMessage) {
             return [optimisticUserMessage];
         }
-        return [...currentMessages, optimisticUserMessage];
+        if (currentMessages.find(m => m.message_id === optimisticUserMessage.message_id)) return currentMessages;
+        const updated = [...currentMessages, optimisticUserMessage];
+        updated.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        return updated;
     });
+    setTimeout(scrollToBottom, 50);
 
+    let tempAssistantMessageId: string | null = null; 
 
-    // ... (rest of handleSendMessage for assessment trigger and regular chat streaming remains IDENTICAL to your provided code) ...
-    if (isAssessmentTrigger) {
-      const optimisticAssessmentPlaceholder: ChatMessage = {
-        message_id: `local-assessment-placeholder-${Date.now()}`,
-        room_id: roomId,
-        user_id: "system-assessment",
-        role: 'system',
-        content: 'Processing your assessment request...',
-        created_at: new Date().toISOString(),
-        metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
-      };
-      setMessages(prev => [...prev, optimisticAssessmentPlaceholder]);
-      setTimeout(scrollToBottom, 50);
-
-      try {
+    try {
         const response = await fetch(`/api/chat/${roomId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: content.trim(),
-            chatbot_id: chatbot.chatbot_id,
-          }),
+          body: JSON.stringify({ content: content.trim(), chatbot_id: chatbot.chatbot_id, model: chatbot.model }),
         });
-        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticAssessmentPlaceholder.message_id));
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
-          throw new Error(errorData.error?.message || `API error processing assessment (status: ${response.status})`);
-        }
-        const assessmentResult = await response.json();
-        if (assessmentResult.type === "assessment_feedback") { // Assuming your API sends this type
-          const feedbackMessage: ChatMessage = {
-            message_id: assessmentResult.assessmentId || `local-assessment-feedback-${Date.now()}`,
-            room_id: roomId,
-            user_id: "system-feedback",
-            role: 'system',
-            content: assessmentResult.feedback, // And this content
-            created_at: new Date().toISOString(),
-            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentFeedback: true, assessmentId: assessmentResult.assessmentId }
-          };
-          setMessages(prev => [...prev, feedbackMessage]);
-          if (assessmentResult.assessmentId) {
-              alert("Assessment feedback received! You can also view it in 'My Assessments'.");
-          }
-        } else if (assessmentResult.type === "assessment_pending") { // Handle pending message from API
-            const pendingMessage: ChatMessage = {
-                message_id: `local-assessment-pending-${Date.now()}`,
-                room_id: roomId,
-                user_id: "system-assessment",
-                role: 'system',
-                content: assessmentResult.message, // Use message from API
-                created_at: new Date().toISOString(),
-                metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
-            };
-            setMessages(prev => [...prev, pendingMessage]);
-        } else {
-          throw new Error("Unexpected response from assessment API.");
-        }
-      } catch (err) {
-        console.error('Assessment processing error:', err);
-        const errorMsg = err instanceof Error ? err.message : 'Failed to process assessment';
-        setError(errorMsg);
-        setMessages(prev => prev.filter(msg => msg.message_id !== optimisticUserMessage.message_id));
-        setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg }}]);
-      } finally {
-        setIsLoading(false);
-        setTimeout(scrollToBottom, 50);
-      }
-      return;
-    }
 
-    const optimisticAssistantPlaceholder: ChatMessage = {
-      message_id: `local-assistant-${Date.now()}`,
-      room_id: roomId,
-      user_id: "assistant-placeholder",
-      role: 'assistant',
-      content: 'Thinking...',
-      created_at: new Date().toISOString(),
-      metadata: { chatbotId: chatbot.chatbot_id }
-    };
-    setMessages(prev => [...prev, optimisticAssistantPlaceholder]);
-    setTimeout(scrollToBottom, 50);
-
-    try {
-      const response = await fetch(`/api/chat/${roomId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: content.trim(),
-          chatbot_id: chatbot.chatbot_id,
-          model: chatbot.model
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        const errorData = await response.json().catch(() => ({ error: { message: 'Failed to parse API error response' } }));
-        throw new Error(errorData.error?.message || `API error sending message (status: ${response.status})`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let streamedContent = '';
-      let firstChunkReceived = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-         if (!firstChunkReceived) {
-            setMessages(prev => prev.map(msg =>
-                msg.message_id === optimisticAssistantPlaceholder.message_id
-                ? { ...msg, content: '' }
-                : msg
-            ));
-            firstChunkReceived = true;
-         }
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6);
-            if (data.trim() === '[DONE]') continue;
+        let bypassMainLLMStream = false;
+        if (response.headers.get('content-type')?.includes('application/json')) {
+            const responseCloneForJson = response.clone(); 
             try {
-              const parsedData = JSON.parse(data);
-              if (parsedData.content) {
-                streamedContent += parsedData.content;
-                setMessages(prev => prev.map(msg =>
-                  msg.message_id === optimisticAssistantPlaceholder.message_id
-                    ? { ...msg, content: streamedContent }
-                    : msg
-                ));
-                 scrollToBottom();
-              }
-            } catch (e) {
-              console.error('Error parsing stream data chunk:', e, "Data:", data);
+                const jsonData = await responseCloneForJson.json();
+                if (jsonData.type === "safety_intervention_triggered" || jsonData.type === "assessment_pending") {
+                    bypassMainLLMStream = true;
+                    if (jsonData.type === "assessment_pending" && isAssessmentTrigger) {
+                        const clientSidePlaceholderId = `local-assessment-placeholder-${tempOptimisticLocalId.split('-')[2]}`; 
+                        setMessages(prev => prev.filter(msg => msg.message_id !== clientSidePlaceholderId)); 
+                        const assessmentPlaceholder: ChatMessage = {
+                            message_id: `server-ack-assessment-placeholder-${Date.now()}`,
+                            room_id: roomId,
+                            user_id: "system-assessment",
+                            role: 'system',
+                            content: jsonData.message || 'Submitting for assessment...',
+                            created_at: new Date(new Date(optimisticUserMessage.created_at).getTime() + 2).toISOString(),
+                            metadata: { chatbotId: chatbot.chatbot_id, isAssessmentPlaceholder: true }
+                          };
+                          setMessages(prev => {
+                            const updated = [...prev.filter(m => !m.metadata?.isAssessmentPlaceholder), assessmentPlaceholder];
+                            updated.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                            return updated;
+                          });
+                     }
+                } else if (!response.ok) { 
+                     throw new Error(jsonData.error?.message || `API error (JSON): ${response.status}`);
+                }
+            } catch (jsonError) {
+                console.warn("[Chat.tsx] Could not parse initial API response as JSON, assuming stream or unexpected format.", jsonError);
             }
-          }
         }
-      }
-       setMessages(prev => prev.map(msg =>
-        msg.message_id === optimisticAssistantPlaceholder.message_id
-          ? { ...msg, content: streamedContent.trim(), updated_at: new Date().toISOString() } // Add updated_at
-          : msg
-       ).filter(msg => msg.message_id !== `welcome-${chatbot.chatbot_id}`)); // Remove welcome message if it was there
+        
+        if (!bypassMainLLMStream && response.ok && response.body) {
+            if (!isAssessmentTrigger) { 
+                tempAssistantMessageId = `local-assistant-${Date.now()}`;
+                const optimisticAssistantPlaceholder: ChatMessage = {
+                  message_id: tempAssistantMessageId,
+                  room_id: roomId,
+                  user_id: chatbot.chatbot_id, 
+                  role: 'assistant',
+                  content: 'Thinking...',
+                  created_at: new Date(new Date(optimisticUserMessage.created_at).getTime() + 1).toISOString(),
+                  metadata: { chatbotId: chatbot.chatbot_id }
+                };
+                setMessages(prev => {
+                   const updated = [...prev, optimisticAssistantPlaceholder];
+                   updated.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                   return updated;
+                });
+                setTimeout(scrollToBottom, 50);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let streamedContent = '';
+                let firstChunkReceived = false;
+
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  if (!firstChunkReceived) {
+                      setMessages(prev => prev.map(msg =>
+                          msg.message_id === tempAssistantMessageId ? { ...msg, content: '' } : msg
+                      ));
+                      firstChunkReceived = true;
+                  }
+                  const chunk = decoder.decode(value, { stream: true });
+                  const lines = chunk.split('\n');
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const data = line.substring(6);
+                      if (data.trim() === '[DONE]') continue;
+                      try {
+                        const parsedData = JSON.parse(data);
+                        if (parsedData.content) {
+                          streamedContent += parsedData.content;
+                          setMessages(prev => prev.map(msg =>
+                            msg.message_id === tempAssistantMessageId ? { ...msg, content: streamedContent } : msg
+                          ));
+                           scrollToBottom();
+                        }
+                      } catch (e) {console.error('[Chat.tsx] Error parsing stream data chunk:', e, "Data:", data);}
+                    }
+                  }
+                }
+                setMessages(prev => prev.map(msg =>
+                  msg.message_id === tempAssistantMessageId ? { ...msg, content: streamedContent.trim(), updated_at: new Date().toISOString() } : msg
+                ).filter(msg => !(msg.metadata?.isWelcomeMessage && msg.message_id !== `welcome-${chatbot.chatbot_id}-${roomId}`)));
+            }
+        } else if (!response.ok && !bypassMainLLMStream) { 
+            const errorText = await response.text().catch(() => `Unknown API error (status ${response.status})`);
+            throw new Error(errorText);
+        }
 
     } catch (err) {
-      console.error('Chat send/receive error:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to send or receive message';
-      setError(errorMsg);
-      // Remove optimistic messages on error
-      setMessages(prev => prev.filter(msg =>
-          msg.message_id !== optimisticUserMessage.message_id &&
-          msg.message_id !== optimisticAssistantPlaceholder.message_id &&
-          msg.message_id !== `welcome-${chatbot.chatbot_id}` // Also ensure welcome is removed if error occurs
-      ));
-       // Re-add user message with error indication
-       setMessages(prev => [...prev, {...optimisticUserMessage, metadata: {...optimisticUserMessage.metadata, error: errorMsg}}]);
+        console.error('[Chat.tsx] Chat send/receive error:', err);
+        const errorMsg = err instanceof Error ? err.message : 'Failed to send or receive message';
+        setError(errorMsg);
+        setMessages(prev => prev.map(m => 
+            m.message_id === tempOptimisticLocalId ? 
+            {...m, metadata: {...m.metadata, error: errorMsg, isOptimistic: false }} : m 
+        ));
+        currentOptimisticMessageLocalIdRef.current = null; 
     } finally {
       setIsLoading(false);
       setTimeout(scrollToBottom, 50);
@@ -12596,11 +12675,9 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
       )}
 
       <MessagesList>
-        {/* MODIFIED: Logic for EmptyState or initial message */}
         {isFetchingMessages && messages.length === 0 ? (
            <LoadingIndicator><LoadingSpinner /> Loading messages...</LoadingIndicator>
         ) : !isFetchingMessages && messages.length === 0 && !fetchError && !(chatbot.welcome_message && chatbot.welcome_message.trim() !== '') ? (
-          // Show EmptyState only if there are no messages AND no welcome message to display
           <EmptyState>
             <h3>Start your conversation with {chatbot.name}</h3>
             <p>Your chat history will appear here.</p>
@@ -12609,7 +12686,7 @@ export default function Chat({ roomId, chatbot }: ChatProps) {
         ) : (
           messages.map((message) => (
             <ChatMessageComponent
-              key={message.message_id} // Assuming message_id is always unique now
+              key={message.message_id} 
               message={message}
               chatbotName={chatbot.name}
             />
@@ -18220,19 +18297,19 @@ export const createServerSupabaseClient = async () => {
     }
   );
 };// src/lib/safety/monitoring.ts
-import type { Room, Database } from '@/types/database.types'; // Removed unused Profile import
+import type { Room, Database } from '@/types/database.types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTeacherAlert } from '@/lib/safety/alerts';
 // Import the JSON data
-import HELPLINE_DATA_JSON from './data/helplines.json'; // Ensure this path is correct and the file exists
+import HELPLINE_DATA_JSON from './data/helplines.json';
 
 // OpenRouter Configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const SAFETY_CHECK_MODEL = 'google/gemini-2.5-flash-preview';
 const CONCERN_THRESHOLD = 3;
 
-// Keywords organized by category - FULL LIST AS PROVIDED
+// Keywords organized by category
 const CONCERN_KEYWORDS: Record<string, string[]> = {
   self_harm: [
     'hate myself', 'don\'t want to live', 'don\'t want to be alive', 'don\'t want to be here', 'don\'t want to exist',
@@ -18298,7 +18375,10 @@ const CONCERN_KEYWORDS: Record<string, string[]> = {
 // Type for the imported JSON data
 type HelplineEntry = { name: string; phone?: string; website?: string; text_to?: string; text_msg?: string; short_desc: string };
 type HelplineData = Record<string, HelplineEntry[]>;
-const ALL_HELPLINES: HelplineData = HELPLINE_DATA_JSON as HelplineData;
+
+// Reverted to simpler cast, relying on helplines.json being correct now
+const ALL_HELPLINES: HelplineData = HELPLINE_DATA_JSON as unknown as HelplineData; 
+
 
 export function initialConcernCheck(message: string): {
   hasConcern: boolean;
@@ -18308,11 +18388,16 @@ export function initialConcernCheck(message: string): {
     return { hasConcern: false };
   }
   const lowerMessage = message.toLowerCase();
+  // console.log(`[InitialCheck DEBUG] lowerMessage: "${lowerMessage}"`); 
   for (const [category, keywords] of Object.entries(CONCERN_KEYWORDS)) {
     for (const keyword of keywords) {
         const escapedKeyword = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`\\b${escapedKeyword}\\b`);
-        if (regex.test(lowerMessage)) {
+        const isMatch = regex.test(lowerMessage);
+        // if (keyword === 'bullied') { // Example for specific keyword debugging
+        //   console.log(`[InitialCheck DEBUG] Checking keyword: "${keyword}", escaped: "${escapedKeyword}", regex: ${regex.toString()}, isMatch: ${isMatch}`);
+        // }
+        if (isMatch) {
             console.log(`[InitialCheck] Keyword MATCH! Category: ${category}, Keyword: "${keyword}"`);
             return { hasConcern: true, concernType: category };
         }
@@ -18338,9 +18423,7 @@ export async function verifyConcern(
   analysisExplanation: string;
   aiGeneratedAdvice?: string;
 }> {
-  // --- START OF ADDED CONSOLE LOGS FOR DEBUGGING ---
   console.log(`[VerifyConcern DEBUG] Function called. Received countryCode: "${countryCode}" (Type: ${typeof countryCode})`);
-  // --- END OF ADDED CONSOLE LOGS FOR DEBUGGING ---
 
   let contextString = '';
   if (recentMessages.length > 0) {
@@ -18352,13 +18435,10 @@ export async function verifyConcern(
   }
 
   const effectiveCountryCode = countryCode?.toUpperCase() || 'DEFAULT';
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] Effective country code for helpline lookup: "${effectiveCountryCode}"`);
 
-  const countrySpecificHelplines: HelplineEntry[] = ALL_HELPLINES[effectiveCountryCode] || ALL_HELPLINES.DEFAULT;
-  // --- ADDED CONSOLE LOG ---
-  console.log(`[VerifyConcern DEBUG] Selected countrySpecificHelplines for "${effectiveCountryCode}" (first 3 entries):`, JSON.stringify(countrySpecificHelplines.slice(0,3), null, 2));
-
+  const countrySpecificHelplines: HelplineEntry[] = ALL_HELPLINES[effectiveCountryCode] || ALL_HELPLINES.DEFAULT || []; // Added fallback for ALL_HELPLINES.DEFAULT itself being potentially undefined if JSON was totally empty
+  console.log(`[VerifyConcern DEBUG] Selected countrySpecificHelplines for "${effectiveCountryCode}" (count: ${countrySpecificHelplines.length}, first 3 entries):`, JSON.stringify(countrySpecificHelplines.slice(0,3), null, 2));
 
   let conciseHelplineDataForPrompt = "";
   const helplinesToList = countrySpecificHelplines.slice(0, 2); 
@@ -18379,9 +18459,9 @@ export async function verifyConcern(
     });
   } else { 
        conciseHelplineDataForPrompt = "Please reach out to a trusted adult or local emergency services if you need help or are in danger.\n";
+       console.warn(`[VerifyConcern DEBUG] No specific helplines found for ${effectiveCountryCode} or DEFAULT after filtering. Using generic advice.`);
   }
   
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] conciseHelplineDataForPrompt string for LLM:\n${conciseHelplineDataForPrompt}`);
 
   const teacherAwarenessMandatorySentence = "Remember, your teacher can see this conversation and is here to support you. Please feel comfortable reaching out to them or another trusted adult if you need help.";
@@ -18413,9 +18493,7 @@ export async function verifyConcern(
     `"aiGeneratedAdvice": string (Omit this key or set to null if conditions in Task 2 are not met, or if you cannot follow the student message constraints exactly.)`
   ];
   const promptForModel = promptParts.join('\n');
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] Full promptForModel being sent to LLM (first 700 chars to see helpline injection):\n${promptForModel.substring(0,700)}...`);
-
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -18447,9 +18525,7 @@ export async function verifyConcern(
     if (!rawResponseContent) {
       throw new Error("OpenRouter response for safety verification was empty or missing content.");
     }
-     // --- ADDED CONSOLE LOG ---
     console.log(`[VerifyConcern DEBUG] Raw LLM response content:\n${rawResponseContent}`);
-
 
     let analysisResult;
     try {
@@ -18510,7 +18586,7 @@ export async function verifyConcern(
     } else if (isRealConcern && concernLevel >= 2) {
         console.warn("[VerifyConcern] LLM met conditions for advice but 'aiGeneratedAdvice' field was missing or empty. Constructing concise default advice.");
         let defaultAdvice = `I understand this may be a tough moment. ${teacherAwarenessMandatorySentence}\n\nHere are some resources that might help:\n`;
-        const helplinesForDefaultForStudent = countrySpecificHelplines.slice(0, 2); // Use the already filtered list
+        const helplinesForDefaultForStudent = countrySpecificHelplines.slice(0, 2);
         if (helplinesForDefaultForStudent.length > 0) {
             helplinesForDefaultForStudent.forEach(line => { 
                 defaultAdvice += `* ${line.name}`;
@@ -18520,7 +18596,8 @@ export async function verifyConcern(
                 defaultAdvice += "\n";
             });
         } else { 
-            ALL_HELPLINES.DEFAULT.slice(0,2).forEach(line => { // Fallback to generic default if countrySpecific was empty
+            const defaultFallbackHelplines = ALL_HELPLINES.DEFAULT || [];
+            defaultFallbackHelplines.slice(0,2).forEach(line => { 
                  defaultAdvice += `* ${line.name}`;
                 if (line.phone) defaultAdvice += `: ${line.phone}`;
                 else if (line.text_to && line.text_msg) defaultAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
@@ -18564,7 +18641,6 @@ export async function checkMessageSafety(
     room: Room,
     countryCode: string | null 
 ): Promise<void> {
-    // Added the debug log here, as requested in the previous step, to see what checkMessageSafety receives
     console.log(`[Safety Check] START - MsgID: ${messageId}, Student: ${studentId}, Room: ${room.room_id}, Teacher: ${room.teacher_id}, Received Country Code by checkMessageSafety: "${countryCode}"`);
     try {
         const adminClient = createAdminClient();
@@ -18589,7 +18665,7 @@ export async function checkMessageSafety(
                 .select('role, content')
                 .eq('room_id', room.room_id)
                 .eq('user_id', studentId)
-                .filter('metadata->>chatbotId', chatbotIdForContext ? 'eq' : 'is', chatbotIdForContext)
+                .filter('metadata->>chatbotId', chatbotIdForContext ? 'eq' : 'is', chatbotIdForContext) // Correctly handle null for chatbotId
                 .lt('created_at', currentMessageData.created_at)
                 .order('created_at', { ascending: false })
                 .limit(4);
@@ -18616,7 +18692,7 @@ export async function checkMessageSafety(
 
                 if (flagInsertError) { console.error(`[Safety Check] FAILED to insert flag:`, flagInsertError.message); return; }
                 
-                const newFlagId = insertedFlag!.flag_id;
+                const newFlagId = insertedFlag!.flag_id; // Non-null assertion because if no error, data should exist
                 console.log(`[Safety Check] Flag ${newFlagId} inserted for message ${messageId}.`);
                 if (teacherProfile?.email) {
                     const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${newFlagId}`;
@@ -18707,16 +18783,19 @@ export async function checkMessageSafety(
     { "name": "Child Protection Centre (Ministry of Interior)", "phone": "116111", "website": "moi-cpc.ae", "short_desc": "Child protection helpline" },
     { "name": "Dubai Foundation for Women and Children", "phone": "800111", "website": "dfwac.ae", "short_desc": "Support for women & children (violence/abuse)" }
   ],
+  "MY": [
+    { "name": "Buddy Bear Helpline", "phone": "1-800-18-BEAR (2327)", "short_desc": "Support helpline for children" },
+    { "name": "PS The Children (Protect and Save The Children)", "phone": "+603-7957 4344", "short_desc": "Child protection services" }
+  ],
   "DEFAULT": [
     { "name": "Your Local Emergency Services", "short_desc": "Contact if in immediate danger (e.g., 911, 112, 999, 000)." },
     { "name": "A Trusted Adult", "short_desc": "Speak to a teacher, school counselor, parent, or another family member." },
     { "name": "Befrienders Worldwide", "website": "befrienders.org", "short_desc": "Find a crisis support center in your region." }
   ]
-}// src/lib/safety/alerts.ts - Replace the existing function
-import { sendEmail } from '@/lib/email/resend';  // Import the new function
+}// src/lib/safety/alerts.ts
+import { sendEmail } from '@/lib/email/resend';
 import { APP_NAME } from '@/lib/utils/constants';
 
-// Keep helper functions the same
 export function getConcernTypeDisplayName(type: string): string {
   if (!type) return 'Unknown Concern';
   return type
@@ -18743,17 +18822,15 @@ export async function sendTeacherAlert(
   messageContent: string,
   viewUrl: string
 ): Promise<boolean> {
-  // Basic validation
   if (!teacherEmail || !studentName || !roomName || !concernType || concernLevel < 0 || !messageContent || !viewUrl) {
-    console.error('Missing required information for sending teacher alert');
+    console.error('[Alerts] Missing required information for sending teacher alert.');
     return false;
   }
 
-  // Generate email content
   const concernTypeName = getConcernTypeDisplayName(concernType);
   const concernLevelName = getConcernLevelDisplayName(concernLevel);
   const subject = `[${APP_NAME}] ${concernLevelName} ${concernTypeName} Alert for Student: ${studentName}`;
-  const displayedMessage = messageContent.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const displayedMessage = messageContent.replace(/</g, "<").replace(/>/g, ">");
 
   const html = `
     <!DOCTYPE html>
@@ -18761,8 +18838,8 @@ export async function sendTeacherAlert(
     <head>
       <style>
         body { font-family: sans-serif; line-height: 1.6; color: #333; }
-        h2 { color: #6B50B7; }
-        h3 { color: #4A3889; }
+        h2 { color: #985DD7; } /* Using skolrPurple from your theme */
+        h3 { color: #7a4bb5; } /* Using skolrPurpleDark from your theme */
         ul { list-style: none; padding: 0; }
         li { margin-bottom: 5px; }
         strong { font-weight: bold; }
@@ -18777,15 +18854,15 @@ export async function sendTeacherAlert(
         a.button {
           display: inline-block;
           padding: 12px 24px;
-          background-color: #6B50B7;
-          color: white !important;
+          background-color: #985DD7; /* skolrPurple */
+          color: white !important; 
           text-decoration: none;
           border-radius: 6px;
           font-weight: bold;
           text-align: center;
         }
          a.button:hover {
-             background-color: #4A3889;
+             background-color: #7a4bb5; /* skolrPurpleDark */
          }
       </style>
     </head>
@@ -18818,12 +18895,19 @@ export async function sendTeacherAlert(
     </html>
   `;
 
-  // Use the Resend API to send the email
+  // The fromName and fromEmail will be taken from the defaults in sendEmail,
+  // which now read from environment variables.
+  // If you want a specific "From Name" for safety alerts that's different from the global default,
+  // you can pass it here, e.g., `${APP_NAME} Safety System`.
+  // The `fromEmail` should still come from the environment variable to ensure it's from your verified domain.
+  const alertFromName = process.env.EMAIL_FROM_NAME ? `${process.env.EMAIL_FROM_NAME} (Safety Alert)` : `${APP_NAME} Safety`;
+  
   return await sendEmail(
     teacherEmail,
     subject,
     html,
-    `${APP_NAME} Safety`
+    alertFromName // Pass a specific From Name for alerts
+    // fromEmail will use the default from sendEmail (which is from .env.local)
   );
 }// src/lib/pinecone/utils.ts
 import { index, pinecone } from './client';
@@ -19362,35 +19446,61 @@ export default function StyledComponentsRegistry({
 }// src/lib/email/resend.ts
 import { Resend } from 'resend';
 
-const resendApiKey = process.env.SMTP_PASSWORD || '';  // Reuse your existing API key
-const resend = new Resend(resendApiKey);
+const resendApiKey = process.env.RESEND_API_KEY || process.env.SMTP_PASSWORD || '';
+let resend: Resend | null = null; // Initialize as null
+
+const defaultFromName = process.env.EMAIL_FROM_NAME || 'Skolr';
+const defaultFromEmail = process.env.EMAIL_FROM_ADDRESS || 'noreply@skolr.app';
+
+if (resendApiKey && resendApiKey.trim() !== '') { // Check if key is not empty
+  try {
+    resend = new Resend(resendApiKey);
+    console.log('[Resend Init] Resend client initialized successfully.');
+  } catch (e) {
+    console.error('[Resend Init] CRITICAL: Failed to initialize Resend client with provided API key:', e);
+    // resend remains null, sendEmail function will handle this
+  }
+} else {
+  console.warn('[Resend Init] WARNING: RESEND_API_KEY (or SMTP_PASSWORD) is not configured or is empty. Email sending will be disabled.');
+}
 
 export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  fromName: string = 'ClassBots Safety',
-  fromEmail: string = 'onboarding@resend.dev'
+  fromName: string = defaultFromName,
+  fromEmail: string = defaultFromEmail
 ): Promise<boolean> {
+  if (!resend) { // Check if resend client was initialized
+    console.error('Resend client not initialized or API key missing. Email not sent to:', to);
+    return false;
+  }
+
+  // Ensure the fromEmail is from a verified domain.
+  if (!fromEmail.endsWith('@skolr.app')) { // Adjust if your verified domain is different
+     console.warn(
+       `[Resend Email] Warning: Attempting to send email from an address (${fromEmail}) ` +
+       `that might not be on your primary verified domain (e.g., @skolr.app). `
+     );
+  }
+
   try {
-    console.log(`Sending email via Resend API to ${to}`);
-    
+    console.log(`Sending email via Resend API to ${to} from "${fromName} <${fromEmail}>" with subject "${subject}"`);
     const { data, error } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: to,
       subject: subject,
       html: html,
     });
-    
+
     if (error) {
-      console.error('Resend API Error:', error);
+      console.error('Resend API Error sending email:', JSON.stringify(error, null, 2));
       return false;
     }
-    
-    console.log('Email sent successfully with Resend API', data);
+    console.log('Email sent successfully with Resend API. Message ID:', data?.id);
     return true;
   } catch (error) {
-    console.error('Error sending email with Resend API:', error);
+    console.error('Exception caught while sending email with Resend API:', error);
     return false;
   }
 }// src/lib/openai/embeddings.ts

@@ -1,17 +1,17 @@
 // src/lib/safety/monitoring.ts
-import type { Room, Database } from '@/types/database.types'; // Removed unused Profile import
+import type { Room, Database } from '@/types/database.types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTeacherAlert } from '@/lib/safety/alerts';
 // Import the JSON data
-import HELPLINE_DATA_JSON from './data/helplines.json'; // Ensure this path is correct and the file exists
+import HELPLINE_DATA_JSON from './data/helplines.json';
 
 // OpenRouter Configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const SAFETY_CHECK_MODEL = 'google/gemini-2.5-flash-preview';
 const CONCERN_THRESHOLD = 3;
 
-// Keywords organized by category - FULL LIST AS PROVIDED
+// Keywords organized by category
 const CONCERN_KEYWORDS: Record<string, string[]> = {
   self_harm: [
     'hate myself', 'don\'t want to live', 'don\'t want to be alive', 'don\'t want to be here', 'don\'t want to exist',
@@ -77,7 +77,10 @@ const CONCERN_KEYWORDS: Record<string, string[]> = {
 // Type for the imported JSON data
 type HelplineEntry = { name: string; phone?: string; website?: string; text_to?: string; text_msg?: string; short_desc: string };
 type HelplineData = Record<string, HelplineEntry[]>;
-const ALL_HELPLINES: HelplineData = HELPLINE_DATA_JSON as HelplineData;
+
+// Reverted to simpler cast, relying on helplines.json being correct now
+const ALL_HELPLINES: HelplineData = HELPLINE_DATA_JSON as unknown as HelplineData; 
+
 
 export function initialConcernCheck(message: string): {
   hasConcern: boolean;
@@ -87,11 +90,16 @@ export function initialConcernCheck(message: string): {
     return { hasConcern: false };
   }
   const lowerMessage = message.toLowerCase();
+  // console.log(`[InitialCheck DEBUG] lowerMessage: "${lowerMessage}"`); 
   for (const [category, keywords] of Object.entries(CONCERN_KEYWORDS)) {
     for (const keyword of keywords) {
         const escapedKeyword = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`\\b${escapedKeyword}\\b`);
-        if (regex.test(lowerMessage)) {
+        const isMatch = regex.test(lowerMessage);
+        // if (keyword === 'bullied') { // Example for specific keyword debugging
+        //   console.log(`[InitialCheck DEBUG] Checking keyword: "${keyword}", escaped: "${escapedKeyword}", regex: ${regex.toString()}, isMatch: ${isMatch}`);
+        // }
+        if (isMatch) {
             console.log(`[InitialCheck] Keyword MATCH! Category: ${category}, Keyword: "${keyword}"`);
             return { hasConcern: true, concernType: category };
         }
@@ -117,9 +125,7 @@ export async function verifyConcern(
   analysisExplanation: string;
   aiGeneratedAdvice?: string;
 }> {
-  // --- START OF ADDED CONSOLE LOGS FOR DEBUGGING ---
   console.log(`[VerifyConcern DEBUG] Function called. Received countryCode: "${countryCode}" (Type: ${typeof countryCode})`);
-  // --- END OF ADDED CONSOLE LOGS FOR DEBUGGING ---
 
   let contextString = '';
   if (recentMessages.length > 0) {
@@ -131,13 +137,10 @@ export async function verifyConcern(
   }
 
   const effectiveCountryCode = countryCode?.toUpperCase() || 'DEFAULT';
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] Effective country code for helpline lookup: "${effectiveCountryCode}"`);
 
-  const countrySpecificHelplines: HelplineEntry[] = ALL_HELPLINES[effectiveCountryCode] || ALL_HELPLINES.DEFAULT;
-  // --- ADDED CONSOLE LOG ---
-  console.log(`[VerifyConcern DEBUG] Selected countrySpecificHelplines for "${effectiveCountryCode}" (first 3 entries):`, JSON.stringify(countrySpecificHelplines.slice(0,3), null, 2));
-
+  const countrySpecificHelplines: HelplineEntry[] = ALL_HELPLINES[effectiveCountryCode] || ALL_HELPLINES.DEFAULT || []; // Added fallback for ALL_HELPLINES.DEFAULT itself being potentially undefined if JSON was totally empty
+  console.log(`[VerifyConcern DEBUG] Selected countrySpecificHelplines for "${effectiveCountryCode}" (count: ${countrySpecificHelplines.length}, first 3 entries):`, JSON.stringify(countrySpecificHelplines.slice(0,3), null, 2));
 
   let conciseHelplineDataForPrompt = "";
   const helplinesToList = countrySpecificHelplines.slice(0, 2); 
@@ -158,9 +161,9 @@ export async function verifyConcern(
     });
   } else { 
        conciseHelplineDataForPrompt = "Please reach out to a trusted adult or local emergency services if you need help or are in danger.\n";
+       console.warn(`[VerifyConcern DEBUG] No specific helplines found for ${effectiveCountryCode} or DEFAULT after filtering. Using generic advice.`);
   }
   
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] conciseHelplineDataForPrompt string for LLM:\n${conciseHelplineDataForPrompt}`);
 
   const teacherAwarenessMandatorySentence = "Remember, your teacher can see this conversation and is here to support you. Please feel comfortable reaching out to them or another trusted adult if you need help.";
@@ -192,9 +195,7 @@ export async function verifyConcern(
     `"aiGeneratedAdvice": string (Omit this key or set to null if conditions in Task 2 are not met, or if you cannot follow the student message constraints exactly.)`
   ];
   const promptForModel = promptParts.join('\n');
-  // --- ADDED CONSOLE LOG ---
   console.log(`[VerifyConcern DEBUG] Full promptForModel being sent to LLM (first 700 chars to see helpline injection):\n${promptForModel.substring(0,700)}...`);
-
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -226,9 +227,7 @@ export async function verifyConcern(
     if (!rawResponseContent) {
       throw new Error("OpenRouter response for safety verification was empty or missing content.");
     }
-     // --- ADDED CONSOLE LOG ---
     console.log(`[VerifyConcern DEBUG] Raw LLM response content:\n${rawResponseContent}`);
-
 
     let analysisResult;
     try {
@@ -289,7 +288,7 @@ export async function verifyConcern(
     } else if (isRealConcern && concernLevel >= 2) {
         console.warn("[VerifyConcern] LLM met conditions for advice but 'aiGeneratedAdvice' field was missing or empty. Constructing concise default advice.");
         let defaultAdvice = `I understand this may be a tough moment. ${teacherAwarenessMandatorySentence}\n\nHere are some resources that might help:\n`;
-        const helplinesForDefaultForStudent = countrySpecificHelplines.slice(0, 2); // Use the already filtered list
+        const helplinesForDefaultForStudent = countrySpecificHelplines.slice(0, 2);
         if (helplinesForDefaultForStudent.length > 0) {
             helplinesForDefaultForStudent.forEach(line => { 
                 defaultAdvice += `* ${line.name}`;
@@ -299,7 +298,8 @@ export async function verifyConcern(
                 defaultAdvice += "\n";
             });
         } else { 
-            ALL_HELPLINES.DEFAULT.slice(0,2).forEach(line => { // Fallback to generic default if countrySpecific was empty
+            const defaultFallbackHelplines = ALL_HELPLINES.DEFAULT || [];
+            defaultFallbackHelplines.slice(0,2).forEach(line => { 
                  defaultAdvice += `* ${line.name}`;
                 if (line.phone) defaultAdvice += `: ${line.phone}`;
                 else if (line.text_to && line.text_msg) defaultAdvice += ` (Text ${line.text_msg} to ${line.text_to})`;
@@ -343,7 +343,6 @@ export async function checkMessageSafety(
     room: Room,
     countryCode: string | null 
 ): Promise<void> {
-    // Added the debug log here, as requested in the previous step, to see what checkMessageSafety receives
     console.log(`[Safety Check] START - MsgID: ${messageId}, Student: ${studentId}, Room: ${room.room_id}, Teacher: ${room.teacher_id}, Received Country Code by checkMessageSafety: "${countryCode}"`);
     try {
         const adminClient = createAdminClient();
@@ -368,7 +367,7 @@ export async function checkMessageSafety(
                 .select('role, content')
                 .eq('room_id', room.room_id)
                 .eq('user_id', studentId)
-                .filter('metadata->>chatbotId', chatbotIdForContext ? 'eq' : 'is', chatbotIdForContext)
+                .filter('metadata->>chatbotId', chatbotIdForContext ? 'eq' : 'is', chatbotIdForContext) // Correctly handle null for chatbotId
                 .lt('created_at', currentMessageData.created_at)
                 .order('created_at', { ascending: false })
                 .limit(4);
@@ -395,7 +394,7 @@ export async function checkMessageSafety(
 
                 if (flagInsertError) { console.error(`[Safety Check] FAILED to insert flag:`, flagInsertError.message); return; }
                 
-                const newFlagId = insertedFlag!.flag_id;
+                const newFlagId = insertedFlag!.flag_id; // Non-null assertion because if no error, data should exist
                 console.log(`[Safety Check] Flag ${newFlagId} inserted for message ${messageId}.`);
                 if (teacherProfile?.email) {
                     const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${newFlagId}`;

@@ -1,8 +1,7 @@
-// src/lib/safety/alerts.ts - Replace the existing function
-import { sendEmail } from '@/lib/email/resend';  // Import the new function
+// src/lib/safety/alerts.ts
+import { sendEmail } from '@/lib/email/resend';
 import { APP_NAME } from '@/lib/utils/constants';
 
-// Keep helper functions the same
 export function getConcernTypeDisplayName(type: string): string {
   if (!type) return 'Unknown Concern';
   return type
@@ -29,17 +28,15 @@ export async function sendTeacherAlert(
   messageContent: string,
   viewUrl: string
 ): Promise<boolean> {
-  // Basic validation
   if (!teacherEmail || !studentName || !roomName || !concernType || concernLevel < 0 || !messageContent || !viewUrl) {
-    console.error('Missing required information for sending teacher alert');
+    console.error('[Alerts] Missing required information for sending teacher alert.');
     return false;
   }
 
-  // Generate email content
   const concernTypeName = getConcernTypeDisplayName(concernType);
   const concernLevelName = getConcernLevelDisplayName(concernLevel);
   const subject = `[${APP_NAME}] ${concernLevelName} ${concernTypeName} Alert for Student: ${studentName}`;
-  const displayedMessage = messageContent.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const displayedMessage = messageContent.replace(/</g, "<").replace(/>/g, ">");
 
   const html = `
     <!DOCTYPE html>
@@ -47,8 +44,8 @@ export async function sendTeacherAlert(
     <head>
       <style>
         body { font-family: sans-serif; line-height: 1.6; color: #333; }
-        h2 { color: #6B50B7; }
-        h3 { color: #4A3889; }
+        h2 { color: #985DD7; } /* Using skolrPurple from your theme */
+        h3 { color: #7a4bb5; } /* Using skolrPurpleDark from your theme */
         ul { list-style: none; padding: 0; }
         li { margin-bottom: 5px; }
         strong { font-weight: bold; }
@@ -63,15 +60,15 @@ export async function sendTeacherAlert(
         a.button {
           display: inline-block;
           padding: 12px 24px;
-          background-color: #6B50B7;
-          color: white !important;
+          background-color: #985DD7; /* skolrPurple */
+          color: white !important; 
           text-decoration: none;
           border-radius: 6px;
           font-weight: bold;
           text-align: center;
         }
          a.button:hover {
-             background-color: #4A3889;
+             background-color: #7a4bb5; /* skolrPurpleDark */
          }
       </style>
     </head>
@@ -104,11 +101,18 @@ export async function sendTeacherAlert(
     </html>
   `;
 
-  // Use the Resend API to send the email
+  // The fromName and fromEmail will be taken from the defaults in sendEmail,
+  // which now read from environment variables.
+  // If you want a specific "From Name" for safety alerts that's different from the global default,
+  // you can pass it here, e.g., `${APP_NAME} Safety System`.
+  // The `fromEmail` should still come from the environment variable to ensure it's from your verified domain.
+  const alertFromName = process.env.EMAIL_FROM_NAME ? `${process.env.EMAIL_FROM_NAME} (Safety Alert)` : `${APP_NAME} Safety`;
+  
   return await sendEmail(
     teacherEmail,
     subject,
     html,
-    `${APP_NAME} Safety`
+    alertFromName // Pass a specific From Name for alerts
+    // fromEmail will use the default from sendEmail (which is from .env.local)
   );
 }

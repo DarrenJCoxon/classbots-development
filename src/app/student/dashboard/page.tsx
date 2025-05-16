@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation'; 
-import { Container, Card, Button, Alert, Badge } from '@/styles/StyledComponents';
+import { Container, Card, Button, Alert, Badge, Input } from '@/styles/StyledComponents';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { 
     Room, 
@@ -54,6 +54,40 @@ const WelcomeHeader = styled.div`
 
 const Section = styled(Card)`
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+`;
+
+const JoinRoomSection = styled(Card)`
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  display: flex;
+  flex-direction: column;
+  @media (min-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+  }
+`;
+
+const JoinRoomForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.md};
+  width: 100%;
+  
+  @media (min-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+  }
+`;
+
+const JoinRoomInput = styled(Input)`
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  text-align: center;
+  
+  @media (min-width: 768px) {
+    flex: 1;
+    margin-right: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
 const SectionTitle = styled.h2`
@@ -176,6 +210,10 @@ export default function StudentDashboardPage() {
   const [dashboardData, setDashboardData] = useState<StudentDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [joinRoomCode, setJoinRoomCode] = useState('');
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [joinRoomError, setJoinRoomError] = useState<string | null>(null);
+  const [joinRoomSuccess, setJoinRoomSuccess] = useState<string | null>(null);
   const router = useRouter();
 
   const fetchDashboardData = useCallback(async () => {
@@ -201,6 +239,45 @@ export default function StudentDashboardPage() {
       setLoading(false);
     }
   }, [router]);
+  
+  const handleJoinRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!joinRoomCode.trim()) {
+      setJoinRoomError('Please enter a room code');
+      return;
+    }
+    
+    setIsJoiningRoom(true);
+    setJoinRoomError(null);
+    setJoinRoomSuccess(null);
+    
+    try {
+      const response = await fetch('/api/student/join-room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_code: joinRoomCode.trim() }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to join room');
+      }
+      
+      setJoinRoomSuccess('Successfully joined room!');
+      setJoinRoomCode('');
+      
+      // Refresh dashboard data to show the newly joined room
+      await fetchDashboardData();
+      
+    } catch (err) {
+      console.error('Error joining room:', err);
+      setJoinRoomError(err instanceof Error ? err.message : 'Failed to join room');
+    } finally {
+      setIsJoiningRoom(false);
+    }
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -260,6 +337,30 @@ export default function StudentDashboardPage() {
           <h1>Welcome, {studentProfile.full_name || 'Student'}!</h1>
           <p>Here&apos;s an overview of your ClassBots activities.</p>
         </WelcomeHeader>
+        
+        <JoinRoomSection>
+          <div style={{ width: '100%' }}>
+            <SectionTitle style={{ marginBottom: '1rem' }}>Join a New Room</SectionTitle>
+            {joinRoomError && <Alert variant="error" style={{ marginBottom: '1rem' }}>{joinRoomError}</Alert>}
+            {joinRoomSuccess && <Alert variant="success" style={{ marginBottom: '1rem' }}>{joinRoomSuccess}</Alert>}
+            <JoinRoomForm onSubmit={handleJoinRoom}>
+              <JoinRoomInput
+                type="text"
+                value={joinRoomCode}
+                onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
+                placeholder="Enter room code"
+                maxLength={6}
+              />
+              <Button 
+                type="submit" 
+                disabled={isJoiningRoom} 
+                variant="primary"
+              >
+                {isJoiningRoom ? 'Joining...' : 'Join Room'}
+              </Button>
+            </JoinRoomForm>
+          </div>
+        </JoinRoomSection>
 
         <Section>
           <SectionTitle>My Active Rooms ({joinedRooms.length})</SectionTitle>
@@ -282,8 +383,7 @@ export default function StudentDashboardPage() {
             </RoomGrid>
           ) : (
             <EmptyStateText>
-              You haven&apos;t joined any active rooms yet. 
-              <Link href="/join" style={{textDecoration: 'underline', marginLeft: '5px', color: 'inherit'}}>Join a room</Link> to get started!
+              You haven&apos;t joined any active rooms yet. Use the form above to join a room with a code.
             </EmptyStateText>
           )}
         </Section>

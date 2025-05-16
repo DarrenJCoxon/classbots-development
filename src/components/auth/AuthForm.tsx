@@ -236,6 +236,7 @@ export default function AuthForm({ type }: AuthFormProps) {
                         <option value="GB">United Kingdom</option>
                         <option value="CA">Canada</option>
                         <option value="AU">Australia</option>
+                        <option value="MY">Malaysia</option> {/* ADDED Malaysia */}
                         <option value="NZ">New Zealand</option>
                         {/* MODIFIED: Added AE */}
                         <option value="AE">United Arab Emirates</option> 

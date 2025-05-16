@@ -6,6 +6,17 @@ import { extractTextFromFile } from '@/lib/document-processing/extractor';
 // Import AssessmentStatusEnum for setting status
 import type { AssessmentStatusEnum } from '@/types/database.types';
 
+// Define interface for global cache
+interface GlobalWithCache {
+  [key: string]: string;
+}
+
+// Add type declaration for globalThis
+declare global {
+  // eslint-disable-next-line no-var
+  var documentCache: GlobalWithCache;
+}
+
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const ASSESSMENT_LLM_MODEL = 'google/gemini-2.5-flash-preview'; // Or your preferred model like 'microsoft/phi-3-medium-128k-instruct'
 
@@ -35,6 +46,11 @@ export async function POST(request: NextRequest) {
   console.log('--------------------------------------------------');
   console.log('[API /assessment/process] Received assessment processing request.');
   const adminSupabase = createAdminClient();
+  
+  // Initialize global document cache if not exists
+  if (!global.documentCache) {
+    global.documentCache = {};
+  }
 
   try {
     const payload: ProcessAssessmentPayload = await request.json();
@@ -87,25 +103,49 @@ export async function POST(request: NextRequest) {
     let originalPassageText = "No specific passage was used by the Quiz Bot for these questions, or it could not be retrieved for this assessment.";
     if (assessmentBotConfig.enable_rag) {
       console.log(`[API /assessment/process] Bot has RAG. Fetching primary document for passage context.`);
-      const { data: botDocument, error: docError } = await adminSupabase
-        .from('documents')
-        .select('file_path, file_type')
-        .eq('chatbot_id', chatbot_id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (docError || !botDocument) {
-        console.warn(`[API /assessment/process] No document found for RAG-enabled assessment bot ${chatbot_id}, or error:`, docError?.message);
+      
+      // First check if this is a document we've processed recently and might have cached
+      // Using the chatbot_id as a simple cache key
+      const cacheKey = `document_text_${chatbot_id}`;
+      const cachedText = global.documentCache[cacheKey];
+      
+      if (cachedText) {
+        console.log(`[API /assessment/process] Using cached document text for chatbot ${chatbot_id} (length: ${cachedText.length})`);
+        originalPassageText = cachedText;
       } else {
-        try {
-          console.log(`[API /assessment/process] Downloading document: ${botDocument.file_path}`);
-          const { data: fileData, error: downloadError } = await adminSupabase.storage.from('documents').download(botDocument.file_path);
-          if (!downloadError && fileData) {
-            originalPassageText = await extractTextFromFile(Buffer.from(await fileData.arrayBuffer()), botDocument.file_type as DocumentType);
-            console.log(`[API /assessment/process] Extracted text from passage (length: ${originalPassageText.length}).`);
-          } else { console.warn(`[API /assessment/process] Failed to download document ${botDocument.file_path}:`, downloadError?.message); }
-        } catch (extractionError) { console.warn(`[API /assessment/process] Error extracting text from document ${botDocument.file_path}:`, extractionError); }
+        // Query for document with preloaded extraction if available
+        const { data: botDocument, error: docError } = await adminSupabase
+          .from('documents')
+          .select('file_path, file_type, extracted_text')
+          .eq('chatbot_id', chatbot_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (docError || !botDocument) {
+          console.warn(`[API /assessment/process] No document found for RAG-enabled assessment bot ${chatbot_id}, or error:`, docError?.message);
+        } else if (botDocument.extracted_text) {
+          // Use pre-extracted text if available (from vectorization process)
+          originalPassageText = botDocument.extracted_text;
+          // Cache the result for future use
+          global.documentCache[cacheKey] = originalPassageText;
+          console.log(`[API /assessment/process] Using pre-extracted text from document (length: ${originalPassageText.length}).`);
+        } else {
+          try {
+            console.log(`[API /assessment/process] Downloading document: ${botDocument.file_path}`);
+            const { data: fileData, error: downloadError } = await adminSupabase.storage.from('documents').download(botDocument.file_path);
+            if (!downloadError && fileData) {
+              originalPassageText = await extractTextFromFile(Buffer.from(await fileData.arrayBuffer()), botDocument.file_type as DocumentType);
+              // Cache the result for future use
+              global.documentCache[cacheKey] = originalPassageText;
+              console.log(`[API /assessment/process] Extracted text from passage (length: ${originalPassageText.length}).`);
+            } else { 
+              console.warn(`[API /assessment/process] Failed to download document ${botDocument.file_path}:`, downloadError?.message); 
+            }
+          } catch (extractionError) { 
+            console.warn(`[API /assessment/process] Error extracting text from document ${botDocument.file_path}:`, extractionError); 
+          }
+        }
       }
     }
 
@@ -122,6 +162,8 @@ Original Passage Context (if applicable, MCQs should be based on this):
 --- ORIGINAL PASSAGE START ---
 ${originalPassageText}
 --- ORIGINAL PASSAGE END ---
+
+Note: If your chatbot is giving multiple-choice questions, instruct students to "PAUSE – Reflect, then reply with your answer (A/B/C/D)." instead of asking them to say "Continue".
 
 Conversation History to Assess (User is '${isTestByTeacher ? 'Tester (Teacher)' : 'Student'}'):
 --- CONVERSATION HISTORY START ---
@@ -178,71 +220,117 @@ Ensure all string values are properly escaped within the JSON. Do not include an
                 messages: [{ role: 'user', content: finalAssessmentPrompt }],
                 temperature: 0.3,
                 max_tokens: 800,
-                response_format: { type: "json_object" }
+                response_format: { type: "json_object" },
+                stream: true // Enable streaming
             })
         });
 
-        aiAssessmentDetailsRaw = await assessmentLLMResponse.text(); // Store the full raw text response
-
-        if (!assessmentLLMResponse.ok) {
-            console.error(`[API /assessment/process] LLM CALL FAILED: Status ${assessmentLLMResponse.status}. Raw Response Preview:`, aiAssessmentDetailsRaw.substring(0, 1000));
-            // llmOutput remains the default error structure
+        // Handle streaming response similar to chat API
+        if (!assessmentLLMResponse.ok || !assessmentLLMResponse.body) {
+            console.error(`[API /assessment/process] LLM CALL FAILED: Status ${assessmentLLMResponse.status}`);
+            aiAssessmentDetailsRaw = JSON.stringify({ error: `LLM Call Failed: Status ${assessmentLLMResponse.status}` });
         } else {
-            console.log(`[API /assessment/process] LLM Call Successful (Status ${assessmentLLMResponse.status}). Raw Response for Parsing (first 1000 chars):\n`, aiAssessmentDetailsRaw.substring(0,1000));
+            // Process the stream and collect the full response
+            let fullResponseText = '';
+            const reader = assessmentLLMResponse.body.getReader();
+            const decoder = new TextDecoder();
+            
             try {
-                const outerParsedJson = JSON.parse(aiAssessmentDetailsRaw); // This is the OpenRouter/Provider's response structure
-                // console.log("[API /assessment/process] Parsed outer LLM provider response:", outerParsedJson); // For deep debugging
-
-                const contentString = outerParsedJson.choices?.[0]?.message?.content;
-
-                if (typeof contentString === 'string') {
-                    console.log("[API /assessment/process] Extracted content string for inner JSON parse (first 500 chars):", contentString.substring(0, 500) + "...");
-                    let jsonStringToParse = contentString.trim();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
                     
-                    const markdownJsonMatch = jsonStringToParse.match(/```json\s*([\s\S]*?)\s*```/);
-                    if (markdownJsonMatch && markdownJsonMatch[1]) {
-                        jsonStringToParse = markdownJsonMatch[1].trim();
-                        console.log("[API /assessment/process] Extracted inner JSON from markdown block.");
-                    } else {
-                        if (!jsonStringToParse.startsWith('{') || !jsonStringToParse.endsWith('}')) {
-                             console.warn("[API /assessment/process] Inner content string doesn't look like a direct JSON object or markdown JSON. Attempting parse anyway.");
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n').filter(l => l.trim().startsWith('data:'));
+                    
+                    for (const line of lines) {
+                        const dataContent = line.substring(6).trim();
+                        if (dataContent === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(dataContent);
+                            const piece = parsed.choices?.[0]?.delta?.content;
+                            if (typeof piece === 'string') {
+                                fullResponseText += piece;
+                            }
+                        } catch (e) {
+                            console.warn('[API /assessment/process] Stream parse error:', e, "Data:", dataContent);
                         }
                     }
-
-                    const innerParsedJson = JSON.parse(jsonStringToParse);
-                    console.log("[API /assessment/process] Successfully parsed inner assessment JSON:", innerParsedJson);
-
-                    if (
-                        innerParsedJson &&
-                        typeof innerParsedJson.grade === 'string' &&
-                        typeof innerParsedJson.student_feedback === 'string' &&
-                        typeof innerParsedJson.teacher_analysis === 'object' &&
-                        innerParsedJson.teacher_analysis !== null &&
-                        typeof innerParsedJson.teacher_analysis.summary === 'string' &&
-                        Array.isArray(innerParsedJson.teacher_analysis.strengths) &&
-                        Array.isArray(innerParsedJson.teacher_analysis.areas_for_improvement) &&
-                        typeof innerParsedJson.teacher_analysis.grading_rationale === 'string'
-                    ) {
-                        llmOutput = innerParsedJson as LLMAssessmentOutput;
-                        llmCallSuccessful = true;
-                        console.log(`[API /assessment/process] Successfully validated structured assessment from LLM. Grade: ${llmOutput.grade}`);
-                    } else {
-                        console.warn(`[API /assessment/process] LLM response valid inner JSON but missed one or more expected fields. Parsed inner JSON:`, innerParsedJson);
-                        llmOutput.grade = typeof innerParsedJson.grade === 'string' ? innerParsedJson.grade : "Format Error (Grade Missing)";
-                        llmOutput.student_feedback = typeof innerParsedJson.student_feedback === 'string' ? innerParsedJson.student_feedback : "AI feedback format was incomplete.";
-                        if (typeof innerParsedJson.teacher_analysis === 'object' && innerParsedJson.teacher_analysis !== null) {
-                            llmOutput.teacher_analysis.summary = typeof innerParsedJson.teacher_analysis.summary === 'string' ? innerParsedJson.teacher_analysis.summary : "Summary missing.";
-                            llmOutput.teacher_analysis.strengths = Array.isArray(innerParsedJson.teacher_analysis.strengths) ? innerParsedJson.teacher_analysis.strengths : [];
-                            llmOutput.teacher_analysis.areas_for_improvement = Array.isArray(innerParsedJson.teacher_analysis.areas_for_improvement) ? innerParsedJson.teacher_analysis.areas_for_improvement : [];
-                            llmOutput.teacher_analysis.grading_rationale = typeof innerParsedJson.teacher_analysis.grading_rationale === 'string' ? innerParsedJson.teacher_analysis.grading_rationale : "Rationale missing.";
-                        }
-                    }
-                } else {
-                    console.error("[API /assessment/process] 'content' string not found or not a string in LLM choices. Full choices[0].message:", outerParsedJson.choices?.[0]?.message);
                 }
-            } catch (parseError) {
-                console.error(`[API /assessment/process] FAILED TO PARSE JSON (either outer provider response or inner content string). Raw Preview:`, aiAssessmentDetailsRaw.substring(0, 1000), parseError);
+                
+                // Create a properly formatted OpenRouter response structure
+                const formattedResponse = {
+                    choices: [{
+                        message: {
+                            content: fullResponseText
+                        }
+                    }]
+                };
+                
+                aiAssessmentDetailsRaw = JSON.stringify(formattedResponse);
+                console.log(`[API /assessment/process] Streaming completed, collected ${fullResponseText.length} characters`);
+                
+            } catch (streamError) {
+                console.error('[API /assessment/process] Stream error:', streamError);
+                aiAssessmentDetailsRaw = JSON.stringify({ error: `Stream Error: ${streamError instanceof Error ? streamError.message : String(streamError)}` });
             }
+        }
+
+        // Now parse the collected JSON response
+        try {
+            // Parse the collected full response text
+            const formattedResponse = JSON.parse(aiAssessmentDetailsRaw);
+            const contentString = formattedResponse.choices?.[0]?.message?.content;
+            
+            if (typeof contentString === 'string') {
+                console.log("[API /assessment/process] Extracted content string for JSON parse (first 500 chars):", 
+                  contentString.substring(0, 500) + "...");
+                
+                let jsonStringToParse = contentString.trim();
+                
+                // Handle if model wraps in markdown code block
+                const markdownJsonMatch = jsonStringToParse.match(/```json\s*([\s\S]*?)\s*```/);
+                if (markdownJsonMatch && markdownJsonMatch[1]) {
+                    jsonStringToParse = markdownJsonMatch[1].trim();
+                    console.log("[API /assessment/process] Extracted JSON from markdown block.");
+                }
+                
+                const parsedAssessment = JSON.parse(jsonStringToParse);
+                
+                // Validate and use the parsed JSON
+                if (
+                    parsedAssessment &&
+                    typeof parsedAssessment.grade === 'string' &&
+                    typeof parsedAssessment.student_feedback === 'string' &&
+                    typeof parsedAssessment.teacher_analysis === 'object' &&
+                    parsedAssessment.teacher_analysis !== null
+                ) {
+                    llmOutput = {
+                        grade: parsedAssessment.grade,
+                        student_feedback: parsedAssessment.student_feedback,
+                        teacher_analysis: {
+                            summary: parsedAssessment.teacher_analysis.summary || "No summary provided.",
+                            strengths: Array.isArray(parsedAssessment.teacher_analysis.strengths) 
+                                ? parsedAssessment.teacher_analysis.strengths 
+                                : [],
+                            areas_for_improvement: Array.isArray(parsedAssessment.teacher_analysis.areas_for_improvement) 
+                                ? parsedAssessment.teacher_analysis.areas_for_improvement 
+                                : [],
+                            grading_rationale: parsedAssessment.teacher_analysis.grading_rationale || "No rationale provided."
+                        }
+                    };
+                    
+                    llmCallSuccessful = true;
+                    console.log(`[API /assessment/process] Successfully parsed assessment JSON. Grade: ${llmOutput.grade}`);
+                } else {
+                    console.warn("[API /assessment/process] Parsed JSON missing required fields:", parsedAssessment);
+                }
+            } else {
+                console.error("[API /assessment/process] Content string not found in response");
+            }
+        } catch (parseError) {
+            console.error(`[API /assessment/process] Error parsing JSON response:`, parseError);
         }
     } catch (llmCallException) {
         console.error(`[API /assessment/process] EXCEPTION during Assessment LLM call:`, llmCallException);
@@ -287,25 +375,32 @@ Ensure all string values are properly escaped within the JSON. Do not include an
     }
 
     console.log(`[API /assessment/process] STEP 7: Inserting feedback message into chat_messages for user ${userId}. Feedback snippet: "${String(llmOutput.student_feedback).substring(0, 100)}..."`);
-    const { error: feedbackMessageError } = await adminSupabase
+    
+    // Insert feedback message directly - more efficient approach
+    const { data: messageData, error: messageError } = await adminSupabase
         .from('chat_messages')
         .insert({
             room_id: room_id, 
             user_id: userId,
-            role: 'system', 
+            role: 'assistant',
             content: llmOutput.student_feedback,
             metadata: {
                 chatbotId: chatbot_id, 
                 isAssessmentFeedback: true,
-                assessmentId: savedAssessmentId 
+                assessmentId: savedAssessmentId,
+                processedWithStreaming: true // Flag to indicate this was processed with streaming
             }
-        });
-
-    if (feedbackMessageError) {
-        console.error(`[API /assessment/process] Error inserting feedback message into chat_messages for user ${userId}:`, 
-            feedbackMessageError.message, feedbackMessageError.details, feedbackMessageError.hint);
+        })
+        .select('message_id')
+        .single();
+    
+    if (messageError) {
+        console.error(`[API /assessment/process] Error inserting feedback message for user ${userId}:`, 
+            messageError.message, messageError.details, messageError.hint);
+    } else if (messageData) {
+        console.log(`[API /assessment/process] Feedback message ${messageData.message_id} successfully inserted for user ${userId}.`);
     } else {
-        console.log(`[API /assessment/process] Feedback message successfully inserted into chat for user ${userId}.`);
+        console.warn(`[API /assessment/process] Feedback message insert completed but no message ID returned.`);
     }
 
     console.log('[API /assessment/process] Processing complete. Returning response.');

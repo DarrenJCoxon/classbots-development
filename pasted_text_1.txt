@@ -1,0 +1,24 @@
+> classbots-ai@0.1.0 build
+> next build
+
+   ▲ Next.js 15.3.1
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 3.0s
+   Linting and checking validity of types ...
+Failed to compile.
+
+src/app/chat/[roomId]/page.tsx:23:32
+Type error: Argument of type 'number | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+
+  21 |     // @ts-ignore
+  22 |     if (user) {
+> 23 |       fetchRoomDetails(params.roomId)
+     |                                ^
+  24 |         .then((room) => {
+  25 |           setRoom(room);
+  26 |           setRoomExists(true);
+
+Error: Type checking and linting failed

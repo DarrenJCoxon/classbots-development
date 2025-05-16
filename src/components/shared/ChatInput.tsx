@@ -74,7 +74,8 @@ const InputHint = styled.p`
   }
 `;
 
-// Specific hint for assessment bots
+// We're removing this since we now use a button instead of a command
+// Keeping the styled component in case we need it for other hints later
 const AssessmentHint = styled(InputHint)`
     display: block; /* Ensure it's always visible if provided */
     text-align: center; /* Center this specific hint */
