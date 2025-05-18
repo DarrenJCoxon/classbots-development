@@ -76,6 +76,19 @@ supabase/.db/
 # supabase/.auth/ # Only if you are using the older access token method for CLI auth (not recommended)
 # supabase/generated/ # If you ever generate types directly into here and don't commit them
 
+# SQL migration files (most not included in version control)
+# ----------------------------------------------------------------------
+# Include our critical RLS fix migrations
+!/supabase/migrations/20250517001234_add_anonymous_rls_policy.sql
+!/supabase/migrations/20250518000000_add_is_anonymous_field.sql
+!/supabase/migrations/20250518000001_enhance_pin_code_management.sql
+!/supabase/migrations/20250527000000_fix_uuid_text_type_mismatch.sql
+
+# Exclude other SQL files
+/supabase/migrations/*.sql
+/add_students_to_room.sql
+/fix_student_room_access.sql
+
 # Vercel
 # ----------------------------------------------------------------------
 .vercel
