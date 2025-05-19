@@ -329,8 +329,8 @@ export async function POST(request: NextRequest) {
 
     // Forward the request to the main chat API internally
     // This is a workaround since we can't easily reuse the complex chat handling logic
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-    const forwardedUrl = `${baseUrl}/api/chat/${roomId}`;
+    // Use relative URL to avoid issues with cross-origin requests in production
+    const forwardedUrl = `/api/chat/${roomId}`;
     
     console.log(`[API POST /chat/direct-access] Forwarding request to ${forwardedUrl}`);
     
