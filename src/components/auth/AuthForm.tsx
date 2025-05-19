@@ -55,7 +55,6 @@ export default function AuthForm({ type }: AuthFormProps) {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const isStudentSignup = searchParams?.get('type') === 'student';
   const redirectTo = searchParams?.get('redirect') || '/';
 
   const checkUser = useCallback(async () => {
@@ -82,22 +81,23 @@ export default function AuthForm({ type }: AuthFormProps) {
 
     try {
       if (type === 'signup') {
-        const role = isStudentSignup ? 'student' : 'teacher';
+        const role = 'teacher'; // Only teachers use email signup
         
         const signupData: { role: string; full_name: string; country_code?: string | null } = {
             role: role,
             full_name: fullName,
         };
 
-        if (role === 'teacher') {
-            signupData.country_code = countryCode.trim() || null;
-        }
+        signupData.country_code = countryCode.trim() || null;
+        
+        // Always redirect to teacher dashboard for teacher signups
+        const teacherRedirect = '/teacher-dashboard';
         
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(teacherRedirect)}`,
             data: signupData
           },
         });
@@ -107,32 +107,46 @@ export default function AuthForm({ type }: AuthFormProps) {
           throw signUpError;
         }
         
-        if (isStudentSignup) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (!signInError && signInData.user) {
-            router.push(redirectTo);
-          } else {
-            setError('Account created! Please log in to continue.');
-            setTimeout(() => {
-              router.push(`/auth?type=login&redirect=${encodeURIComponent(redirectTo)}`);
-            }, 3000);
-          }
-        } else { 
-          alert('Check your email for the confirmation link! Please also check your spam folder.');
-        }
+        alert('Check your email for the confirmation link! Please also check your spam folder.');
       } else { 
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        // For login, first determine user information to ensure correct redirect
+        const { error: signInError, data } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+        
         if (signInError) {
           throw signInError;
         }
-        router.push(redirectTo);
+        
+        const userId = data.user?.id;
+        
+        if (userId) {
+          // Check user's role to force specific redirect
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', userId)
+            .single();
+            
+          const role = profileData?.role || data.user?.user_metadata?.role;
+          console.log(`[AuthForm] User logged in with role: ${role}`);
+          
+          if (role === 'teacher') {
+            // Force teacher dashboard redirect
+            router.push('/teacher-dashboard');
+          } else if (role === 'student') {
+            // Force student dashboard redirect
+            router.push('/student/dashboard');
+          } else {
+            // Use default redirect
+            router.push(redirectTo);
+          }
+        } else {
+          // Fall back to default redirect if we can't determine role
+          router.push(redirectTo);
+        }
+        
         router.refresh();
       }
     } catch (error) {
@@ -143,56 +157,6 @@ export default function AuthForm({ type }: AuthFormProps) {
     }
   };
 
-  if (isStudentSignup && type === 'signup') {
-    return (
-      <AuthCard>
-        <Title>Student Sign Up</Title>
-        <InfoBox>
-          <p><strong>For Students:</strong> Sign up here to join your classroom.</p>
-        </InfoBox>
-        {error && <Alert variant="error">{error}</Alert>}
-        <form onSubmit={handleSubmit}>
-          <FormGroup>
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter your full name"
-              required
-            />
-          </FormGroup>
-          <FormGroup>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-            />
-          </FormGroup>
-          <FormGroup>
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
-              required
-            />
-          </FormGroup>
-          <StyledButton type="submit" disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'Creating Account...' : 'Sign Up as Student'}
-          </StyledButton>
-        </form>
-      </AuthCard>
-    );
-  }
-
   return (
     <AuthCard>
       <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
@@ -200,9 +164,14 @@ export default function AuthForm({ type }: AuthFormProps) {
       {type === 'signup' && ( 
         <InfoBox>
           <p><strong>For Teachers:</strong> Sign up here to create your teacher account.</p>
-          {!isStudentSignup && ( 
-             <p><strong>For Students:</strong> Ask your teacher for a join link to create your account.</p>
-          )}
+          <p><strong>For Students:</strong> Use the &quot;Join Classroom&quot; button on the homepage to join with a room code.</p>
+        </InfoBox>
+      )}
+      
+      {type === 'login' && (
+        <InfoBox>
+          <p><strong>For Teachers:</strong> Log in with your email and password.</p>
+          <p><strong>For Students:</strong> If you&apos;ve set up an account via the Account Setup page, you can log in here.</p>
         </InfoBox>
       )}
       
@@ -222,29 +191,26 @@ export default function AuthForm({ type }: AuthFormProps) {
                 required
               />
             </FormGroup>
-            {!isStudentSignup && ( 
-                 <FormGroup>
-                    <Label htmlFor="countryCode">Your Country (Optional)</Label>
-                    <StyledSelect
-                        id="countryCode"
-                        name="countryCode"
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
-                    >
-                        <option value="">Select Country</option>
-                        <option value="US">United States</option>
-                        <option value="GB">United Kingdom</option>
-                        <option value="CA">Canada</option>
-                        <option value="AU">Australia</option>
-                        <option value="MY">Malaysia</option> {/* ADDED Malaysia */}
-                        <option value="NZ">New Zealand</option>
-                        {/* MODIFIED: Added AE */}
-                        <option value="AE">United Arab Emirates</option> 
-                        <option value="EU">EU (Other)</option> {/* Renamed EU slightly for clarity */}
-                    </StyledSelect>
-                    <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
-                 </FormGroup>
-            )}
+            <FormGroup>
+               <Label htmlFor="countryCode">Your Country (Optional)</Label>
+               <StyledSelect
+                   id="countryCode"
+                   name="countryCode"
+                   value={countryCode}
+                   onChange={(e) => setCountryCode(e.target.value)}
+               >
+                   <option value="">Select Country</option>
+                   <option value="US">United States</option>
+                   <option value="GB">United Kingdom</option>
+                   <option value="CA">Canada</option>
+                   <option value="AU">Australia</option>
+                   <option value="MY">Malaysia</option>
+                   <option value="NZ">New Zealand</option>
+                   <option value="AE">United Arab Emirates</option>
+                   <option value="EU">EU (Other)</option>
+               </StyledSelect>
+               <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
+            </FormGroup>
           </>
         )}
         <FormGroup>

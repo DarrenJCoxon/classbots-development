@@ -1,7 +1,8 @@
 // src/app/teacher-dashboard/rooms/[roomId]/students/[studentId]/page.tsx
+// This file has been updated to include magic link generation for students
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, FormEvent } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -30,7 +31,7 @@ interface StudentRoomAllDetails {
   assessments: AssessmentSummaryForStudent[];
   concerns: ConcernSummaryForStudent[];
   // We also need the list of chatbots available in this room for the StudentChatHistory component
-  roomChatbots: Pick<RoomChatbotType, 'chatbot_id' | 'name'>[]; 
+  roomChatbots: Pick<RoomChatbotType, 'chatbot_id' | 'name'>[];
 }
 
 // --- Styled Components ---
@@ -147,6 +148,42 @@ const LoadingContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
+const MagicLinkBox = styled.div`
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  padding: ${({ theme }) => theme.spacing.md};
+  margin-top: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  position: relative;
+  overflow: hidden;
+`;
+
+const MagicLinkText = styled.div`
+  font-family: monospace;
+  background: ${({ theme }) => theme.colors.backgroundDark};
+  padding: ${({ theme }) => theme.spacing.sm};
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  overflow-x: auto;
+  white-space: nowrap;
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+  font-size: 0.9rem;
+  max-width: 100%;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: ${({ theme }) => theme.colors.borderDark};
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+`;
+
 const getStatusBadgeVariant = (status?: StudentAssessment['status'] | FlaggedMessage['status']): 'success' | 'warning' | 'error' | 'default' => {
     if (!status) return 'default';
     // Assessment Statuses
@@ -183,12 +220,76 @@ export default function StudentRoomDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('overview');
+  const [pinCode, setPinCode] = useState<string>('');
+  const [username, setUsername] = useState<string>('');
+  const [isLoadingPin, setIsLoadingPin] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [showCopiedMessage, setShowCopiedMessage] = useState(false);
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [regeneratingPin, setRegeneratingPin] = useState(false);
+  
+  // Magic link states
+  const [magicLink, setMagicLink] = useState<string>('');
+  const [isLoadingMagicLink, setIsLoadingMagicLink] = useState(false);
+  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
+  const [showMagicLinkCopied, setShowMagicLinkCopied] = useState(false);
+  const [regeneratingMagicLink, setRegeneratingMagicLink] = useState(false);
+  const magicLinkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const params = useParams();
   const router = useRouter();
   const roomId = params?.roomId as string;
   const studentId = params?.studentId as string;
 
+  // Function to copy pin to clipboard
+  const copyPinToClipboard = () => {
+    if (pinCode) {
+      navigator.clipboard.writeText(`${username}: ${pinCode}`).then(() => {
+        setShowCopiedMessage(true);
+        if (copyTimeoutRef.current) {
+          clearTimeout(copyTimeoutRef.current);
+        }
+        copyTimeoutRef.current = setTimeout(() => {
+          setShowCopiedMessage(false);
+        }, 3000);
+      });
+    }
+  };
+
+  // Function to regenerate pin
+  const handleRegeneratePin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!studentId) return;
+    
+    setRegeneratingPin(true);
+    setPinError(null);
+    
+    try {
+      const response = await fetch('/api/teacher/students/pin-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to regenerate PIN (status ${response.status})`);
+      }
+      
+      const data = await response.json();
+      setPinCode(data.pin_code || '');
+      setUsername(data.username || '');
+      
+    } catch (err) {
+      console.error('Error regenerating PIN:', err);
+      setPinError(err instanceof Error ? err.message : 'Failed to regenerate PIN code');
+    } finally {
+      setRegeneratingPin(false);
+    }
+  };
+  
   const fetchStudentRoomDetails = useCallback(async () => {
     if (!roomId || !studentId) {
       setError("Room ID or Student ID not found in URL.");
@@ -233,7 +334,117 @@ export default function StudentRoomDetailPage() {
 
   useEffect(() => {
     fetchStudentRoomDetails();
+    
   }, [fetchStudentRoomDetails]);
+  
+  // Fetch PIN info
+  useEffect(() => {
+    const fetchPinCode = async () => {
+      if (!studentId) return;
+      
+      setIsLoadingPin(true);
+      setPinError(null);
+      
+      try {
+        const response = await fetch(`/api/teacher/students/pin-code?studentId=${studentId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch PIN (status ${response.status})`);
+        }
+        
+        const data = await response.json();
+        setPinCode(data.pin_code || '');
+        setUsername(data.username || '');
+        
+      } catch (err) {
+        console.error('Error fetching PIN:', err);
+        setPinError(err instanceof Error ? err.message : 'Failed to fetch PIN code');
+      } finally {
+        setIsLoadingPin(false);
+      }
+    };
+    
+    fetchPinCode();
+  }, [studentId]);
+  
+  // Fetch magic link
+  useEffect(() => {
+    const fetchMagicLink = async () => {
+      if (!studentId || !roomId) return;
+      
+      setIsLoadingMagicLink(true);
+      setMagicLinkError(null);
+      
+      try {
+        const response = await fetch(`/api/teacher/students/magic-link?studentId=${studentId}&roomId=${roomId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch magic link (status ${response.status})`);
+        }
+        
+        const data = await response.json();
+        setMagicLink(data.magicLink || '');
+        
+      } catch (err) {
+        console.error('Error fetching magic link:', err);
+        setMagicLinkError(err instanceof Error ? err.message : 'Failed to fetch magic link');
+      } finally {
+        setIsLoadingMagicLink(false);
+      }
+    };
+    
+    fetchMagicLink();
+  }, [studentId, roomId]);
+  
+  // Function to copy magic link to clipboard
+  const copyMagicLinkToClipboard = () => {
+    if (magicLink) {
+      navigator.clipboard.writeText(magicLink).then(() => {
+        setShowMagicLinkCopied(true);
+        if (magicLinkTimeoutRef.current) {
+          clearTimeout(magicLinkTimeoutRef.current);
+        }
+        magicLinkTimeoutRef.current = setTimeout(() => {
+          setShowMagicLinkCopied(false);
+        }, 3000);
+      });
+    }
+  };
+  
+  // Function to regenerate magic link
+  const handleRegenerateMagicLink = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!studentId || !roomId) return;
+    
+    setRegeneratingMagicLink(true);
+    setMagicLinkError(null);
+    
+    try {
+      const response = await fetch('/api/teacher/students/magic-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId, roomId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to regenerate magic link (status ${response.status})`);
+      }
+      
+      const data = await response.json();
+      setMagicLink(data.magicLink || '');
+      
+    } catch (err) {
+      console.error('Error regenerating magic link:', err);
+      setMagicLinkError(err instanceof Error ? err.message : 'Failed to regenerate magic link');
+    } finally {
+      setRegeneratingMagicLink(false);
+    }
+  };
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'N/A';
@@ -287,6 +498,95 @@ export default function StudentRoomDetailPage() {
           <StudentInfoBar>
             <h1>{student.full_name || 'Student'}</h1>
             <p>{student.email || 'No email provided'}</p>
+            
+            {/* Compact Access Section */}
+            <div style={{ marginTop: '15px' }}>
+              <SummarySection>
+                <SectionTitle>Student Access Details</SectionTitle>
+                {(isLoadingPin || isLoadingMagicLink) ? (
+                  <p>Loading access details...</p>
+                ) : (pinError || magicLinkError) ? (
+                  <Alert variant="error">{pinError || magicLinkError}</Alert>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {/* PIN Section */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <h4 style={{ margin: '0', fontSize: '1rem' }}>Login PIN</h4>
+                        <Button 
+                          onClick={handleRegeneratePin}
+                          variant="secondary"
+                          size="small"
+                          disabled={regeneratingPin}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                        >
+                          {regeneratingPin ? 'Regenerating...' : 'Regenerate'}
+                        </Button>
+                      </div>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '10px', 
+                        background: '#f5f5f5',
+                        padding: '8px',
+                        borderRadius: '4px'
+                      }}>
+                        <div style={{ flex: '1' }}>
+                          <span style={{ fontWeight: 'bold', marginRight: '6px' }}>Username:</span>
+                          <span>{username || 'Not set'}</span>
+                          <span style={{ margin: '0 8px' }}>|</span>
+                          <span style={{ fontWeight: 'bold', marginRight: '6px' }}>PIN:</span>
+                          <span style={{ letterSpacing: '1px' }}>{pinCode || 'Not set'}</span>
+                        </div>
+                        <Button 
+                          onClick={copyPinToClipboard} 
+                          variant="outline"
+                          size="small"
+                          disabled={!pinCode}
+                          style={{ padding: '2px 8px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                        >
+                          {showCopiedMessage ? 'Copied!' : 'Copy'}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Magic Link Section */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <h4 style={{ margin: '0', fontSize: '1rem' }}>Magic Link</h4>
+                        <Button 
+                          onClick={handleRegenerateMagicLink}
+                          variant="secondary"
+                          size="small"
+                          disabled={regeneratingMagicLink}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                        >
+                          {regeneratingMagicLink ? 'Regenerating...' : 'Regenerate'}
+                        </Button>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <MagicLinkText style={{ flex: 1, maxWidth: 'calc(100% - 70px)' }}>
+                          {magicLink || 'No magic link available'}
+                        </MagicLinkText>
+                        <Button 
+                          onClick={copyMagicLinkToClipboard} 
+                          variant="outline"
+                          size="small"
+                          disabled={!magicLink}
+                          style={{ padding: '2px 8px', fontSize: '0.8rem', flexShrink: 0, marginTop: '2px' }}
+                        >
+                          {showMagicLinkCopied ? 'Copied!' : 'Copy'}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <p style={{ fontSize: '0.8rem', color: '#666', margin: '0' }}>
+                      Note: The PIN code can be used for regular login. The magic link provides direct access to this room.
+                    </p>
+                  </div>
+                )}
+              </SummarySection>
+            </div>
           </StudentInfoBar>
           <Button variant="outline" onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}`)}>
             ← Back to Room Overview

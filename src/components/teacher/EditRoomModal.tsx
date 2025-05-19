@@ -92,6 +92,25 @@ const Footer = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
+const DirectAccessContainer = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.md};
+  background-color: ${({ theme }) => theme.colors.backgroundDark};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+`;
+
+const DirectAccessUrl = styled.input`
+  width: 100%;
+  padding: ${({ theme }) => theme.spacing.sm};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+  font-family: ${({ theme }) => theme.fonts.mono};
+  font-size: 0.8rem;
+`;
+
 
 interface EditRoomModalProps {
   room: Room;
@@ -221,6 +240,29 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
               ))}
             </ChatbotList>
           )}
+        </Section>
+
+        <Section>
+          <SectionTitle>Direct Student Access</SectionTitle>
+          <DirectAccessContainer>
+            <p>Students can directly access this room using the following URL:</p>
+            <DirectAccessUrl 
+              type="text" 
+              value={`${window.location.origin}/chat/${room.room_id}`} 
+              readOnly
+              onClick={(e) => e.currentTarget.select()}
+            />
+            <Button 
+              variant="outline" 
+              size="small" 
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/chat/${room.room_id}`);
+                alert('Link copied to clipboard!');
+              }}
+            >
+              Copy Link
+            </Button>
+          </DirectAccessContainer>
         </Section>
 
         <Footer>

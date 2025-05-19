@@ -4,7 +4,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Container, Alert, Button as StyledButton } from '@/styles/StyledComponents'; // Renamed Button to avoid conflict
 import Chat from '@/components/shared/Chat';
 import type { Chatbot } from '@/types/database.types';
@@ -49,7 +48,6 @@ export default function TestChatPage() {
   
   const params = useParams();
   const router = useRouter();
-  const supabase = createClient();
   const chatbotId = params?.chatbotId as string;
 
   // Define a consistent "dummy" room ID for teacher test chats for this chatbot
@@ -66,23 +64,17 @@ export default function TestChatPage() {
     setLoading(true);
     setError(null);
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error('Not authenticated. Please log in.');
+      // Use the API endpoint instead of direct Supabase query to avoid RLS issues
+      const response = await fetch(`/api/teacher/chatbots/${chatbotId}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[TestChatPage] Error fetching chatbot:', errorData);
+        throw new Error(errorData.error || `Failed to fetch chatbot data (status ${response.status})`);
       }
-
-      // Fetch the specific chatbot details, ensuring the teacher owns it
-      const { data: chatbotData, error: chatbotError } = await supabase
-        .from('chatbots')
-        .select('*')
-        .eq('chatbot_id', chatbotId)
-        .eq('teacher_id', user.id) // Important: Ensure teacher owns this chatbot
-        .single();
-
-      if (chatbotError) {
-        console.error('[TestChatPage] Error fetching chatbot:', chatbotError);
-        throw new Error(chatbotError.message || 'Failed to fetch chatbot details.');
-      }
+      
+      const chatbotData = await response.json();
+      
       if (!chatbotData) {
         throw new Error('Chatbot not found or you do not have permission to access it.');
       }
@@ -94,7 +86,7 @@ export default function TestChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [chatbotId, supabase]);
+  }, [chatbotId]);
 
   useEffect(() => {
     fetchChatbotData();

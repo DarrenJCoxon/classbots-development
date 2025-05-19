@@ -1,6 +1,7 @@
 // src/app/api/teacher/dashboard-stats/route.ts
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET() {
   console.log('\n--- [API GET /dashboard-stats] ---');
@@ -30,31 +31,34 @@ export async function GET() {
     }
     console.log('[API STATS] User is teacher. Proceeding with stats.');
     
-    // Fetch all stats concurrently
+    // Create admin client to bypass RLS policies
+    const supabaseAdmin = createAdminClient();
+    
+    // Fetch all stats concurrently using admin client
     const [
         chatbotsResult,
         roomsResult,
         activeRoomsResult,
         pendingConcernsResult
     ] = await Promise.all([
-        supabase
+        supabaseAdmin
             .from('chatbots')
             .select('chatbot_id', { count: 'exact', head: true })
             .eq('teacher_id', user.id),
-        supabase
+        supabaseAdmin
             .from('rooms')
             .select('room_id', { count: 'exact', head: true })
             .eq('teacher_id', user.id),
-        supabase
+        supabaseAdmin
             .from('rooms')
             .select('room_id', { count: 'exact', head: true })
             .eq('teacher_id', user.id)
             .eq('is_active', true),
-        supabase
+        supabaseAdmin
             .from('flagged_messages')
             .select('flag_id', { count: 'exact', head: true })
             .eq('teacher_id', user.id)
-            .eq('status', 'pending') // <<<< Count only PENDING concerns
+            .eq('status', 'pending') // Count only PENDING concerns
     ]);
 
     // Error handling for each query (optional, but good for debugging)

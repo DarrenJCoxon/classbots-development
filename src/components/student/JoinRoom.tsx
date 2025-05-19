@@ -1,12 +1,12 @@
 // src/components/student/JoinRoom.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Card, Button, Input, Alert } from '@/styles/StyledComponents';
 import { isValidRoomCode } from '@/lib/utils/room-codes';
+import { createClient } from '@/lib/supabase/client';
 
 const Overlay = styled.div`
   position: fixed;
@@ -70,27 +70,7 @@ export default function JoinRoom({ onClose, onSuccess }: JoinRoomProps) {
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setIsAuthenticated(true);
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    
-    checkAuth();
-  }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,46 +86,43 @@ export default function JoinRoom({ onClose, onSuccess }: JoinRoomProps) {
     }
 
     try {
-      if (!isAuthenticated) {
-        // If not authenticated, redirect to signup with room code
-        router.push(`/auth?type=student&redirect=/join?code=${formattedCode}`);
+      // First check if the room exists
+      const supabase = createClient();
+      const { data: room, error: roomError } = await supabase
+        .from('rooms')
+        .select('room_id, is_active')
+        .eq('room_code', formattedCode)
+        .single();
+
+      if (roomError) {
+        if (roomError.code === 'PGRST116') { // No rows returned
+          setError('Room not found. Please check the code and try again.');
+        } else {
+          setError('Error checking room. Please try again.');
+        }
+        setIsLoading(false);
         return;
       }
 
-      const response = await fetch('/api/student/join-room', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ room_code: formattedCode }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to join room');
+      if (!room.is_active) {
+        setError('This room is currently inactive. Please contact your teacher.');
+        setIsLoading(false);
+        return;
       }
 
-      onSuccess();
+      // Room exists and is active - redirect to the join room page
+      router.push(`/join-room?code=${formattedCode}`);
+      
+      // Close the modal
       onClose();
+      
+      // Call the success callback
+      onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
-    } finally {
       setIsLoading(false);
     }
   };
-
-  if (isCheckingAuth) {
-    return (
-      <Overlay>
-        <JoinCard>
-          <Header>
-            <Title>Loading...</Title>
-          </Header>
-        </JoinCard>
-      </Overlay>
-    );
-  }
 
   return (
     <Overlay>
@@ -153,10 +130,7 @@ export default function JoinRoom({ onClose, onSuccess }: JoinRoomProps) {
         <Header>
           <Title>Join Classroom</Title>
           <Description>
-            {isAuthenticated 
-              ? 'Enter the room code provided by your teacher'
-              : 'You need to log in to join a classroom'
-            }
+            Enter the room code provided by your teacher
           </Description>
         </Header>
 
@@ -169,6 +143,7 @@ export default function JoinRoom({ onClose, onSuccess }: JoinRoomProps) {
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
             placeholder="ROOM CODE"
             maxLength={6}
+            autoFocus
             required
           />
           
@@ -186,7 +161,7 @@ export default function JoinRoom({ onClose, onSuccess }: JoinRoomProps) {
               disabled={isLoading}
               style={{ flex: 1 }}
             >
-              {isLoading ? 'Joining...' : isAuthenticated ? 'Join Room' : 'Sign In'}
+              {isLoading ? 'Joining...' : 'Continue'}
             </Button>
           </ButtonGroup>
         </Form>

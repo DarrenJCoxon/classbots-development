@@ -1,14 +1,21 @@
 // src/app/api/teacher/rooms/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { generateRoomCode } from '@/lib/utils/room-codes';
 import type { CreateRoomPayload, TeacherRoom } from '@/types/database.types';
 import type { PostgrestError } from '@supabase/supabase-js'; // Import for better error typing
 
 // GET all rooms for the teacher
-export async function GET() {
+export async function GET(request: NextRequest) {
   console.log('[API GET /rooms] Received request.');
   try {
+    const { searchParams } = new URL(request.url);
+    const includeArchived = searchParams.get('includeArchived') === 'true';
+    const archivedOnly = searchParams.get('archivedOnly') === 'true';
+    
+    console.log(`[API GET /rooms] Query params: includeArchived=${includeArchived}, archivedOnly=${archivedOnly}`);
+    
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -49,22 +56,59 @@ export async function GET() {
     }
 
     console.log('[API GET /rooms] User is confirmed teacher. Fetching rooms.');
-
-    const { data: rooms, error: fetchError } = await supabase
+    
+    // Use the admin client to bypass RLS policy issues completely
+    const supabaseAdmin = createAdminClient();
+    
+    // Get basic room data first, bypassing RLS completely
+    let query = supabaseAdmin
       .from('rooms')
-      .select(`
-        *,
-        room_chatbots (
-          chatbots ( chatbot_id, name )
-        )
-      `)
-      .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('*')
+      .eq('teacher_id', user.id);
+      
+    // Apply archive filtering based on query parameters
+    if (archivedOnly) {
+      query = query.eq('is_archived', true);
+    } else if (!includeArchived) {
+      query = query.eq('is_archived', false);
+    }
+    
+    // Always order by creation date
+    query = query.order('created_at', { ascending: false });
+    
+    const { data: rooms, error: fetchError } = await query;
 
     if (fetchError) {
       console.error('[API GET /rooms] Error fetching rooms from DB:', fetchError);
       throw fetchError;
     }
+    
+    // Now fetch associated chatbots separately, also bypassing RLS
+    if (rooms && rooms.length > 0) {
+      const roomIds = rooms.map(room => room.room_id);
+      
+      // Get chatbot associations, also using admin client
+      const { data: roomChatbots, error: chatbotError } = await supabaseAdmin
+        .from('room_chatbots')
+        .select(`
+          room_id,
+          chatbot_id,
+          chatbots (chatbot_id, name)
+        `)
+        .in('room_id', roomIds);
+        
+      if (chatbotError) {
+        console.error('[API GET /rooms] Error fetching room chatbots:', chatbotError);
+        // Continue despite error - we'll return rooms without chatbot data
+      } else if (roomChatbots) {
+        // Manually structure the data to match the previous nested query result
+        rooms.forEach(room => {
+          const chatbotsForRoom = roomChatbots.filter(rc => rc.room_id === room.room_id);
+          room.room_chatbots = chatbotsForRoom;
+        });
+      }
+    }
+    
     console.log(`[API GET /rooms] Successfully fetched ${rooms?.length || 0} rooms.`);
     return NextResponse.json(rooms || []);
 

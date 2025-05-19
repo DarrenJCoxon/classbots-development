@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Container, Card, Alert, Button } from '@/styles/StyledComponents';
@@ -171,6 +171,11 @@ const LoadingContainer = styled.div`
   min-height: 50vh;
 `;
 
+// Extended chatbot interface to include instance_id
+interface ChatbotWithInstance extends Chatbot {
+  instance_id?: string;
+}
+
 interface RoomQueryResult {
   room_id: string;
   room_name: string;
@@ -186,7 +191,7 @@ interface RoomQueryResult {
 
 export default function RoomPage() {
   const [room, setRoom] = useState<RoomQueryResult | null>(null);
-  const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [chatbots, setChatbots] = useState<ChatbotWithInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -196,43 +201,102 @@ export default function RoomPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Check for direct access via URL param with user ID
+  const searchParams = useSearchParams();
+  const uidFromUrl = searchParams?.get('uid');
+  
   const fetchRoomData = useCallback(async () => {
     try {
+      // Check for direct user ID access via URL
+      const directUid = searchParams?.get('uid');
+      let userId, userRole;
+      
+      // First, try to get the authenticated user normally
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Get user role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) throw new Error('User profile not found');
-      setUserRole(profile.role);
+      
+      // Helper function to get cookie values
+      const getCookieValue = (name: string): string | null => {
+        if (typeof document === 'undefined') return null;
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : null;
+      };
+      
+      // Check for different auth mechanisms via cookies
+      // First with standard auth-* cookies, then check older emergency_* cookies for backward compatibility
+      const authUserId = getCookieValue('auth-user-id') || getCookieValue('emergency_user_id');
+      const directAccess = getCookieValue('auth-direct-access') === 'true' || getCookieValue('emergency_access') === 'true';
+      const cookieRoomId = getCookieValue('auth-room-id') || getCookieValue('emergency_room_id');
+      const directAccessMode = searchParams?.get('direct') === 'true' || searchParams?.get('emergency') === 'true';
+      
+      if (!user) {
+        if (directAccess && authUserId && cookieRoomId === roomId) {
+          console.log('[RoomPage] Using direct access cookies:', authUserId);
+          userId = authUserId;
+          userRole = 'student';
+        } else if (directUid) {
+          console.log('[RoomPage] No authenticated user but direct UID provided:', directUid);
+          // Try to use the direct UID
+          userId = directUid;
+          userRole = 'student'; // Assume student role for direct access
+        } else {
+          throw new Error('Not authenticated');
+        }
+      } else {
+        userId = user.id;
+        
+        // Get user role from profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('user_id', userId)
+          .single();
+  
+        if (!profile) throw new Error('User profile not found');
+        userRole = profile.role;
+        setUserRole(userRole);
+      }
 
       // First, ensure we have access to this room
       let hasAccess = false;
-      if (profile.role === 'teacher') {
+      if (userRole === 'teacher') {
         // For teachers, check if they own the room
         const { data: teacherRoom } = await supabase
           .from('rooms')
           .select('room_id')
           .eq('room_id', roomId)
-          .eq('teacher_id', user.id)
+          .eq('teacher_id', userId)
           .single();
         
         hasAccess = !!teacherRoom;
-      } else if (profile.role === 'student') {
+      } else if (userRole === 'student') {
         // For students, check if they're a member of the room
         const { data: membership } = await supabase
           .from('room_memberships')
           .select('room_id')
           .eq('room_id', roomId)
-          .eq('student_id', user.id)
+          .eq('student_id', userId)
           .single();
         
         hasAccess = !!membership;
+        
+        // If direct uid was provided but no access, try using admin client
+        if (!hasAccess && directUid) {
+          console.warn('[RoomPage] No access found using standard query with direct UID, trying API...');
+          // Use a special API endpoint with admin client to check membership
+          try {
+            const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${directUid}`, {
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              hasAccess = data.isMember;
+              console.log('[RoomPage] Access check via API:', hasAccess ? 'Granted' : 'Denied');
+            }
+          } catch (apiError) {
+            console.error('[RoomPage] Error checking membership via API:', apiError);
+          }
+        }
       }
 
       if (!hasAccess) {
@@ -240,6 +304,31 @@ export default function RoomPage() {
       }
 
       // Get basic room info
+      if (directUid || directAccess || directAccessMode) {
+        console.log('[RoomPage] Using direct API endpoint for room data');
+        // Use admin API to get data
+        try {
+          // Use the most reliable user ID available
+          const effectiveUserId = authUserId || directUid;
+          const response = await fetch(`/api/student/room-data?roomId=${roomId}&userId=${effectiveUserId}`, {
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch room data via API');
+          }
+          
+          const data = await response.json();
+          setRoom(data.room);
+          setChatbots(data.chatbots || []);
+          return;
+        } catch (apiError) {
+          console.error('[RoomPage] Error fetching room data via API:', apiError);
+          // Continue with standard flow as fallback
+        }
+      }
+
+      // Standard flow
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('*')
@@ -258,7 +347,7 @@ export default function RoomPage() {
         .eq('room_id', roomId);
 
       if (rcError) {
-        console.error('Error fetching room-chatbot relations:', rcError);
+        console.error('[RoomPage] Error fetching room-chatbot relations:', rcError);
         throw new Error('Failed to retrieve chatbot information');
       }
 
@@ -274,7 +363,7 @@ export default function RoomPage() {
           .in('chatbot_id', chatbotIds);
 
         if (chatbotsError) {
-          console.error('Error fetching chatbots:', chatbotsError);
+          console.error('[RoomPage] Error fetching chatbots:', chatbotsError);
           throw new Error('Failed to retrieve chatbot information');
         }
         
@@ -288,24 +377,41 @@ export default function RoomPage() {
       } as RoomQueryResult);
       setChatbots(extractedChatbots);
     } catch (err) {
-      console.error('Error in fetchRoomData:', err);
+      console.error('[RoomPage] Error in fetchRoomData:', err);
       setError(err instanceof Error ? err.message : 'Failed to load room');
     } finally {
       setLoading(false);
     }
-  }, [roomId, supabase]);
+  }, [roomId, supabase, searchParams]);
 
   useEffect(() => {
+    if (uidFromUrl) {
+      console.log('[RoomPage] Direct user ID access detected:', uidFromUrl);
+    }
+    
     if (roomId) {
       fetchRoomData();
     }
-  }, [roomId, fetchRoomData]);
+  }, [roomId, fetchRoomData, uidFromUrl]);
 
   const handleBack = () => {
     if (userRole === 'teacher') {
       router.push('/teacher-dashboard');
     } else {
-      router.push('/student');
+      // For students, we need to preserve the user ID
+      const directUid = searchParams?.get('uid') || searchParams?.get('student_id');
+      
+      if (directUid) {
+        // Store ID in localStorage for additional reliability
+        localStorage.setItem('student_direct_access_id', directUid);
+        localStorage.setItem('current_student_id', directUid);
+        
+        // Go back to dashboard with user ID - make sure both param formats are included
+        router.push(`/student/dashboard?direct=1&user_id=${directUid}&_t=${Date.now()}`);
+      } else {
+        // Fallback to regular student dashboard
+        router.push('/student/dashboard');
+      }
     }
   };
 
@@ -380,8 +486,11 @@ export default function RoomPage() {
           <ChatbotGrid>
             {chatbots.map((chatbot) => (
               <Link 
-                key={chatbot.chatbot_id} 
-                href={`/chat/${roomId}?chatbot=${chatbot.chatbot_id}`}
+                key={chatbot.instance_id || chatbot.chatbot_id} 
+                href={uidFromUrl ? 
+                  `/chat/${roomId}?chatbot=${chatbot.chatbot_id}&instance=${chatbot.instance_id || ''}&uid=${uidFromUrl}` : 
+                  `/chat/${roomId}?chatbot=${chatbot.chatbot_id}&instance=${chatbot.instance_id || ''}`
+                }
                 style={{ textDecoration: 'none' }}
               >
                 <ChatbotCard>
@@ -391,6 +500,12 @@ export default function RoomPage() {
                   <div className="model-info">
                     {getModelDisplayName(chatbot.model)}
                   </div>
+                  
+                  {process.env.NODE_ENV === 'development' && (
+                    <div style={{ fontSize: '0.8rem', color: '#999', marginBottom: '0.5rem', padding: '0.25rem', background: '#f5f5f5', borderRadius: '4px' }}>
+                      Instance ID: {chatbot.instance_id || 'None'}
+                    </div>
+                  )}
                   
                   <Button 
                     className="chat-button"

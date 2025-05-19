@@ -535,6 +535,7 @@ export default function Dashboard() {
           onUpdate={fetchDashboardData}
           onEditRoom={handleEditRoom}
           onDeleteRoom={(room) => openDeleteModal('Room', room.room_id, room.room_name)} // Pass handler for delete button in list
+          onArchiveRoom={(room) => router.push(`/teacher-dashboard/rooms/${room.room_id}`)} // Redirect to room page for archiving
         />
       </Section>
 

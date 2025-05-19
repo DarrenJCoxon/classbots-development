@@ -67,11 +67,26 @@ export async function GET(request: NextRequest) {
     console.log(`[API GET /teacher/room-details] Fetched ${assignedChatbots.length} assigned chatbots for room ${roomId}.`);
 
 
-    // Fetch student memberships
-    const { data: memberships, error: membershipError } = await supabase
+    // Get query parameter to include archived students
+    const includeArchived = searchParams.get('includeArchived') === 'true';
+    const archivedOnly = searchParams.get('archivedOnly') === 'true';
+    
+    console.log(`[API GET /teacher/room-details] Query params: includeArchived=${includeArchived}, archivedOnly=${archivedOnly}`);
+    
+    // Fetch student memberships with archive filtering
+    let membershipQuery = supabase
       .from('room_memberships')
-      .select('student_id, joined_at')
+      .select('student_id, joined_at, is_archived')
       .eq('room_id', roomId);
+      
+    // Apply archive filtering based on query parameters  
+    if (archivedOnly) {
+      membershipQuery = membershipQuery.eq('is_archived', true);
+    } else if (!includeArchived) {
+      membershipQuery = membershipQuery.eq('is_archived', false);
+    }
+    
+    const { data: memberships, error: membershipError } = await membershipQuery;
 
     if (membershipError) {
       console.error(`[API GET /teacher/room-details] Error fetching student memberships for room ${roomId}:`, membershipError.message);
@@ -83,6 +98,7 @@ export async function GET(request: NextRequest) {
         full_name: string;
         email: string;
         joined_at: string;
+        is_archived?: boolean;
     }
 
     let studentsInRoom: StudentInRoom[] = [];
@@ -108,6 +124,7 @@ export async function GET(request: NextRequest) {
           full_name: profile?.full_name || 'Student', // Fallback name
           email: profile?.email || 'No email',       // Fallback email
           joined_at: membership.joined_at,
+          is_archived: membership.is_archived || false
         };
       });
       console.log(`[API GET /teacher/room-details] Processed student profile data for room ${roomId}.`);

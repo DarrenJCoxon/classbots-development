@@ -2,7 +2,9 @@
 'use client';
 
 import { useState } from 'react';
+// useEffect import removed as it's not used
 import styled from 'styled-components';
+import { BotTypeEnum } from '@/types/database.types';
 import {
     Card,
     Button,
@@ -13,10 +15,13 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
+// Instead of SimpleDocumentUploader and SimpleWebScraper, use enhanced versions
+import EnhancedRagUploader from './EnhancedRagUploader';
+import EnhancedRagScraper from './EnhancedRagScraper';
 // No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
-// Define BotTypeEnum locally for form state
-type BotType = 'learning' | 'assessment';
+// Use the BotTypeEnum from database.types
+type BotType = BotTypeEnum;
 
 const Overlay = styled.div`
   position: fixed;
@@ -45,6 +50,7 @@ const FormCard = styled(Card)`
   display: flex;
   flex-direction: column;
   max-height: 90vh;
+  overflow-y: hidden; /* Hide overflow to let FormContent handle scrolling */
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     margin: 0;
@@ -93,9 +99,11 @@ const FormContent = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
   overflow-y: auto;
   flex-grow: 1;
+  max-height: calc(90vh - 140px); /* Adjust this value based on header/footer height */
+  overscroll-behavior: contain; /* Prevent scroll chaining */
 
   &::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
   }
   &::-webkit-scrollbar-thumb {
     background-color: ${({ theme }) => theme.colors.borderDark};
@@ -104,10 +112,12 @@ const FormContent = styled.div`
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: ${({ theme }) => theme.colors.borderDark} transparent; /* Firefox */
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.md};
+    max-height: calc(100vh - 140px); /* Adjust for mobile */
   }
 `;
 
@@ -119,6 +129,10 @@ const Footer = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   flex-shrink: 0;
+  background-color: ${({ theme }) => theme.colors.background}; /* Ensure footer is opaque */
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-direction: column-reverse;
@@ -152,6 +166,27 @@ const RubricInfoText = styled(HelpText)`
   margin-top: ${({ theme }) => theme.spacing.md};
 `;
 
+const ExampleTemplateContainer = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.md};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+const TemplateButton = styled(Button)`
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.sm}`};
+  margin-right: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+`;
+
+const TemplateButtonGroup = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: ${({ theme }) => theme.spacing.xs};
+`;
+
 
 interface ChatbotFormData {
   name: string;
@@ -163,32 +198,91 @@ interface ChatbotFormData {
   enable_rag: boolean;
   bot_type: BotType;
   assessment_criteria_text: string;
-  welcome_message: string; // <--- ADDED
+  welcome_message: string;
+  chatbot_id?: string; // For edit mode
 }
 
 interface ChatbotFormProps {
   onClose: () => void;
   onSuccess: (chatbotId: string) => void;
+  initialData?: Partial<ChatbotFormData>;
+  editMode?: boolean;
 }
 
-export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
+export default function ChatbotForm({ onClose, onSuccess, initialData, editMode = false }: ChatbotFormProps) {
   const [formData, setFormData] = useState<ChatbotFormData>({
-    name: '',
-    description: '',
-    system_prompt: '',
-    model: 'openai/gpt-4.1-nano',
-    max_tokens: 1000,
-    temperature: 0.7,
-    enable_rag: false,
-    bot_type: 'learning',
-    assessment_criteria_text: '',
-    welcome_message: '', // <--- ADDED initial value
+    name: initialData?.name || '',
+    description: initialData?.description || '',
+    system_prompt: initialData?.system_prompt || '',
+    model: initialData?.model || 'openai/gpt-4.1-nano',
+    max_tokens: initialData?.max_tokens !== undefined ? initialData.max_tokens : 1000,
+    temperature: initialData?.temperature !== undefined ? initialData.temperature : 0.7,
+    enable_rag: initialData?.enable_rag !== undefined ? initialData.enable_rag : false,
+    bot_type: initialData?.bot_type || 'learning',
+    assessment_criteria_text: initialData?.assessment_criteria_text || '',
+    welcome_message: initialData?.welcome_message || '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof ChatbotFormData, string>>>({});
+
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof ChatbotFormData, string>> = {};
+    
+    // Basic validation rules
+    if (!formData.name.trim()) {
+      errors.name = 'Name is required';
+    } else if (formData.name.length > 100) {
+      errors.name = 'Name must be less than 100 characters';
+    }
+
+    if (!formData.system_prompt.trim()) {
+      errors.system_prompt = 'System prompt is required';
+    } else if (formData.system_prompt.length < 10) {
+      errors.system_prompt = 'System prompt is too short (min 10 characters)';
+    } else if (formData.system_prompt.length > 4000) {
+      errors.system_prompt = 'System prompt is too long (max 4000 characters)';
+    }
+
+    if (formData.bot_type === 'assessment' && !formData.assessment_criteria_text.trim()) {
+      errors.assessment_criteria_text = 'Assessment criteria is required for assessment bots';
+    }
+
+    if (formData.welcome_message && formData.welcome_message.length > 1000) {
+      errors.welcome_message = 'Welcome message must be less than 1000 characters';
+    }
+
+    if (formData.description && formData.description.length > 500) {
+      errors.description = 'Description must be less than 500 characters';
+    }
+
+    // Validate numerical fields
+    if (formData.max_tokens !== undefined && formData.max_tokens !== null) {
+      const maxTokens = Number(formData.max_tokens);
+      if (isNaN(maxTokens) || maxTokens < 1 || maxTokens > 32000) {
+        errors.max_tokens = 'Max tokens must be between 1 and 32000';
+      }
+    }
+
+    if (formData.temperature !== undefined && formData.temperature !== null) {
+      const temp = Number(formData.temperature);
+      if (isNaN(temp) || temp < 0 || temp > 2) {
+        errors.temperature = 'Temperature must be between 0 and 2';
+      }
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsSubmitting(true);
     setError(null);
 
@@ -208,18 +302,25 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
 
 
     try {
-      const response = await fetch('/api/teacher/chatbots', {
-        method: 'POST',
+      // Determine if we're creating a new chatbot or updating an existing one
+      const endpoint = editMode && initialData?.chatbot_id 
+        ? `/api/teacher/chatbots/${initialData.chatbot_id}` 
+        : '/api/teacher/chatbots';
+      
+      const method = editMode ? 'PUT' : 'POST';
+      
+      const response = await fetch(endpoint, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload), // This payload should match CreateChatbotPayload
+        body: JSON.stringify(payload),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to create chatbot');
+        throw new Error(responseData.error || `Failed to ${editMode ? 'update' : 'create'} chatbot`);
       }
 
       onSuccess(responseData.chatbot_id);
@@ -234,6 +335,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
+    // Clear validation error for this field when user makes changes
+    if (validationErrors[e.target.name as keyof ChatbotFormData]) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [e.target.name]: undefined
+      }));
+    }
     const { name, value, type } = e.target;
 
     if (type === 'checkbox') {
@@ -257,7 +365,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
     <Overlay>
       <FormCard>
         <Header>
-          <Title>Create New Chatbot</Title>
+          <Title>{editMode ? 'Edit Chatbot' : 'Create New Chatbot'}</Title>
           <CloseButton onClick={onClose} aria-label="Close modal">×</CloseButton>
         </Header>
 
@@ -275,7 +383,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                 onChange={handleChange}
                 placeholder="e.g., History Helper, Vocab Quizzer"
                 required
+                className={!!validationErrors.name ? 'is-invalid' : ''}
               />
+              {validationErrors.name && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.name}
+                </Alert>
+              )}
             </FormGroup>
 
             <FormGroup>
@@ -302,17 +416,128 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                   name="assessment_criteria_text"
                   value={formData.assessment_criteria_text}
                   onChange={handleChange}
-                  rows={5}
+                  rows={8}
                   placeholder="Clearly describe what the AI should assess. For example:
 1. Accuracy of answers to key concepts.
 2. Clarity of student's explanations.
 3. Use of specific examples or evidence.
 4. Critical thinking demonstrated."
                   required={formData.bot_type === 'assessment'}
+                  className={!!validationErrors.assessment_criteria_text ? 'is-invalid' : ''}
                 />
+                {validationErrors.assessment_criteria_text && (
+                  <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                    {validationErrors.assessment_criteria_text}
+                  </Alert>
+                )}
                 <HelpText>
                   This text will guide the AI in evaluating student responses. Be specific.
                 </HelpText>
+                
+                <ExampleTemplateContainer>
+                  <Label as="p" style={{ marginBottom: '4px' }}>Example Templates:</Label>
+                  <TemplateButtonGroup>
+                    <TemplateButton 
+                      variant="outline" 
+                      size="small"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          assessment_criteria_text: `Evaluate the student's understanding of key scientific concepts based on the following criteria:
+
+1. Understanding of the scientific method (20%)
+   - Can identify all steps in the scientific method
+   - Explains how hypothesis testing works
+   - Understands experimental controls and variables
+
+2. Content knowledge accuracy (40%)
+   - Facts are correct and relevant
+   - Can explain relationships between concepts
+   - Uses proper scientific terminology
+
+3. Critical analysis (20%)
+   - Identifies strengths/weaknesses in arguments
+   - Considers multiple perspectives
+   - Draws reasonable conclusions from evidence
+
+4. Communication clarity (20%)
+   - Ideas expressed logically and coherently
+   - Uses specific examples to support points
+   - Grammar and spelling are correct`
+                        }))
+                      }}
+                    >
+                      Science Assessment
+                    </TemplateButton>
+                    
+                    <TemplateButton 
+                      variant="outline" 
+                      size="small"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          assessment_criteria_text: `Assess the student's essay using the following criteria:
+
+1. Thesis & Structure (25%)
+   - Clear thesis statement that establishes the argument
+   - Logical organization with introduction, body paragraphs, and conclusion
+   - Smooth transitions between ideas
+
+2. Evidence & Analysis (30%)
+   - Relevant and specific evidence to support claims
+   - In-depth analysis that connects evidence to thesis
+   - Thoughtful engagement with multiple perspectives
+
+3. Critical Thinking (25%)
+   - Original insights beyond surface-level observations
+   - Considers implications and significance of the argument
+   - Addresses potential counterarguments
+
+4. Writing Mechanics (20%)
+   - Proper grammar, spelling, and punctuation
+   - Varied sentence structure and academic vocabulary
+   - Consistent citation format (if applicable)`
+                        }))
+                      }}
+                    >
+                      Essay Rubric
+                    </TemplateButton>
+                    
+                    <TemplateButton 
+                      variant="outline" 
+                      size="small"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          assessment_criteria_text: `Evaluate the student's math problem-solving abilities using these criteria:
+
+1. Procedural Fluency (30%)
+   - Correctly applies mathematical operations
+   - Follows proper order of operations
+   - Shows computational accuracy
+
+2. Conceptual Understanding (30%)
+   - Demonstrates understanding of underlying concepts
+   - Can explain why procedures work
+   - Makes connections between related ideas
+
+3. Problem-Solving Strategy (25%)
+   - Selects appropriate approach to solve problems
+   - Implements strategy efficiently
+   - Can apply concepts to novel situations
+
+4. Mathematical Communication (15%)
+   - Uses correct mathematical notation
+   - Shows work in a clear, organized manner
+   - Explains reasoning behind steps`
+                        }))
+                      }}
+                    >
+                      Math Problems
+                    </TemplateButton>
+                  </TemplateButtonGroup>
+                </ExampleTemplateContainer>
+                
                 <RubricInfoText>
                   For more complex rubrics, you will be able to upload a document (e.g., PDF, DOCX) with detailed criteria after creating the bot (on the chatbot&apos;s configuration page). For now, please provide a text-based summary here.
                 </RubricInfoText>
@@ -327,7 +552,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="A brief summary of what this chatbot does"
+                className={!!validationErrors.description ? 'is-invalid' : ''}
               />
+              {validationErrors.description && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.description}
+                </Alert>
+              )}
             </FormGroup>
 
             <FormGroup>
@@ -344,7 +575,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                 }
                 required
                 rows={formData.bot_type === 'assessment' ? 3 : 5}
+                className={!!validationErrors.system_prompt ? 'is-invalid' : ''}
               />
+              {validationErrors.system_prompt && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.system_prompt}
+                </Alert>
+              )}
               <HelpText>
                   This defines the AI&apos;s general behavior.
                   {formData.bot_type === 'assessment' && " For Assessment Bots, assessment-specific instructions are primarily driven by the Assessment Criteria you define above."}
@@ -361,7 +598,13 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                 onChange={handleChange}
                 rows={3}
                 placeholder="e.g., Hello! I'm your [topic] assistant. How can I help you today?"
+                className={!!validationErrors.welcome_message ? 'is-invalid' : ''}
               />
+              {validationErrors.welcome_message && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.welcome_message}
+                </Alert>
+              )}
               <HelpText>
                 This will be the first message the student sees from the bot.
               </HelpText>
@@ -403,17 +646,72 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
                   <HelpText>
                       If enabled, you can upload documents to this chatbot&apos;s knowledge base after creation (on the chatbot&apos;s configuration page).
                   </HelpText>
+                  
+                  {formData.enable_rag && (
+                    <>
+                      {/* Show enhanced RAG components only in edit mode with a valid chatbot ID */}
+                      {editMode && initialData?.chatbot_id ? (
+                        <>
+                          <EnhancedRagUploader
+                            chatbotId={initialData.chatbot_id}
+                            onUploadSuccess={() => {
+                              // Could add a success notification here if desired
+                            }}
+                          />
+                          <EnhancedRagScraper
+                            chatbotId={initialData.chatbot_id}
+                            onScrapeSuccess={() => {
+                              // Could add a success notification here if desired
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <Alert variant="info" style={{ marginTop: '12px', marginBottom: '12px' }}>
+                          After creating your chatbot, you&apos;ll be able to upload documents and scrape webpages for the knowledge base.
+                        </Alert>
+                      )}
+                    </>
+                  )}
               </FormGroup>
             )}
 
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>
-              <Input id="max_tokens" name="max_tokens" type="number" value={formData.max_tokens || ''} onChange={handleChange} placeholder="Default: 1000" />
+              <Input 
+                id="max_tokens" 
+                name="max_tokens" 
+                type="number" 
+                value={formData.max_tokens || ''} 
+                onChange={handleChange} 
+                placeholder="Default: 1000" 
+                className={!!validationErrors.max_tokens ? 'is-invalid' : ''}
+              />
+              {validationErrors.max_tokens && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.max_tokens}
+                </Alert>
+              )}
             </FormGroup>
 
             <FormGroup>
               <Label htmlFor="temperature">Temperature (Chat Creativity)</Label>
-              <Input id="temperature" name="temperature" type="number" value={formData.temperature || ''} onChange={handleChange} min="0" max="2" step="0.1" placeholder="Default: 0.7"/>
+              <Input 
+                id="temperature" 
+                name="temperature" 
+                type="number" 
+                value={formData.temperature || ''} 
+                onChange={handleChange} 
+                min="0" 
+                max="2" 
+                step="0.1" 
+                placeholder="Default: 0.7"
+                className={!!validationErrors.temperature ? 'is-invalid' : ''}
+              />
+              {validationErrors.temperature && (
+                <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                  {validationErrors.temperature}
+                </Alert>
+              )}
               <HelpText>0.0 = most deterministic, 2.0 = most creative. Default is 0.7 for the chatbot&apos;s replies.</HelpText>
             </FormGroup>
           </form>
@@ -424,7 +722,7 @@ export default function ChatbotForm({ onClose, onSuccess }: ChatbotFormProps) {
             Cancel
           </ActionButton>
           <ActionButton type="submit" form="chatbotCreateForm" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating...' : 'Create Chatbot'}
+            {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Chatbot')}
           </ActionButton>
         </Footer>
       </FormCard>

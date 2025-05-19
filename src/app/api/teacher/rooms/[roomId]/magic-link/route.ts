@@ -31,7 +31,7 @@ export async function POST(request: Request, context: RouteParams) {
     }
 
     // Generate a signup link with embedded room code
-    const magicLink = `${process.env.NEXT_PUBLIC_APP_URL}/join?code=${room.room_code}`;
+    const magicLink = `${process.env.NEXT_PUBLIC_APP_URL}/join-room?code=${room.room_code}`;
 
     return NextResponse.json({ 
       magicLink: magicLink,

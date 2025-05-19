@@ -87,6 +87,7 @@ export default function ChatPage() {
 
   const roomId = params?.roomId ? String(params.roomId) : null;
   const chatbotIdFromUrl = searchParams.get('chatbot');
+  const instanceIdFromUrl = searchParams.get('instance');
   const initialFetchDoneRef = useRef(false);
 
   useEffect(() => {
@@ -112,10 +113,65 @@ export default function ChatPage() {
     console.log(`[ChatPage] fetchRoomData: Attempting fetch. RoomID: ${roomId}, ChatbotID: ${chatbotIdFromUrl}`);
     setLoading(true);
     setError(null);
-    // initialFetchDoneRef.current = true; // Moved to after successful fetch
+    
+    // Check for direct user ID access via URL
+    const directUid = searchParams.get('uid');
+    if (directUid) {
+      console.log('[ChatPage] Direct user ID provided in URL:', directUid);
+    }
 
     try {
+      // First try normal authentication
       const { data: { user } } = await supabase.auth.getUser();
+      
+      // If no authenticated user but direct UID provided, try to verify access via API
+      if (!user && directUid) {
+        console.log('[ChatPage] No authenticated user but direct UID provided, checking membership via API');
+        
+        try {
+          // Use the verify-membership API to check and potentially add the user to the room
+          const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${directUid}`, {
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('[ChatPage] Membership verification failed:', errorData);
+            throw new Error(errorData.error || 'Failed to verify room access');
+          }
+          
+          const membershipData = await response.json();
+          
+          if (!membershipData.isMember) {
+            throw new Error('You do not have access to this room');
+          }
+          
+          console.log('[ChatPage] Direct access granted via API');
+          
+          // Continue with fetch using admin API
+          const chatResponse = await fetch(`/api/student/room-chatbot-data?roomId=${roomId}&chatbotId=${chatbotIdFromUrl}&userId=${directUid}`, {
+            credentials: 'include'
+          });
+          
+          if (!chatResponse.ok) {
+            throw new Error('Failed to fetch chat data');
+          }
+          
+          const data = await chatResponse.json();
+          
+          setRoom(data.room);
+          setChatbot(data.chatbot);
+          initialFetchDoneRef.current = true;
+          setLoading(false);
+          return;
+        } catch (apiError) {
+          console.error('[ChatPage] API access verification failed:', apiError);
+          initialFetchDoneRef.current = false;
+          throw apiError;
+        }
+      }
+      
+      // Normal authenticated flow
       if (!user) {
         initialFetchDoneRef.current = false;
         throw new Error('Not authenticated');
@@ -189,15 +245,41 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [roomId, chatbotIdFromUrl, supabase]); // router removed from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, chatbotIdFromUrl, supabase]); // searchParams intentionally omitted for performance
 
   useEffect(() => {
     if (roomId && chatbotIdFromUrl && !initialFetchDoneRef.current) {
       fetchRoomData();
     }
-  }, [roomId, chatbotIdFromUrl, fetchRoomData]);
+  }, [roomId, chatbotIdFromUrl, fetchRoomData, searchParams]);
 
-  const handleBack = () => { if (roomId) router.push(`/room/${roomId}`); else router.push('/'); };
+  const handleBack = () => { 
+    // Preserve the user ID parameter when going back to the room
+    const uid = searchParams.get('uid');
+    
+    // Also store user ID in localStorage for reliability
+    if (uid) {
+      localStorage.setItem('student_direct_access_id', uid);
+      localStorage.setItem('current_student_id', uid);
+    }
+    
+    if (roomId) {
+      if (uid) {
+        // Add timestamp to avoid caching issues
+        router.push(`/room/${roomId}?direct=1&uid=${uid}&_t=${Date.now()}`);
+      } else {
+        router.push(`/room/${roomId}`);
+      }
+    } else {
+      // If no room ID, go to dashboard (with user ID if available)
+      if (uid) {
+        router.push(`/student/dashboard?direct=1&user_id=${uid}&_t=${Date.now()}`);
+      } else {
+        router.push('/student/dashboard');
+      }
+    }
+  };
 
   if (loading && !initialFetchDoneRef.current) {
     return <PageWrapper><Container><LoadingContainer><LoadingSpinner size="large" /><p>Loading chat environment...</p></LoadingContainer></Container></PageWrapper>;
@@ -222,7 +304,7 @@ export default function ChatPage() {
             {'< Back to Room'}
           </BackButton>
         </Header>
-        {roomId && <Chat roomId={roomId} chatbot={chatbot} />}
+        {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
       </Container>
     </PageWrapper>
   );

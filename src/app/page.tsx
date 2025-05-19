@@ -209,16 +209,10 @@ export default function Home() {
         {!user && (
           <CTAButtons>
             <Button size="large" onClick={() => router.push('/auth?type=teacher_signup')}>
-              Teacher Sign Up FREE
+              Teacher Sign Up
             </Button>
-            {/* Optional: Add a separate, less prominent "Teacher Sign In" button if desired */}
-            {/* For example:
-            <Button size="large" variant="outline" onClick={() => router.push('/auth')}>
-              Teacher Sign In
-            </Button>
-            */}
-            <Button size="large" variant="secondary" onClick={() => router.push('/join')}>
-              Student: Join Class
+            <Button size="large" variant="secondary" onClick={() => router.push('/student-access')}>
+              Student Login
             </Button>
           </CTAButtons>
         )}

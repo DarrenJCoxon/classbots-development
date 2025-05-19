@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Container } from '@/styles/StyledComponents';
 import Footer from '@/components/layout/Footer';
+import StudentProfileCheck from '@/components/student/StudentProfileCheck';
 
 const StudentLayout = styled.div`
   min-height: 100vh;
@@ -44,23 +45,66 @@ export default function StudentLayoutWrapper({
   const supabase = createClient();
 
   useEffect(() => {
+    // Check if this is a direct redirect from login
+    const url = new URL(window.location.href);
+    const isDirectLoginRedirect = url.searchParams.has('_t');
+    
+    // If this is a direct login redirect, skip the usual checks to prevent loops
+    if (isDirectLoginRedirect) {
+      console.log('Direct login redirect detected - skipping auth check');
+      setIsAuthorized(true);
+      setIsLoading(false);
+      return;
+    }
+    
     const checkAccess = async () => {
+      console.log('Checking student access...');
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('Auth check result:', !!user);
         
         if (!user) {
-          router.push('/join');
+          console.log('No user found, redirecting to login');
+          // Redirect to the auth page with student login tab active instead of join
+          router.push('/auth?login=student');
           return;
         }
 
         // Fetch user profile to check role
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, username, pin_code')
           .eq('user_id', user.id)
           .single();
 
-        if (error || !profile || profile.role !== 'student') {
+        console.log('User has authenticated, checking profile:', { 
+          userId: user.id, 
+          hasProfile: !!profile, 
+          role: profile?.role,
+          error: error?.message
+        });
+
+        // If there's no profile or the user is not a student, redirect to home
+        if (!profile) {
+          console.log('No profile found, creating one for user:', user.id);
+          
+          // Instead of redirecting, attempt to create a basic profile
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: user.id,
+              role: 'student',
+              full_name: user.user_metadata?.full_name || 'Student',
+              email: user.email
+            });
+            
+          if (insertError) {
+            console.error('Error creating profile:', insertError);
+            router.push('/');
+            return;
+          }
+        } else if (profile.role !== 'student') {
+          console.log('User is not a student, redirecting to home');
           router.push('/');
           return;
         }
@@ -68,7 +112,8 @@ export default function StudentLayoutWrapper({
         setIsAuthorized(true);
       } catch (error) {
         console.error('Error checking access:', error);
-        router.push('/join');
+        // Redirect to student login page instead of join
+        router.push('/auth?login=student');
       } finally {
         setIsLoading(false);
       }
@@ -91,6 +136,8 @@ export default function StudentLayoutWrapper({
 
   return (
     <StudentLayout>
+      {/* Add StudentProfileCheck to automatically repair profiles if needed */}
+      <StudentProfileCheck />
       <MainContent>
         <Container>
           {children}

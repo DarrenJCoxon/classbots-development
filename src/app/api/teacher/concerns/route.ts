@@ -212,6 +212,19 @@ async function getSingleConcernDetails_V2(
             }
         }
 
+        // Make sure we have a good analysis_explanation if it's missing or contains an API error
+        let analysis = typedFlag.analysis_explanation || "";
+        
+        // Check if the analysis contains an API error
+        if (!analysis || analysis.includes("OpenRouter API error") || analysis.includes("Failed to fetch")) {
+            // Set a more user-friendly explanation based on concern type
+            const readableConcernType = typedFlag.concern_type ? 
+                typedFlag.concern_type.replace(/_/g, ' ') : 
+                'potential safety';
+                
+            analysis = `This message was flagged due to ${readableConcernType} concerns. Please review the conversation context and take appropriate action if needed.`;
+        }
+        
         const response: FlagDetailsResponse = {
             ...typedFlag,
             student: null, // Not fetching the full student object in this structure anymore, using flattened names
@@ -219,7 +232,9 @@ async function getSingleConcernDetails_V2(
             student_email: studentEmail,
             room_name: typedFlag.room?.room_name || 'Unknown Room',
             message_content: typedFlag.message?.content || '[Message Content Unavailable]',
-            message: typedFlag.message, 
+            message: typedFlag.message,
+            // Always provide a valid analysis_explanation 
+            analysis_explanation: analysis,
             surroundingMessages: [] // Populate this as before
         };
         

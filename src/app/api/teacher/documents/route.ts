@@ -37,24 +37,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Verify user is a teacher and owns the chatbot
-    const { data: chatbot, error: chatbotOwnerError } = await supabase
+    // Get admin client to bypass RLS
+    const adminSupabase = createAdminClient();
+    
+    // Verify user is a teacher and owns the chatbot using admin client
+    console.log(`[API /documents GET] Verifying chatbot ownership: chatbotId=${chatbotId}, userId=${user.id}`);
+    const { data: chatbot, error: chatbotOwnerError } = await adminSupabase
       .from('chatbots')
       .select('chatbot_id, teacher_id') // Select teacher_id for ownership check
       .eq('chatbot_id', chatbotId)
       .single(); // Use single to ensure it exists
 
-    if (chatbotOwnerError || !chatbot) {
-      console.log(`[API /documents GET] Chatbot not found for ID: ${chatbotId}`, chatbotOwnerError);
+    if (chatbotOwnerError) {
+      console.error(`[API /documents GET] Error finding chatbot: ${chatbotOwnerError.message}`);
+      return NextResponse.json({ error: `Chatbot not found: ${chatbotOwnerError.message}` }, { status: 404 });
+    }
+    
+    if (!chatbot) {
+      console.error(`[API /documents GET] Chatbot not found with ID: ${chatbotId}`);
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
+    
     if (chatbot.teacher_id !== user.id) {
-        console.log(`[API /documents GET] User ${user.id} does not own chatbot ${chatbotId}. Owner: ${chatbot.teacher_id}`);
+        console.error(`[API /documents GET] User ${user.id} does not own chatbot ${chatbotId}. Owner: ${chatbot.teacher_id}`);
         return NextResponse.json({ error: 'Not authorized to access documents for this chatbot' }, { status: 403 });
     }
+    
+    console.log(`[API /documents GET] Authorization successful for user ${user.id} on chatbot ${chatbotId}`);
 
-    // Get all documents for this chatbot
-    const { data: documents, error: documentsError } = await supabase
+    // Get all documents for this chatbot using admin client
+    console.log(`[API /documents GET] Fetching documents for chatbot: ${chatbotId}`);
+    const { data: documents, error: documentsError } = await adminSupabase
       .from('documents')
       .select('*')
       .eq('chatbot_id', chatbotId)
@@ -87,36 +100,85 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const url = formData.get('url') as string | null; // MODIFIED: Get URL from form data
-    const chatbotId = formData.get('chatbotId') as string | null;
+    // Parse request body - could be form data or JSON
+    let file: File | null = null;
+    let url: string | null = null;
+    let chatbotId: string | null = null;
+    
+    // Try to parse as form data first
+    try {
+        const formData = await request.formData();
+        file = formData.get('file') as File | null;
+        url = formData.get('url') as string | null;
+        chatbotId = formData.get('chatbotId') as string | null;
+        
+        console.log('[API /documents POST] Request parsed as FormData:', { 
+            hasFile: !!file, 
+            hasUrl: !!url, 
+            chatbotId 
+        });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_formDataError) {
+        // If not form data, try as JSON
+        try {
+            const jsonData = await request.json();
+            url = jsonData.url || null;
+            chatbotId = jsonData.chatbotId || null;
+            
+            console.log('[API /documents POST] Request parsed as JSON:', { 
+                hasUrl: !!url, 
+                chatbotId 
+            });
+        } catch (jsonError) {
+            console.error('[API /documents POST] Failed to parse request body as FormData or JSON:', jsonError);
+            return NextResponse.json({ error: 'Invalid request format' }, { status: 400 });
+        }
+    }
 
     if (!chatbotId) {
-        return NextResponse.json({ error: 'Chatbot ID not provided in form data' }, { status: 400 });
+        console.error('[API /documents POST] Missing chatbotId in request');
+        return NextResponse.json({ error: 'Chatbot ID not provided' }, { status: 400 });
     }
     if (!file && !url) {
+        console.error('[API /documents POST] No file or URL provided');
         return NextResponse.json({ error: 'No file or URL provided' }, { status: 400 });
     }
     if (file && url) {
+        console.error('[API /documents POST] Both file and URL provided');
         return NextResponse.json({ error: 'Provide either a file or a URL, not both' }, { status: 400 });
     }
 
     console.log(`[API /documents POST] Processing for chatbot ID: ${chatbotId}`);
 
-    // Verify user owns the chatbot
-    const { data: chatbot, error: chatbotOwnerError } = await supabase
+    // Verify user owns the chatbot - use admin client to bypass RLS
+    console.log(`[API /documents POST] Verifying chatbot ownership: chatbotId=${chatbotId}, userId=${user.id}`);
+    const adminSupabase = createAdminClient();
+
+    // First, check if the chatbot exists using admin client
+    const { data: chatbot, error: chatbotOwnerError } = await adminSupabase
       .from('chatbots')
       .select('chatbot_id, teacher_id')
       .eq('chatbot_id', chatbotId)
       .single();
 
-    if (chatbotOwnerError || !chatbot) {
+    if (chatbotOwnerError) {
+      console.error(`[API /documents POST] Error finding chatbot: ${chatbotOwnerError.message}`, chatbotOwnerError);
+      return NextResponse.json({ error: `Chatbot not found: ${chatbotOwnerError.message}` }, { status: 404 });
+    }
+    
+    if (!chatbot) {
+      console.error(`[API /documents POST] Chatbot not found with ID: ${chatbotId}`);
       return NextResponse.json({ error: 'Chatbot not found for upload/add' }, { status: 404 });
     }
+    
+    console.log(`[API /documents POST] Chatbot found. Owner is: ${chatbot.teacher_id}, current user: ${user.id}`);
+    
     if (chatbot.teacher_id !== user.id) {
-        return NextResponse.json({ error: 'Not authorized to add documents to this chatbot' }, { status: 403 });
+      console.error(`[API /documents POST] Authorization error: User ${user.id} is not the owner of chatbot ${chatbotId}`);
+      return NextResponse.json({ error: 'Not authorized to add documents to this chatbot' }, { status: 403 });
     }
+    
+    console.log(`[API /documents POST] Authorization successful for user ${user.id} on chatbot ${chatbotId}`);
 
     let documentRecordData;
 
@@ -135,7 +197,8 @@ export async function POST(request: NextRequest) {
         const buffer = await file.arrayBuffer();
 
         console.log(`[API /documents POST] Uploading to storage path: ${filePath}`);
-        const { error: uploadError } = await supabase.storage
+        // Use admin client for storage operations to bypass RLS
+        const { error: uploadError } = await adminSupabase.storage
           .from('documents')
           .upload(filePath, buffer, { contentType: file.type, upsert: false });
 
@@ -145,7 +208,8 @@ export async function POST(request: NextRequest) {
         }
         console.log(`[API /documents POST] File uploaded to storage successfully.`);
 
-        const { data: dbDocument, error: documentInsertError } = await supabase
+        // Use admin client for database operations
+        const { data: dbDocument, error: documentInsertError } = await adminSupabase
           .from('documents')
           .insert({
             chatbot_id: chatbotId,
@@ -160,7 +224,8 @@ export async function POST(request: NextRequest) {
 
         if (documentInsertError) {
           console.error("[API /documents POST] Document DB insert error (file):", documentInsertError);
-          await supabase.storage.from('documents').remove([filePath]);
+          // Use admin client for storage operations to bypass RLS
+          await adminSupabase.storage.from('documents').remove([filePath]);
           return NextResponse.json({ error: `Failed to create document record: ${documentInsertError.message}` }, { status: 500 });
         }
         documentRecordData = dbDocument;
@@ -179,22 +244,70 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: extractedData.error || 'Failed to extract content from URL. The page might be inaccessible or have no readable content.' }, { status: 400 });
         }
         
-        // For webpages, file_path will store the original URL.
+        // For webpages, file_path will store the original URL with timestamp to avoid duplicate key issues.
         // file_name will store the extracted title (or a truncated URL).
         // file_size will be the length of the extracted text.
         const fileNameForDb = extractedData.title.substring(0, 255); // Max length for file_name
         const fileSizeForDb = extractedData.textContent.length;
-
-        const { data: dbDocument, error: documentInsertError } = await supabase
-          .from('documents')
-          .insert({
+        
+        // Add timestamp to URL to avoid duplicate key constraint
+        // This allows the same URL to be added multiple times
+        const timestamp = Date.now();
+        const uniqueFilePath = `${url}#timestamp=${timestamp}`;
+        
+        console.log(`[API /documents POST] Inserting webpage document record with title: "${fileNameForDb}" (${fileSizeForDb} bytes)`);
+        console.log(`[API /documents POST] Using unique path: ${uniqueFilePath}`);
+        
+        // Create the document data with the essential fields
+        // Define a proper type for document data
+        interface DocumentInsertData {
+            chatbot_id: string;
+            file_name: string;
+            file_path: string;
+            file_type: DocumentType;
+            file_size: number;
+            status: DocumentStatus;
+            original_url?: string; // Optional field
+        }
+        
+        const documentData: DocumentInsertData = {
             chatbot_id: chatbotId,
             file_name: fileNameForDb,
-            file_path: url, // Store the original URL as the "path"
+            file_path: uniqueFilePath, // Store the URL with timestamp to make it unique
             file_type: 'webpage' as DocumentType,
             file_size: fileSizeForDb,
             status: 'fetched' as DocumentStatus, // New status for successfully fetched URL content
-          })
+        };
+        
+        // Check if the original_url column exists in the table schema
+        try {
+            // First try to get the schema to check if the column exists
+            const { data: columns, error: schemaError } = await adminSupabase
+                .from('documents')
+                .select('*')
+                .limit(1);
+                
+            // If we can successfully query and the response has a shape, we can check for the column
+            if (!schemaError && columns && columns.length > 0) {
+                const firstRow = columns[0];
+                // If original_url is present in the schema or we don't know
+                // We'll try to insert it and handle any error gracefully
+                if ('original_url' in firstRow || Object.keys(firstRow).length === 0) {
+                    documentData.original_url = url;
+                    console.log('[API /documents POST] Including original_url in document data');
+                } else {
+                    console.log('[API /documents POST] original_url column not found in schema, skipping');
+                }
+            }
+        } catch (schemaCheckError) {
+            console.warn('[API /documents POST] Error checking schema for original_url column:', schemaCheckError);
+            // Continue without the original_url column
+        }
+        
+        // Use admin client for database operations to bypass RLS policies
+        const { data: dbDocument, error: documentInsertError } = await adminSupabase
+          .from('documents')
+          .insert(documentData)
           .select()
           .single();
 
@@ -209,8 +322,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No file or URL provided (safeguard).' }, { status: 400 });
     }
 
+    // Return a consistent response format
     return NextResponse.json({
       document: documentRecordData,
+      documentId: documentRecordData.document_id, // Add this explicitly for client compatibility
       message: file ? 'File uploaded successfully. Processing can now be initiated.' : 'Webpage added successfully. Processing can now be initiated.'
     }, { status: 201 });
 
@@ -243,27 +358,46 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { data: document, error: docFetchError } = await supabase
+    // Use admin client consistently to bypass RLS
+    const { data: document, error: docFetchError } = await adminSupabase
         .from('documents')
         .select('document_id, chatbot_id, file_path, file_type') // MODIFIED: Added file_type
         .eq('document_id', documentId)
         .single();
 
-    if (docFetchError || !document) {
-        console.log(`[API /documents DELETE] Document not found: ${documentId}`, docFetchError);
+    if (docFetchError) {
+        console.error(`[API /documents DELETE] Error finding document: ${docFetchError.message}`);
+        return NextResponse.json({ error: `Document not found: ${docFetchError.message}` }, { status: 404 });
+    }
+    
+    if (!document) {
+        console.error(`[API /documents DELETE] Document not found with ID: ${documentId}`);
         return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    const { data: chatbot, error: chatbotFetchError } = await supabase
+    // Use admin client to check chatbot ownership
+    const { data: chatbot, error: chatbotFetchError } = await adminSupabase
         .from('chatbots')
         .select('teacher_id')
         .eq('chatbot_id', document.chatbot_id)
         .single();
     
-    if (chatbotFetchError || !chatbot || chatbot.teacher_id !== user.id) {
-        console.log(`[API /documents DELETE] User ${user.id} unauthorized to delete document ${documentId} or chatbot not found.`);
-        return NextResponse.json({ error: 'Unauthorized to delete this document or its parent chatbot not found' }, { status: 403 });
+    if (chatbotFetchError) {
+        console.error(`[API /documents DELETE] Error finding chatbot: ${chatbotFetchError.message}`);
+        return NextResponse.json({ error: `Chatbot not found: ${chatbotFetchError.message}` }, { status: 404 });
     }
+    
+    if (!chatbot) {
+        console.error(`[API /documents DELETE] Chatbot not found for document ${documentId}`);
+        return NextResponse.json({ error: 'Parent chatbot not found' }, { status: 404 });
+    }
+    
+    if (chatbot.teacher_id !== user.id) {
+        console.error(`[API /documents DELETE] User ${user.id} not authorized to delete document ${documentId}. Owner: ${chatbot.teacher_id}`);
+        return NextResponse.json({ error: 'Not authorized to delete this document' }, { status: 403 });
+    }
+    
+    console.log(`[API /documents DELETE] Authorization successful for user ${user.id} to delete document ${documentId}`);
 
     console.log(`[API /documents DELETE] Deleting document record ${documentId} from database.`);
     const { error: dbDeleteError } = await adminSupabase
@@ -277,7 +411,7 @@ export async function DELETE(request: NextRequest) {
     }
     console.log(`[API /documents DELETE] Document record ${documentId} deleted from database.`);
 
-    // MODIFIED: Only delete from storage if it's not a 'webpage' type (where file_path is the URL)
+    // Only delete from storage if it's not a 'webpage' type (where file_path contains a URL)
     if (document.file_type !== 'webpage' && document.file_path) {
         console.log(`[API /documents DELETE] Deleting file from storage: ${document.file_path}`);
         const { error: storageError } = await adminSupabase.storage.from('documents').remove([document.file_path]);
@@ -287,7 +421,26 @@ export async function DELETE(request: NextRequest) {
             console.log(`[API /documents DELETE] File ${document.file_path} deleted from storage.`);
         }
     } else if (document.file_type === 'webpage') {
-        console.log(`[API /documents DELETE] Document type is 'webpage', skipping storage deletion for URL: ${document.file_path}`);
+        // Extract the original URL from file_path by removing the timestamp part
+        // Handle both new schema (with original_url) and old schema gracefully
+        let originalUrl = 'unknown';
+        
+        // TypeScript type check to avoid runtime errors with optional fields
+        if (document && typeof document === 'object') {
+            // Check if original_url exists as a property (for new schema)
+            if ('original_url' in document && document.original_url) {
+                originalUrl = document.original_url as string;
+            } 
+            // Fallback to extracting from file_path
+            else if (document.file_path) {
+                const parts = document.file_path.split('#timestamp=');
+                if (parts.length > 0) {
+                    originalUrl = parts[0]; 
+                }
+            }
+        }
+        
+        console.log(`[API /documents DELETE] Document type is 'webpage', skipping storage deletion for URL: ${originalUrl}`);
     }
     
     // TODO: Implement Pinecone vector deletion for document

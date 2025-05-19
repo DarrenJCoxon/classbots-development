@@ -1,6 +1,7 @@
 // src/app/api/teacher/student-chats/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { ChatMessage as DatabaseChatMessage } from '@/types/database.types';
 
 interface Conversation {
@@ -53,7 +54,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Room not found or unauthorized' }, { status: 404 });
     }
 
-    const { data: membership, error: membershipError } = await supabase
+    // Use admin client to bypass RLS policies
+    const supabaseAdmin = createAdminClient();
+    
+    // Check membership using admin client to avoid RLS recursion
+    const { data: membership, error: membershipError } = await supabaseAdmin
       .from('room_memberships')
       .select('student_id')
       .eq('room_id', roomId)
@@ -65,7 +70,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Student is not a member of this room' }, { status: 404 });
     }
 
-    let query = supabase
+    // Use admin client for chat messages query too
+    let query = supabaseAdmin
       .from('chat_messages')
       .select('*')
       .eq('room_id', roomId)

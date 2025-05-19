@@ -83,21 +83,79 @@ export async function GET(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
-    // Fetch student profile
-    const { data: studentProfileData, error: studentProfileFetchError } = await adminSupabase
-      .from('profiles')
-      .select('user_id, full_name, email')
-      .eq('user_id', studentId)
-      .single();
-
-    if (studentProfileFetchError || !studentProfileData) {
-      console.error(`[API GET /student-room-details] Error fetching profile for student ${studentId}:`, studentProfileFetchError?.message);
-      // Continue, but student info might be partial
+    // Fetch student profile - use a more robust approach with fallbacks
+    let studentProfileData = null;
+    let studentProfileFetchError = null;
+    
+    try {
+      // First attempt: Try standard profile lookup
+      const { data, error } = await adminSupabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .eq('user_id', studentId)
+        .single();
+        
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        studentProfileData = data;
+      }
+    } catch (profileError) {
+      console.error(`[API GET /student-room-details] Error in primary fetch of profile for student ${studentId}:`, profileError);
+      studentProfileFetchError = profileError;
+      
+      try {
+        // Fallback: Try using room membership to confirm student exists
+        console.log(`[API GET /student-room-details] Attempting fallback profile creation for ${studentId}`);
+        
+        // Create a placeholder profile as a backup
+        const { error: upsertError } = await adminSupabase
+          .from('profiles')
+          .upsert({
+            user_id: studentId,
+            full_name: 'Student',
+            role: 'student',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+          
+        if (upsertError) {
+          console.error(`[API GET /student-room-details] Error in fallback profile creation:`, upsertError);
+        } else {
+          console.log(`[API GET /student-room-details] Successfully created backup profile for ${studentId}`);
+          
+          // Try to fetch the profile again
+          const { data: retryData } = await adminSupabase
+            .from('profiles')
+            .select('user_id, full_name, email')
+            .eq('user_id', studentId)
+            .single();
+            
+          if (retryData) {
+            studentProfileData = retryData;
+          }
+        }
+      } catch (fallbackError) {
+        console.error(`[API GET /student-room-details] Error in fallback profile handling:`, fallbackError);
+      }
     }
     
-    const studentInfo: Pick<Profile, 'user_id' | 'full_name' | 'email'> | null = studentProfileData 
-        ? { user_id: studentProfileData.user_id, full_name: studentProfileData.full_name || 'Student', email: studentProfileData.email || 'No email' } 
-        : null;
+    // Create a profile object even if we couldn't fetch one - at least provide the ID
+    const studentInfo: Pick<Profile, 'user_id' | 'full_name' | 'email'> = studentProfileData 
+        ? { 
+            user_id: studentProfileData.user_id, 
+            full_name: studentProfileData.full_name || 'Student', 
+            email: studentProfileData.email || 'No email' 
+          } 
+        : { 
+            user_id: studentId, 
+            full_name: 'Student', 
+            email: 'No email'
+          };
 
     // Fetch assessments for this student in this room (limit for summary, e.g., last 10)
     // Re-using the foreign key hint strategy from the main assessments list API

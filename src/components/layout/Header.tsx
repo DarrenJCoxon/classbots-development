@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Your client import
 import { Container, Button } from '@/styles/StyledComponents';
+import SignInDropdown from '@/components/auth/SignInDropdown';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
 import { usePathname } from 'next/navigation'; // Import usePathname for active link styling
@@ -211,10 +212,8 @@ export default function Header() {
                 Sign Out
               </HeaderButton>
             ) : (
-              pathname !== '/auth' && (
-                <HeaderButton as={Link} href="/auth">
-                  Sign In
-                </HeaderButton>
+              pathname !== '/auth' && pathname !== '/student-login' && pathname !== '/student-access' && (
+                <SignInDropdown />
               )
             )}
           </UserSection>

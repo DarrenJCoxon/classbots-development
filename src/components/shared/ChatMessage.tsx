@@ -14,8 +14,15 @@ interface ChatMessageProps {
 
 type MessageMetadataWithFlags = {
     error?: unknown;
-    isAssessmentFeedback?: boolean; // New flag
-    isAssessmentPlaceholder?: boolean; // New flag
+    isAssessmentFeedback?: boolean;
+    isAssessmentPlaceholder?: boolean;
+    isOptimistic?: boolean;
+    optimisticContent?: string;
+    isStreaming?: boolean;
+    isSystemSafetyResponse?: boolean;
+    isSafetyPlaceholder?: boolean;
+    potentialSafetyTrigger?: boolean;
+    pendingSafetyResponse?: boolean;
     [key: string]: unknown;
 } | null | undefined;
 
@@ -34,8 +41,13 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
 interface MessageBubbleProps {
   $isUser: boolean;
   $hasError: boolean;
-  $isAssessmentFeedback?: boolean; // New prop for styling
-  $isAssessmentPlaceholder?: boolean; // New prop for styling
+  $isAssessmentFeedback?: boolean;
+  $isAssessmentPlaceholder?: boolean;
+  $isOptimistic?: boolean;
+  $isStreaming?: boolean;
+  $isSystemSafetyResponse?: boolean;
+  $isSafetyPlaceholder?: boolean;
+  $pendingSafetyResponse?: boolean;
 }
 const MessageBubble = styled.div<MessageBubbleProps>`
   max-width: 80%;
@@ -45,14 +57,18 @@ const MessageBubble = styled.div<MessageBubbleProps>`
       ? `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.small} ${theme.borderRadius.xl}`
       : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.small}`
   };
-  background: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder }) => {
+  background: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder }) => {
     if ($isAssessmentFeedback) return theme.colors.blue + '20'; // Light blue for feedback
     if ($isAssessmentPlaceholder) return theme.colors.backgroundDark;
+    if ($isSystemSafetyResponse) return theme.colors.red + '10'; // Very light red for safety messages
+    if ($isSafetyPlaceholder) return theme.colors.backgroundDark;
     return $isUser ? theme.colors.primary : theme.colors.backgroundCard;
   }};
-  color: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder }) => {
+  color: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder }) => {
     if ($isAssessmentFeedback) return theme.colors.blue; // Darker blue text
     if ($isAssessmentPlaceholder) return theme.colors.textMuted;
+    if ($isSystemSafetyResponse) return theme.colors.text; // Normal text color for safety message
+    if ($isSafetyPlaceholder) return theme.colors.textMuted;
     return $isUser ? 'white' : theme.colors.text;
   }};
   box-shadow: ${({ theme }) => theme.shadows.sm};
@@ -67,8 +83,23 @@ const MessageBubble = styled.div<MessageBubbleProps>`
     border-color: ${theme.colors.blue};
     /* You could add an icon or other distinct styling here */
   `}
-   ${({ $isAssessmentPlaceholder }) => $isAssessmentPlaceholder && css`
+  ${({ $isAssessmentPlaceholder }) => $isAssessmentPlaceholder && css`
     font-style: italic;
+  `}
+  ${({ $isOptimistic }) => $isOptimistic && css`
+    opacity: 0.7;
+  `}
+  ${({ $isStreaming, theme }) => $isStreaming && css`
+    border-left: 3px solid ${theme.colors.primary};
+  `}
+  ${({ $isSystemSafetyResponse, theme }) => $isSystemSafetyResponse && css`
+    border-left: 3px solid ${theme.colors.red};
+  `}
+  ${({ $isSafetyPlaceholder }) => $isSafetyPlaceholder && css`
+    font-style: italic;
+  `}
+  ${({ $pendingSafetyResponse }) => $pendingSafetyResponse && css`
+    opacity: 0.7;
   `}
 `;
 
@@ -118,7 +149,7 @@ const ErrorIndicator = styled.div`
 `;
 // --- End Styled Components ---
 
-// --- Helper Function ---
+// --- Helper Functions ---
 function formatTimestamp(timestamp: string | undefined): string {
   // ... (formatTimestamp remains the same)
   if (!timestamp) return '';
@@ -136,12 +167,40 @@ function formatTimestamp(timestamp: string | undefined): string {
     return date.toLocaleDateString();
   }
 }
+
+// Get human-readable country name from ISO country code
+function getCountryNameFromCode(code: string): string {
+  // This is a lookup function to convert country codes to readable names
+  // We do this client-side to avoid hardcoding names in the database
+  const COUNTRY_NAMES: Record<string, string> = {
+    // Standard ISO codes
+    'US': 'United States',
+    'GB': 'UK',  // Special case - GB is the ISO code, but UK is more commonly used
+    'CA': 'Canada',
+    'AU': 'Australia',
+    'IE': 'Ireland',
+    'FR': 'France',
+    'DE': 'Germany',
+    'IT': 'Italy',
+    'ES': 'Spain',
+    'PT': 'Portugal',
+    'GR': 'Greece',
+    'AE': 'UAE',
+    'MY': 'Malaysia',
+    // Handle common non-standard codes
+    'UK': 'UK',   // Handle non-standard "UK" as well
+    // Add other country names as needed
+  };
+  
+  // Return the name if found, otherwise just use the code
+  return COUNTRY_NAMES[code] || code;
+}
 // -----------------------
 
 // --- React Markdown Custom Components (remain the same) ---
 const markdownComponents: Components = {
-    a: (props) => (<a {...props} target="_blank" rel="noopener noreferrer"/>),
-    input: (props) => { const { checked, ...rest } = props; return (<input type="checkbox" checked={!!checked} disabled={true} readOnly {...rest}/> ); },
+    a: (props) => (<a {...props} target="_blank" rel="noopener noreferrer" />),
+    input: (props) => { const { checked, ...rest } = props; return (<input type="checkbox" checked={!!checked} disabled={true} readOnly {...rest} /> ); },
     code({ className, children, inline, ...props }: React.HTMLAttributes<HTMLElement> & { className?: string; children?: React.ReactNode; inline?: boolean; }) {
         const match = /language-(\w+)/.exec(className || '');
         const codeString = String(children).replace(/\n$/, '');
@@ -167,10 +226,172 @@ function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
     const errorMessage = hasError ? String(metadata.error) : null;
     const isAssessmentFeedback = !!metadata?.isAssessmentFeedback;
     const isAssessmentPlaceholder = !!metadata?.isAssessmentPlaceholder;
-
+    const isOptimistic = !!metadata?.isOptimistic;
+    const isStreaming = !!metadata?.isStreaming;
+    const isSystemSafetyResponse = !!metadata?.isSystemSafetyResponse;
+    const isSafetyPlaceholder = !!metadata?.isSafetyPlaceholder;
+    const pendingSafetyResponse = !!metadata?.pendingSafetyResponse;
+    
     let senderNameToDisplay = chatbotName;
     if (isUser) {
         senderNameToDisplay = 'You';
+    } else if (isSystemSafetyResponse || isSafetyPlaceholder) {
+        // Use a specific name for safety messages - prioritize displayCountryCode (set by API),
+        // then fallback to effectiveCountryCode, then countryCode
+        const displayCode = metadata?.displayCountryCode || metadata?.effectiveCountryCode || metadata?.countryCode;
+        
+        // Get country display name using a lookup function
+        let countryName = '';
+        if (displayCode) {
+            // Don't show anything for DEFAULT
+            if (displayCode !== 'DEFAULT') {
+                // Use a lookup function to get readable country names for ISO codes
+                countryName = getCountryNameFromCode(String(displayCode));
+            }
+        }
+        
+        const countryDisplay = countryName ? ` - ${countryName}` : '';
+        senderNameToDisplay = isSafetyPlaceholder ? 'Safety Check' : `Support Resources${countryDisplay}`;
+        
+        // Log safety message details for debugging
+        if (isSystemSafetyResponse) {
+            console.log(`[SafetyDiagnostics] ===== UI SAFETY MESSAGE TRACKING =====`);
+            console.log(`[SafetyDiagnostics] Safety Message UI Rendering Details:`);
+            console.log(`[SafetyDiagnostics] message.message_id: ${message.message_id}`);
+            console.log(`[SafetyDiagnostics] metadata.countryCode: "${metadata?.countryCode}"`);
+            console.log(`[SafetyDiagnostics] metadata.effectiveCountryCode: "${metadata?.effectiveCountryCode}"`);
+            console.log(`[SafetyDiagnostics] metadata.displayCountryCode: "${metadata?.displayCountryCode}"`);
+            console.log(`[SafetyDiagnostics] metadata.helplines: "${metadata?.helplines || 'not provided'}"`);
+            console.log(`[SafetyDiagnostics] finalDisplayCode: "${displayCode}"`);
+            console.log(`[SafetyDiagnostics] countryName: "${countryName}"`);
+            console.log(`[SafetyDiagnostics] senderNameToDisplay: "${senderNameToDisplay}"`);
+            console.log(`[SafetyDiagnostics] Content Length: ${message.content?.length || 0} characters`);
+            console.log(`[SafetyDiagnostics] First 100 chars: "${message.content?.substring(0, 100)}..."`);
+            console.log(`[SafetyDiagnostics] Has MANDATORY HELPLINES marker: ${message.content?.includes('===== MANDATORY HELPLINES')}`);
+            console.log(`[SafetyDiagnostics] ===== END TRACKING =====`);
+            
+            // Original logger
+            console.log('[ChatMessage] Displaying safety message with details:', { 
+                countryCode: metadata?.countryCode,
+                effectiveCountryCode: metadata?.effectiveCountryCode,
+                displayCountryCode: metadata?.displayCountryCode,
+                finalDisplayCode: displayCode,
+                countryName,
+                content: message.content,
+                messageId: message.message_id
+            });
+            
+            // Check if the message content contains the expected helplines based on the country
+            let helplineCheckResult: {
+                containsPhoneNumber?: boolean;
+                containsWebsite?: boolean;
+                containsSpecificHelplines?: boolean;
+                overallSuccess?: boolean;
+                messageLength?: number;
+                formattedHelplines?: boolean;
+                bulletPointCount?: number;
+                hasFormattedHelplineSection?: boolean;
+                hasHelplineHeader?: boolean;
+                hasHelplineFooter?: boolean;
+                hasBulletPoints?: boolean;
+                helplines?: string;
+            } = {};
+            
+            // Check for bullet points which indicate helplines are present
+            const hasBulletPoints = message.content.includes('* ');
+            const hasPhoneNumbers = message.content.includes('Phone:');
+            const hasWebsites = message.content.includes('Website:');
+            
+            // We don't use markers anymore, but define these variables to maintain compatibility
+            const hasHelplineHeader = false;
+            const hasHelplineFooter = false;
+            
+            // Log metadata helplines for debugging
+            if (metadata?.helplines) {
+                console.log(`[ChatMessage] Safety message has metadata helplines: ${metadata.helplines}`);
+            }
+            
+            // Display exact message content for verification
+            console.log(`[SafetyDiagnostics] CRITICAL SAFETY VERIFICATION - Full message content for inspection:`);
+            console.log(`${message.content}`);
+            
+            // Parse and count the helplines that are in the message (now without markers)
+            const messageLines = message.content.split('\n');
+            
+            // Find all lines that start with a bullet point
+            const actualHelplines = messageLines.filter(line => line.trim().startsWith('*'));
+            
+            if (actualHelplines.length > 0) {
+                console.log(`[SafetyDiagnostics] Found ${actualHelplines.length} helplines in the message content:`);
+                actualHelplines.forEach(line => {
+                    console.log(`[SafetyDiagnostics] HELPLINE: ${line.trim()}`);
+                });
+                
+                // Verify these match the metadata if provided
+                if (metadata?.helplines && typeof metadata.helplines === 'string') {
+                    const metadataHelplineNames = metadata.helplines.split(',');
+                    console.log(`[SafetyDiagnostics] Checking if displayed helplines match metadata helplines:`);
+                    console.log(`[SafetyDiagnostics] - Metadata has ${metadataHelplineNames.length} helplines: ${metadataHelplineNames.join(', ')}`);
+                    
+                    let matchCount = 0;
+                    for (const name of metadataHelplineNames) {
+                        const found = actualHelplines.some(line => line.includes(name));
+                        console.log(`[SafetyDiagnostics] - Helpline "${name}" in message: ${found ? 'YES' : 'NO'}`);
+                        if (found) matchCount++;
+                    }
+                    
+                    console.log(`[SafetyDiagnostics] Match result: ${matchCount}/${metadataHelplineNames.length} helplines found in message`);
+                }
+            } else {
+                console.error(`[SafetyDiagnostics] FAILED TO FIND HELPLINES in message content!`);
+            }
+            
+            // If we have bullet points and phone numbers or websites, consider it successful
+            if (hasBulletPoints && (hasPhoneNumbers || hasWebsites)) {
+                helplineCheckResult = {
+                    hasFormattedHelplineSection: true,
+                    hasHelplineHeader: false, // We don't use these markers anymore
+                    hasHelplineFooter: false, // We don't use these markers anymore
+                    hasBulletPoints,
+                    helplines: typeof metadata?.helplines === 'string' ? metadata.helplines : 'unknown',
+                    overallSuccess: true,
+                    messageLength: message.content.length
+                };
+            }
+            // Use a generic check for all countries instead of hardcoding specific helplines
+            else {
+                // Generic check for any helpline-like content
+                // Look for typical helpline indicators: phone numbers and websites
+                const containsPhone = /\b\d{3}[- .]?\d{3}[- .]?\d{4}\b|\b\d{5}\b|\b\d{4}\s?\d{4}\b|\b\d{3}\b/.test(message.content);
+                const containsWebsite = /\b\w+\.\w+(\.\w+)?\b/.test(message.content);
+                
+                // Check if metadata has helpline names we can verify
+                let containsSpecificHelplines = false;
+                if (metadata?.helplines && typeof metadata.helplines === 'string') {
+                    const metadataHelplineNames = metadata.helplines.split(',');
+                    // Check if at least one of the expected helplines is in the message
+                    containsSpecificHelplines = metadataHelplineNames.some(name => 
+                        message.content.includes(name));
+                }
+                
+                helplineCheckResult = {
+                    containsPhoneNumber: containsPhone,
+                    containsWebsite: containsWebsite,
+                    containsSpecificHelplines,
+                    overallSuccess: containsPhone || containsWebsite || containsSpecificHelplines || (hasHelplineHeader && hasHelplineFooter), 
+                    messageLength: message.content.length
+                };
+            }
+            
+            console.log(`[ChatMessage] Helpline check for ${countryName}:`, helplineCheckResult);
+            
+            if (!helplineCheckResult.overallSuccess) {
+                console.warn(`[ChatMessage] CRITICAL WARNING: Safety message may not contain proper helplines!`);
+                // Log the entire message content to see exactly what's coming through
+                console.log(`[ChatMessage] FULL SAFETY MESSAGE CONTENT (for debugging):\n${message.content}`);
+                console.log(`[ChatMessage] Safety message metadata:`, message.metadata);
+            }
+        }
     } else if (isAssessmentFeedback || isAssessmentPlaceholder || message.role === 'system') {
         // For system messages or assessment feedback, use a generic name or the bot's name
         // If it's a placeholder or feedback, you might want a specific title like "Assessment System"
@@ -188,11 +409,16 @@ function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
               $hasError={hasError}
               $isAssessmentFeedback={isAssessmentFeedback}
               $isAssessmentPlaceholder={isAssessmentPlaceholder}
+              $isOptimistic={isOptimistic}
+              $isStreaming={isStreaming}
+              $isSystemSafetyResponse={isSystemSafetyResponse}
+              $isSafetyPlaceholder={isSafetyPlaceholder}
+              $pendingSafetyResponse={pendingSafetyResponse}
             >
                 <MessageHeader>
                     <SenderName>{senderNameToDisplay}</SenderName>
                     <Timestamp>
-                        {formatTimestamp(message.created_at)}
+                        {isOptimistic ? 'Sending...' : formatTimestamp(message.created_at)}
                     </Timestamp>
                 </MessageHeader>
                 <MessageContent $isUser={isUser}>
@@ -202,6 +428,9 @@ function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
                     >
                         {message.content || ''}
                     </ReactMarkdown>
+                    {isStreaming && (
+                      <span style={{ display: 'inline-block', width: '8px', height: '16px', background: '#3498db', marginLeft: '2px', animation: 'blink 1s infinite' }} />
+                    )}
                 </MessageContent>
                 {hasError && (
                     <ErrorIndicator title={errorMessage || 'Failed to send message'}>

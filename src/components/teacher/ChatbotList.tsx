@@ -126,6 +126,36 @@ const ActionButtonsContainer = styled.div`
   align-items: center;
 `;
 
+const ActionButtonsContainerCard = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  margin-top: auto; 
+  padding-top: ${({ theme }) => theme.spacing.md}; 
+  flex-wrap: wrap;
+`;
+
+const ActionButton = styled(Button)`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  white-space: nowrap;
+  
+  svg {
+    font-size: 0.85rem;
+  }
+  
+  @media (max-width: 380px) { 
+    flex-basis: 100%; 
+    
+    &:not(:last-child) {
+      margin-bottom: ${({ theme }) => theme.spacing.sm};
+    }
+  }
+`;
+
 const getModelDisplayName = (model: string | undefined) => {
     if (!model) return 'Default Model';
     const modelNames: Record<string, string> = {
@@ -234,24 +264,24 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
             <div className="model-info">
               Model: {getModelDisplayName(chatbot.model)}
             </div>
-            <div className="actions">
-              <Button
+            <ActionButtonsContainerCard>
+              <ActionButton
                 size="small"
                 variant="outline" 
                 onClick={() => onEdit(chatbot.chatbot_id)}
-                title="Edit chatbot settings and knowledge base"
+                title="Edit chatbot settings"
               >
                 Edit
-              </Button>
-              <Button
-                  size="small"
-                  variant="magenta"
-                  onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
-                  title="Delete this chatbot"
+              </ActionButton>
+              <ActionButton
+                size="small"
+                variant="magenta"
+                onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
+                title="Delete this chatbot"
               >
-                  Delete
-              </Button>
-            </div>
+                Delete
+              </ActionButton>
+            </ActionButtonsContainerCard>
           </StyledChatbotCard>
         );
       })}

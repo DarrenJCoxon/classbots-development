@@ -1,16 +1,45 @@
-// src/app/auth/page.tsx
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import styled from 'styled-components';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import AuthForm from '@/components/auth/AuthForm';
-import { Container } from '@/styles/StyledComponents';
+import { Container, Alert, Button } from '@/styles/StyledComponents';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const AuthPage = styled.div`
   padding: ${({ theme }) => theme.spacing.xl};
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.background};
+`;
+
+const StyledAlert = styled(Alert)`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const TabContainer = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const TabButtons = styled.div`
+  display: flex;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const TabButton = styled.button<{ $active: boolean }>`
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  background: none;
+  border: none;
+  border-bottom: 3px solid ${({ theme, $active }) => $active ? theme.colors.primary : 'transparent'};
+  color: ${({ theme, $active }) => $active ? theme.colors.primary : theme.colors.textLight};
+  font-weight: ${({ $active }) => $active ? 'bold' : 'normal'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
 const ToggleButton = styled.button`
@@ -34,44 +63,108 @@ const LoadingFallback = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-// Separate component for content that uses search params
+const StudentRedirectCard = styled.div`
+  background: ${({ theme }) => theme.colors.backgroundDark};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  padding: ${({ theme }) => theme.spacing.lg};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  text-align: center;
+`;
+
 function AuthContent() {
   const searchParams = useSearchParams();
-  const urlAuthTypeParam = searchParams?.get('type'); // Get the 'type' param
-
-  // MODIFIED: Logic to determine initial authType
-  // Default to 'signup' if type includes 'signup' (e.g., 'student_signup', 'teacher_signup')
-  // or if it's just 'student' (which implies student signup).
-  // Otherwise, default to 'login'.
-  const determineInitialAuthType = () => {
-    if (urlAuthTypeParam) {
-      if (urlAuthTypeParam.includes('signup') || urlAuthTypeParam === 'student') {
-        return 'signup';
-      }
+  const router = useRouter();
+  const urlLoginType = searchParams?.get('login');
+  const urlType = searchParams?.get('type');
+  const [redirecting, setRedirecting] = useState(false);
+  
+  // Redirect student logins to the new student access page
+  useEffect(() => {
+    if (urlLoginType === 'student') {
+      setRedirecting(true);
+      setTimeout(() => {
+        router.push('/student-access');
+      }, 2000);
     }
-    return 'login'; // Default to login if no specific signup type is indicated
-  };
-
-  const [authType, setAuthType] = useState<'login' | 'signup'>(determineInitialAuthType());
-
-  return (
-    <>
-      <AuthForm type={authType} />
-      <ToggleButton onClick={() => setAuthType(authType === 'login' ? 'signup' : 'login')}>
-        {authType === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login'}
-      </ToggleButton>
-    </>
-  );
-}
-
-export default function Auth() {
+  }, [urlLoginType, router]);
+  
+  // Determine if we should show signup instead of login
+  // Check if the URL has type=teacher_signup parameter
+  const isSignup = urlType === 'teacher_signup';
+  
+  if (redirecting) {
+    return (
+      <AuthPage>
+        <Container>
+          <StudentRedirectCard>
+            <h2>Student Login</h2>
+            <p>We&apos;ve improved the student login experience!</p>
+            <p>Redirecting you to the new student login page...</p>
+            <div style={{ margin: '1rem auto', textAlign: 'center' }}>
+              <LoadingSpinner size="medium" />
+            </div>
+            <Button onClick={() => router.push('/student-access')}>
+              Go to Student Login Now
+            </Button>
+          </StudentRedirectCard>
+        </Container>
+      </AuthPage>
+    );
+  }
+  
   return (
     <AuthPage>
       <Container>
-        <Suspense fallback={<LoadingFallback>Loading...</LoadingFallback>}>
-          <AuthContent />
-        </Suspense>
+        {urlLoginType === 'student' ? (
+          <StyledAlert variant="info">
+            The student login page has moved. Please use the new student access page.
+            <Button onClick={() => router.push('/student-access')} style={{ marginTop: '1rem' }}>
+              Go to Student Access
+            </Button>
+          </StyledAlert>
+        ) : (
+          <Suspense fallback={<LoadingFallback>Loading...</LoadingFallback>}>
+            <TabContainer>
+              <TabButtons>
+                <TabButton 
+                  $active={!isSignup}
+                  onClick={() => router.push('/auth')}
+                >
+                  Teacher Login
+                </TabButton>
+                <TabButton 
+                  $active={isSignup}
+                  onClick={() => router.push('/auth?type=teacher_signup')}
+                >
+                  Teacher Sign Up
+                </TabButton>
+              </TabButtons>
+              
+              <AuthForm type={isSignup ? 'signup' : 'login'} />
+            </TabContainer>
+            
+            {!isSignup ? (
+              <ToggleButton onClick={() => router.push('/auth?type=teacher_signup')}>
+                Need a teacher account? Sign up
+              </ToggleButton>
+            ) : (
+              <ToggleButton onClick={() => router.push('/auth')}>
+                Already have an account? Log in
+              </ToggleButton>
+            )}
+          </Suspense>
+        )}
       </Container>
     </AuthPage>
+  );
+}
+
+// Export the page with a Suspense boundary
+export default function Auth() {
+  return (
+    <Suspense fallback={<div>Loading auth page...</div>}>
+      <AuthContent />
+    </Suspense>
   );
 }

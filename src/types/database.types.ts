@@ -55,6 +55,7 @@ export interface Room extends BaseTable {
   teacher_id: string;
   school_id?: string | null;
   is_active: boolean;
+  is_archived?: boolean;
 }
 
 export interface RoomChatbot extends BaseTable {
@@ -66,6 +67,7 @@ export interface RoomMembership extends BaseTable {
   room_id: string;
   student_id: string;
   joined_at: string;
+  is_archived?: boolean;
 }
 
 export interface ChatMessage extends BaseTable {
@@ -92,7 +94,11 @@ export interface Profile extends BaseTable {
   email: string;
   role: UserRole;
   school_id?: string | null;
-  country_code?: string | null; // <-- ADD THIS (This was already correct in your original file)
+  country_code?: string | null;
+  pin_code?: string | null; // PIN code for student login
+  username?: string | null; // Username for student login
+  last_pin_change?: string | null; // When PIN was last changed
+  pin_change_by?: string | null; // Who changed the PIN
 }
 
 // THIS IS THE Document INTERFACE WITHIN database.types.ts

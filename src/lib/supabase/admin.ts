@@ -9,7 +9,13 @@ export const createAdminClient = () => {
   console.log(`- URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL}`);
   console.log(`- Service key exists: ${serviceRoleKey.length > 0 ? 'YES' : 'NO'}`);
   
-  return createClient<Database>(
+  // Check if the key starts with 'eyJ' which is the start of a valid JWT
+  if (!serviceRoleKey.startsWith('eyJ')) {
+    console.warn('WARNING: Service role key may not be valid - keys typically start with "eyJ"');
+  }
+  
+  // Create the client with the service role key
+  const client = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
@@ -26,4 +32,14 @@ export const createAdminClient = () => {
       }
     }
   );
+  
+  // Log available methods for debugging - especially check the auth.admin object
+  console.log('Admin client methods [auth]:', Object.keys(client.auth));
+  if (client.auth.admin) {
+    console.log('Admin client methods [auth.admin]:', Object.keys(client.auth.admin));
+  } else {
+    console.warn('Admin auth methods not available - this may indicate a Supabase version issue');
+  }
+  
+  return client;
 };

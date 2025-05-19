@@ -73,6 +73,7 @@ export default function DashboardOverview() {
   // MODIFIED: State for recent chatbots to display in overview
   const [recentChatbots, setRecentChatbots] = useState<Chatbot[]>([]);
   const [loadingRecentChatbots, setLoadingRecentChatbots] = useState(true);
+  const [success, setSuccess] = useState<string | null>(null);
 
 
   const router = useRouter();
@@ -82,18 +83,59 @@ export default function DashboardOverview() {
     setLoadingStats(true);
     // Don't reset statsError here if chatbots are also loading, let chatbot fetch handle its part
     try {
-      const statsResponse = await fetch('/api/teacher/dashboard-stats');
+      // Add a cache-busting parameter to avoid browser caching
+      const statsResponse = await fetch(`/api/teacher/dashboard-stats?t=${Date.now()}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      console.log('[DashboardOverview] Stats response status:', statsResponse.status);
+      
       if (!statsResponse.ok) {
         const errorData = await statsResponse.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch stats (status ${statsResponse.status})`);
       }
+      
       const statsData: DashboardStats = await statsResponse.json();
-      setStats(statsData);
+      console.log('[DashboardOverview] Stats data received:', statsData);
+      
+      // Validate that we have all the stats we need
+      if (statsData) {
+        // Create default stats object if any properties are missing
+        const validatedStats: DashboardStats = {
+          totalChatbots: typeof statsData.totalChatbots === 'number' ? statsData.totalChatbots : 0,
+          totalRooms: typeof statsData.totalRooms === 'number' ? statsData.totalRooms : 0,
+          activeRooms: typeof statsData.activeRooms === 'number' ? statsData.activeRooms : 0,
+          pendingConcerns: typeof statsData.pendingConcerns === 'number' ? statsData.pendingConcerns : 0
+        };
+        
+        setStats(validatedStats);
+      } else {
+        console.warn('[DashboardOverview] Stats data is empty or invalid');
+        // Set default stats
+        setStats({
+          totalChatbots: 0,
+          totalRooms: 0,
+          activeRooms: 0,
+          pendingConcerns: 0
+        });
+      }
     } catch (err) {
-      console.error("Error fetching dashboard stats:", err);
+      console.error("[DashboardOverview] Error fetching dashboard stats:", err);
       const errorMessage = err instanceof Error ? err.message : 'Could not load dashboard statistics.';
       setStatsError(prev => prev ? `${prev}\n${errorMessage}` : errorMessage);
-      setStats(null);
+      
+      // Provide default stats even in error case to avoid UI issues
+      setStats({
+        totalChatbots: 0,
+        totalRooms: 0,
+        activeRooms: 0,
+        pendingConcerns: 0
+      });
     } finally {
       setLoadingStats(false);
     }
@@ -151,7 +193,12 @@ export default function DashboardOverview() {
 
   const handleRoomCreated = () => {
     setShowRoomForm(false);
-    alert("Room created successfully!");
+    setStatsError(null);
+    setSuccess("Room created successfully!");
+    // Add success state and display it briefly
+    setTimeout(() => {
+      setSuccess(null);
+    }, 3000);
     fetchDashboardStats(); // Refresh stats which includes room counts
   };
 
@@ -167,7 +214,10 @@ export default function DashboardOverview() {
       router.push('/teacher-dashboard/chatbots');
       // To make it fully functional here, you'd replicate the delete logic from ManageChatbotsPage
       // and call fetchTeacherChatbots(false) and fetchDashboardStats() on success.
-      alert(`Deletion for "${chatbotName}" would be handled on the main chatbots page or via a shared hook/service.`);
+      setSuccess(`Deletion for "${chatbotName}" would be handled on the main chatbots page`);
+      setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
     }
   };
 
@@ -193,35 +243,45 @@ export default function DashboardOverview() {
   return (
     <OverviewWrapper>
       {statsError && <Alert variant="error" style={{ marginBottom: '16px' }}>{statsError}</Alert>}
+      {success && <Alert variant="success" style={{ marginBottom: '16px' }}>{success}</Alert>}
 
-      {stats && (
-        <StatsGrid>
-          <StatsCard
-            title="Pending Concerns"
-            value={stats.pendingConcerns}
-            onClick={() => router.push('/teacher-dashboard/concerns')}
-            variant={stats.pendingConcerns > 0 ? 'danger' : 'green'}
-          />
-          <StatsCard
-            title="Active Rooms"
-            value={stats.activeRooms}
-            onClick={() => router.push('/teacher-dashboard/rooms')}
-            variant="cyan" 
-          />
-          <StatsCard
-            title="My Chatbots"
-            value={stats.totalChatbots}
-            onClick={() => router.push('/teacher-dashboard/chatbots')}
-            variant="magenta" 
-          />
-          <StatsCard
-            title="Total Rooms"
-            value={stats.totalRooms}
-            onClick={() => router.push('/teacher-dashboard/rooms')} 
-            variant="orange_secondary" 
-          />
-        </StatsGrid>
-      )}
+      <StatsGrid>
+        {!stats && statsError ? (
+          <>
+            <Card style={{ gridColumn: '1 / -1', padding: '20px', textAlign: 'center' }}>
+              <Alert variant="error" style={{ marginBottom: '16px' }}>Failed to load dashboard statistics</Alert>
+              <Button onClick={fetchDashboardStats} variant="primary">Retry Loading Stats</Button>
+            </Card>
+          </>
+        ) : (
+          <>
+            <StatsCard
+              title="Pending Concerns"
+              value={stats?.pendingConcerns ?? 0}
+              onClick={() => router.push('/teacher-dashboard/concerns')}
+              variant={(stats?.pendingConcerns ?? 0) > 0 ? 'danger' : 'green'}
+            />
+            <StatsCard
+              title="Active Rooms"
+              value={stats?.activeRooms ?? 0}
+              onClick={() => router.push('/teacher-dashboard/rooms')}
+              variant="cyan" 
+            />
+            <StatsCard
+              title="My Chatbots"
+              value={stats?.totalChatbots ?? 0}
+              onClick={() => router.push('/teacher-dashboard/chatbots')}
+              variant="magenta" 
+            />
+            <StatsCard
+              title="Total Rooms"
+              value={stats?.totalRooms ?? 0}
+              onClick={() => router.push('/teacher-dashboard/rooms')} 
+              variant="orange_secondary" 
+            />
+          </>
+        )}
+      </StatsGrid>
 
       <Section $accentSide="top" $accentColor="magenta">
         <SectionHeader>

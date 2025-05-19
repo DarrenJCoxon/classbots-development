@@ -7,6 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Container, Card, Button, Alert, Badge } from '@/styles/StyledComponents';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import StudentCsvUpload from '@/components/teacher/StudentCsvUpload';
+import ArchivePanel from '@/components/teacher/ArchivePanel';
 import type { Room, Chatbot, Profile } from '@/types/database.types'; // Base types
 
 // --- Data Structure for the Page State ---
@@ -19,6 +21,8 @@ interface RoomDetailsData {
   chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type'>[];
   students: StudentInRoom[];
 }
+
+// MagicLinkResponse interface removed
 
 // --- Styled Components ---
 const PageWrapper = styled.div`
@@ -179,10 +183,19 @@ const LoadingContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
+// Magic link styled components removed
+
+
+
 export default function TeacherRoomDetailPage() {
   const [roomDetails, setRoomDetails] = useState<RoomDetailsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCsvUpload, setShowCsvUpload] = useState(false);
+  const [studentToArchive, setStudentToArchive] = useState<StudentInRoom | null>(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showArchivedStudents, setShowArchivedStudents] = useState(false);
+  const [archivingStudents, setArchivingStudents] = useState<Record<string, boolean>>({});
   
   const params = useParams();
   const router = useRouter();
@@ -225,6 +238,63 @@ export default function TeacherRoomDetailPage() {
       return 'Invalid Date';
     }
   };
+  
+  const openArchiveModal = (student: StudentInRoom) => {
+    setStudentToArchive(student);
+    setShowArchiveModal(true);
+  };
+  
+  const closeArchiveModal = () => {
+    setShowArchiveModal(false);
+    setStudentToArchive(null);
+  };
+  
+  const archiveStudent = async (studentId: string) => {
+    // Mark student as archiving
+    setArchivingStudents(prev => ({ ...prev, [studentId]: true }));
+    
+    try {
+      const response = await fetch(`/api/teacher/students/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId,
+          roomId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to archive student (${response.status})`);
+      }
+      
+      // Remove the student from the list
+      if (roomDetails) {
+        setRoomDetails({
+          ...roomDetails,
+          students: roomDetails.students.filter(s => s.user_id !== studentId)
+        });
+      }
+      
+      closeArchiveModal();
+    } catch (err) {
+      console.error('Error archiving student:', err);
+      setError(err instanceof Error ? err.message : 'Failed to archive student');
+      
+      // Reset archiving state
+      setArchivingStudents(prev => {
+        const newState = { ...prev };
+        delete newState[studentId];
+        return newState;
+      });
+      
+      closeArchiveModal();
+    }
+  };
+  
+  // Magic link related functions removed
 
   if (loading) {
     return (
@@ -303,7 +373,26 @@ export default function TeacherRoomDetailPage() {
         </Section>
 
         <Section>
-          <SectionTitle>Enrolled Students ({students.length})</SectionTitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SectionTitle>Enrolled Students ({students.length})</SectionTitle>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setShowArchivedStudents(!showArchivedStudents)}
+              >
+                {showArchivedStudents ? 'Hide Archived Students' : 'View Archived Students'}
+              </Button>
+              <Button 
+                variant="primary" 
+                size="small"
+                onClick={() => setShowCsvUpload(true)}
+              >
+                Import from CSV
+              </Button>
+            </div>
+          </div>
+          
           {students.length > 0 ? (
             <>
               <StudentListTable>
@@ -327,14 +416,29 @@ export default function TeacherRoomDetailPage() {
                       <td>{student.email}</td>
                       <td>{formatDate(student.joined_at)}</td>
                       <td>
-                        <Button 
-                          size="small" 
-                          as={Link} 
-                          href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
-                          variant="outline"
-                        >
-                          View Details
-                        </Button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <Button 
+                            size="small" 
+                            as={Link} 
+                            href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
+                            variant="outline"
+                          >
+                            View Details
+                          </Button>
+                          {archivingStudents[student.user_id] ? (
+                            <Button size="small" disabled>
+                              <LoadingSpinner size="small" /> Archiving...
+                            </Button>
+                          ) : (
+                            <Button
+                              size="small"
+                              variant="secondary"
+                              onClick={() => openArchiveModal(student)}
+                            >
+                              Archive
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -350,15 +454,33 @@ export default function TeacherRoomDetailPage() {
                     </Link>
                     <p className="student-email">{student.email}</p>
                     <p className="joined-at">Joined: {formatDate(student.joined_at)}</p>
-                     <Button 
-                        size="small" 
-                        as={Link} 
-                        href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
-                        variant="outline"
-                        style={{marginTop: '8px', width: '100%'}}
-                      >
-                        View Student Details
-                      </Button>
+                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
+                        <Button 
+                          size="small" 
+                          as={Link} 
+                          href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
+                          variant="outline"
+                          style={{flex: 1}}
+                        >
+                          View Details
+                        </Button>
+                        {archivingStudents[student.user_id] ? (
+                          <Button size="small" disabled style={{flex: 1}}>
+                            <LoadingSpinner size="small" /> Archiving...
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            onClick={() => openArchiveModal(student)}
+                            style={{flex: 1}}
+                          >
+                            Archive
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {/* Magic link functionality removed */}
                   </StudentCard>
                 ))}
               </StudentListMobile>
@@ -368,7 +490,71 @@ export default function TeacherRoomDetailPage() {
           )}
         </Section>
 
+        {showArchivedStudents && (
+          <ArchivePanel 
+            type="students"
+            roomId={roomId}
+            onItemRestored={fetchRoomDetails}
+          />
+        )}
+
       </Container>
+      
+      {/* CSV Upload Modal */}
+      {showCsvUpload && (
+        <StudentCsvUpload
+          roomId={roomId}
+          roomName={room.room_name}
+          onClose={() => {
+            setShowCsvUpload(false);
+            // Refresh the room details to show newly added students
+            fetchRoomDetails();
+          }}
+        />
+      )}
+      
+      {/* Archive Confirmation Modal */}
+      {showArchiveModal && studentToArchive && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <Card style={{
+            width: '100%',
+            maxWidth: '400px',
+            padding: '24px',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ marginBottom: '16px' }}>Archive Student</h3>
+            <p>Are you sure you want to remove <strong>{studentToArchive.full_name}</strong> from this room?</p>
+            <p style={{ marginTop: '8px' }}>The student will no longer have access to this room, but their account and data will be preserved.</p>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '16px', 
+              marginTop: '24px' 
+            }}>
+              <Button variant="outline" onClick={closeArchiveModal}>
+                Cancel
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={() => archiveStudent(studentToArchive.user_id)}
+              >
+                Archive Student
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </PageWrapper>
   );
 }

@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import Link from 'next/link';
 import { Card, Button, Badge } from '@/styles/StyledComponents';
 import type { Room as BaseRoom } from '@/types/database.types';
+import StudentCsvUpload from './StudentCsvUpload';
 
 // --- Styled Components ---
 const TableContainer = styled.div`
@@ -20,7 +21,7 @@ const TableContainer = styled.div`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-  min-width: 700px;
+  min-width: 1000px;
 `;
 
 const Th = styled.th`
@@ -44,8 +45,9 @@ const Td = styled.td`
 
 const ActionButtons = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.spacing.sm};
-  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.md};
+  flex-wrap: nowrap;
+  width: 100%;
 `;
 
 const RoomCode = styled.span`
@@ -108,7 +110,7 @@ const ModalOverlay = styled.div`
 
 const ModalContent = styled(Card)`
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
   margin: 20px;
   position: relative;
   text-align: center;
@@ -207,7 +209,8 @@ interface RoomListProps {
   rooms: RoomWithChatbots[]; 
   onUpdate: () => void;
   onEditRoom: (room: BaseRoom) => void; 
-  onDeleteRoom: (room: BaseRoom) => void; 
+  onDeleteRoom: (room: BaseRoom) => void;
+  onArchiveRoom: (room: BaseRoom) => void;
   accentColor?: string; // Added optional accentColor prop
 }
 
@@ -246,14 +249,15 @@ function DeleteModal({ isOpen, roomName, onConfirm, onCancel, isDeleting }: Dele
 }
 
 // MODIFIED Component Signature
-export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, accentColor }: RoomListProps) {
+export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, onArchiveRoom, accentColor }: RoomListProps) {
   const [loadingState, setLoadingState] = useState<{ [key: string]: boolean }>({});
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     roomId: string | null;
     roomName: string;
   }>({ isOpen: false, roomId: null, roomName: '' });
-  const [isDeleting, setIsDeleting] = useState(false); 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [csvUploadRoom, setCsvUploadRoom] = useState<BaseRoom | null>(null); 
 
   const toggleRoomStatus = async (roomId: string, currentStatus: boolean) => {
     setLoadingState(prev => ({ ...prev, [roomId]: true }));
@@ -283,11 +287,13 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, ac
     }
   };
 
-  const generateMagicLink = async (roomId: string, roomCode: string) => {
+  const generateJoinUrl = async (roomId: string, roomCode: string) => {
     try {
-      const joinLink = `${window.location.origin}/join?code=${roomCode}`;
+      // Simply generate a direct link to the join page with the room code
+      // This doesn't use Supabase's auth magic link system - it's just a room join URL
+      const joinLink = `${window.location.origin}/join-room?code=${roomCode}`;
       await navigator.clipboard.writeText(joinLink);
-      alert(`Student join link copied to clipboard:\n${joinLink}`);
+      alert(`Student join URL copied to clipboard:\n${joinLink}\n\nShare this URL with students to let them join your room. This is a direct room link, not a Supabase magic link.`);
     } catch (error) {
       console.error('Error generating join link:', error);
       alert('Failed to generate join link.');
@@ -380,8 +386,19 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, ac
                     <Td>
                       <ActionButtons>
                         <Button size="small" onClick={() => onEditRoom(room)} disabled={isLoading} title="Edit Chatbots for this Room">Edit</Button>
-                        <Button size="small" variant="outline" onClick={() => generateMagicLink(room.room_id, room.room_code)} disabled={isLoading} title="Copy Student Join Link">Join Link</Button>
+                        <Button size="small" variant="outline" onClick={() => generateJoinUrl(room.room_id, room.room_code)} disabled={isLoading} title="Copy Student Join Link">Join URL</Button>
+                        <Button 
+                          size="small" 
+                          variant="primary" 
+                          onClick={() => setCsvUploadRoom(room)} 
+                          disabled={isLoading} 
+                          title="Import students via CSV"
+                          style={{ fontWeight: 'bold' }}
+                        >
+                          Import Students
+                        </Button>
                         <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading} title={room.is_active ? 'Deactivate Room' : 'Activate Room'}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
+                        <Button size="small" variant="secondary" onClick={() => onArchiveRoom(room)} disabled={isLoading} title="Archive Room">Archive</Button>
                         <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading} title="Delete Room">Delete</Button>
                       </ActionButtons>
                     </Td>
@@ -424,8 +441,18 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, ac
                   </RoomCardDetails>
                   <MobileActions>
                     <Button size="small" onClick={() => onEditRoom(room)} disabled={isLoading}>Edit</Button>
-                    <Button size="small" variant="outline" onClick={() => generateMagicLink(room.room_id, room.room_code)} disabled={isLoading}>Join Link</Button>
+                    <Button size="small" variant="outline" onClick={() => generateJoinUrl(room.room_id, room.room_code)} disabled={isLoading}>Join URL</Button>
+                    <Button 
+                      size="small" 
+                      variant="primary" 
+                      onClick={() => setCsvUploadRoom(room)} 
+                      disabled={isLoading}
+                      style={{ fontWeight: 'bold' }}
+                    >
+                      Import Students
+                    </Button>
                     <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
+                    <Button size="small" variant="secondary" onClick={() => onArchiveRoom(room)} disabled={isLoading}>Archive</Button>
                     <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading}>Delete</Button>
                   </MobileActions>
                 </MobileRoomCard>
@@ -441,6 +468,14 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, ac
         onCancel={closeDeleteModal}
         isDeleting={isDeleting} 
       />
+
+      {csvUploadRoom && (
+        <StudentCsvUpload
+          roomId={csvUploadRoom.room_id}
+          roomName={csvUploadRoom.room_name}
+          onClose={() => setCsvUploadRoom(null)}
+        />
+      )}
     </>
   );
 }

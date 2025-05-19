@@ -80,6 +80,15 @@ export default function ConcernDetailPage() {
             }
             const data: FlagDetailsResponse = await response.json(); // Use the correct response type
             console.log("Fetched Concern Data:", data);
+            
+            // Debug info for AI analysis explanation
+            console.log("AI Analysis Explanation:", {
+                exists: !!data.analysis_explanation,
+                value: data.analysis_explanation,
+                type: typeof data.analysis_explanation,
+                length: data.analysis_explanation ? data.analysis_explanation.length : 0
+            });
+            
             setConcern(data);
             setSelectedStatus(data.status || 'pending');
             setNotes(data.notes || '');
@@ -182,7 +191,13 @@ export default function ConcernDetailPage() {
                         <DetailItem><strong>Concern Type:</strong><span>{getConcernTypeText(concern.concern_type)}</span></DetailItem>
                         <DetailItem><strong>Assessed Level:</strong><Badge variant="default" style={{ marginLeft: '8px' }}>{getConcernLevelText(concern.concern_level)} (Level {concern.concern_level})</Badge></DetailItem>
                         <DetailItem><strong>Detected At:</strong><span>{new Date(concern.created_at).toLocaleString()}</span></DetailItem>
-                        {concern.analysis_explanation && (<DetailItem><strong>AI Analysis:</strong><AnalysisText>{concern.analysis_explanation}</AnalysisText></DetailItem>)}
+                        {/* Always show AI Analysis section, with fallback message if missing */}
+                        <DetailItem>
+                            <strong>AI Analysis:</strong>
+                            <AnalysisText>
+                                {concern.analysis_explanation || "This message was flagged by the automated safety system. Please review the conversation context."}
+                            </AnalysisText>
+                        </DetailItem>
                         {concern.reviewed_at && (<DetailItem><strong>Last Reviewed:</strong><span>{new Date(concern.reviewed_at).toLocaleString()}</span></DetailItem>)}
 
                         <ActionForm onSubmit={handleStatusUpdate}>

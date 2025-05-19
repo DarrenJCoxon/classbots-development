@@ -9,6 +9,7 @@ import type { User } from '@supabase/supabase-js';
 import { Container } from '@/styles/StyledComponents';
 import Footer from '@/components/layout/Footer';
 import TeacherNav from '@/components/teacher/TeacherNav';
+import TeacherProfileCheck from '@/components/auth/teacherProfileCheck';
 
 const DashboardLayoutContainer = styled.div`
   min-height: 100vh;
@@ -128,6 +129,9 @@ export default function TeacherDashboardLayout({
   console.log('[TDL] Rendering dashboard content.');
   return (
     <DashboardLayoutContainer>
+      {/* Add the profile check component that will automatically repair
+          teacher profiles if needed */}
+      <TeacherProfileCheck />
       <Container>
         <TeacherNav />
         <MainContent>

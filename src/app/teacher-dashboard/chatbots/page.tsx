@@ -3,9 +3,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
 import { Button, Alert, Card, Input, Select as StyledSelect, FormGroup, Label } from '@/styles/StyledComponents';
 import ChatbotList, { type ChatbotListProps } from '@/components/teacher/ChatbotList'; // Ensure type ChatbotListProps is imported
+import ChatbotForm from '@/components/teacher/ChatbotForm';
 import type { Chatbot, BotTypeEnum } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -59,7 +60,8 @@ export default function ManageChatbotsPage() {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  // router will be used for navigation in future updates
+  // const router = useRouter();
   const theme = useTheme(); 
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +69,11 @@ export default function ManageChatbotsPage() {
   const [selectedRagStatus, setSelectedRagStatus] = useState<'any' | 'true' | 'false'>('any');
   const [sortBy, setSortBy] = useState('created_at_desc');
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  
+  // Modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editChatbot, setEditChatbot] = useState<Chatbot | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
 
@@ -130,8 +137,18 @@ export default function ManageChatbotsPage() {
   }, [fetchChatbots]);
 
   const handleEditChatbot = useCallback((chatbotId: string) => {
-      router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
-  }, [router]);
+      // Find the chatbot in the array
+      const chatbotToEdit = chatbots.find(bot => bot.chatbot_id === chatbotId);
+      
+      if (chatbotToEdit) {
+        setEditChatbot(chatbotToEdit);
+        setShowEditModal(true);
+        setIsCreating(false);
+      } else {
+        console.error(`Chatbot with ID ${chatbotId} not found`);
+        setError(`Chatbot with ID ${chatbotId} not found`);
+      }
+  }, [chatbots]);
 
   const handleDeleteChatbot = useCallback(async (chatbotId: string, chatbotName: string) => {
       if (window.confirm(`Are you sure you want to delete the chatbot "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
@@ -157,8 +174,22 @@ export default function ManageChatbotsPage() {
   }, [fetchChatbots]); 
   
   const handleCreateNewChatbot = useCallback(() => {
-      router.push(`/teacher-dashboard/chatbots/new/edit`);
-  }, [router]);
+      setEditChatbot(null);
+      setShowEditModal(true);
+      setIsCreating(true);
+  }, []);
+  
+  const handleFormClose = useCallback(() => {
+    setShowEditModal(false);
+    setEditChatbot(null);
+  }, []);
+  
+  const handleFormSuccess = useCallback(() => {
+    setShowEditModal(false);
+    setEditChatbot(null);
+    fetchChatbots();
+    // chatbotId parameter is not used here
+  }, [fetchChatbots]);
 
   const content = useMemo(() => {
     if (isLoading && chatbots.length === 0) { 
@@ -277,6 +308,27 @@ export default function ManageChatbotsPage() {
       )}
       {content}
 
+      {/* Modal Form for Creating/Editing Chatbots */}
+      {showEditModal && (
+        <ChatbotForm 
+          onClose={handleFormClose} 
+          onSuccess={handleFormSuccess}
+          initialData={editChatbot ? {
+            chatbot_id: editChatbot.chatbot_id,
+            name: editChatbot.name,
+            description: editChatbot.description || '',
+            system_prompt: editChatbot.system_prompt,
+            model: editChatbot.model || 'openai/gpt-4.1-nano',
+            max_tokens: editChatbot.max_tokens || undefined,
+            temperature: editChatbot.temperature || undefined,
+            enable_rag: editChatbot.enable_rag || false,
+            bot_type: editChatbot.bot_type || 'learning',
+            assessment_criteria_text: editChatbot.assessment_criteria_text || '',
+            welcome_message: editChatbot.welcome_message || '',
+          } : undefined}
+          editMode={!isCreating}
+        />
+      )}
     </PageWrapper>
   );
 }

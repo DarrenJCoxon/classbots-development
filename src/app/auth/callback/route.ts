@@ -1,86 +1,139 @@
 // src/app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url); // Added origin for constructing absolute URLs
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const codeVerifier = searchParams.get('code_verifier');
 
   if (code) {
     const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    let authResult;
+    
+    // Check if code_verifier is provided (PKCE flow)
+    // Handle API compatibility issues between Supabase versions
+    try {
+      if (codeVerifier) {
+        // Newer Supabase versions accept the code verifier as an option
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        authResult = await (supabase.auth as any).exchangeCodeForSession(code, { 
+          codeVerifier: codeVerifier 
+        });
+      } else {
+        authResult = await supabase.auth.exchangeCodeForSession(code);
+      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      // If above fails, try the older method
+      authResult = await supabase.auth.exchangeCodeForSession(code);
+    }
+    
+    const { error } = authResult;
     
     if (error) {
       console.error('Error exchanging code for session:', error);
-      return NextResponse.redirect(new URL('/auth', origin)); // Use origin
+      return NextResponse.redirect(new URL('/auth', origin));
     }
     
     // Get user data to determine redirect
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
+      console.log(`[Auth Callback] User authenticated: ${user.id}`);
+      console.log(`[Auth Callback] User metadata:`, user.user_metadata);
+      
       // Wait for profile to be created by trigger
       // This delay might still be needed if your trigger isn't instant
       await new Promise(resolve => setTimeout(resolve, 500)); 
       
-      const { data: profile, error: profileError } = await supabase // Added error handling for profile fetch
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('user_id', user.id)
         .single();
 
-      if (profileError) {
-        console.error(`Error fetching profile for user ${user.id} in auth callback:`, profileError.message);
-        // Fallback to home or a generic error page if profile fetch fails criticaly
-        return NextResponse.redirect(new URL('/', origin));
-      }
-      
       // Get redirect URL from query params or use role-based default
-      // Important: Ensure 'redirect' param doesn't create open redirect vulnerabilities.
-      // For now, we assume it's from trusted sources like our own app.
       const redirectToParam = searchParams.get('redirect');
+      let redirectTarget = '';
       
-      if (redirectToParam) {
-        // Basic validation for redirectToParam to prevent open redirect
-        // Ensure it's a relative path or a path starting with our app's origin
-        if (redirectToParam.startsWith('/') || redirectToParam.startsWith(origin)) {
-            try {
-                 // If redirectToParam is already absolute and matches origin, or relative, new URL() works.
-                // If it's absolute but different origin, new URL() will use it as base, potentially wrong.
-                // Better to construct carefully.
-                const finalRedirectUrl = redirectToParam.startsWith('/') 
-                                        ? new URL(redirectToParam, origin) 
-                                        : new URL(redirectToParam); // Assumes it's already a valid absolute URL matching origin
+      // First, check safe redirect parameter
+      if (redirectToParam && (redirectToParam.startsWith('/') || redirectToParam.startsWith(origin))) {
+        try {
+            const finalRedirectUrl = redirectToParam.startsWith('/') 
+                                    ? new URL(redirectToParam, origin) 
+                                    : new URL(redirectToParam);
 
-                // Final check to ensure it's still within our app domain if it was absolute
-                if (finalRedirectUrl.origin === origin) {
-                    console.log(`[Auth Callback] Redirecting to specified param: ${finalRedirectUrl.toString()}`);
-                    return NextResponse.redirect(finalRedirectUrl);
-                } else {
-                    console.warn(`[Auth Callback] Invalid redirect param origin: ${redirectToParam}. Defaulting.`);
-                }
-            } catch (e) {
-                console.warn(`[Auth Callback] Error parsing redirect param: ${redirectToParam}. Defaulting.`, e);
+            if (finalRedirectUrl.origin === origin) {
+                console.log(`[Auth Callback] Will redirect to specified param: ${finalRedirectUrl.toString()}`);
+                redirectTarget = finalRedirectUrl.toString();
             }
-        } else {
-             console.warn(`[Auth Callback] Potentially unsafe redirect param: ${redirectToParam}. Defaulting.`);
+        } catch (e) {
+            console.warn(`[Auth Callback] Error parsing redirect param: ${redirectToParam}`, e);
         }
       }
       
-      // Role-based redirect
-      if (profile?.role === 'teacher') {
-        console.log('[Auth Callback] Redirecting teacher to /teacher-dashboard');
-        return NextResponse.redirect(new URL('/teacher-dashboard', origin));
-      } else if (profile?.role === 'student') {
-        console.log('[Auth Callback] Redirecting student to /student/dashboard');
-        return NextResponse.redirect(new URL('/student/dashboard', origin)); // <<< MODIFIED LINE
-      } else {
-        console.warn(`[Auth Callback] User ${user.id} has no role or unknown role: ${profile?.role}. Redirecting to /.`);
-        return NextResponse.redirect(new URL('/', origin));
+      // If no redirect param or it wasn't valid, determine by role
+      if (!redirectTarget) {
+        // Check profile role first
+        const profileRole = profile?.role;
+        
+        // If profile has no role or profile error, check user metadata
+        const metadataRole = user.user_metadata?.role;
+        
+        console.log(`[Auth Callback] Profile role: "${profileRole}", Metadata role: "${metadataRole}"`);
+        
+        // Always ensure profile existence with admin client
+        const supabaseAdmin = createAdminClient();
+        
+        // If profile error or missing role, attempt to repair using metadata
+        if (profileError || !profileRole) {
+          if (metadataRole) {
+            try {
+              // Create/update profile based on metadata - add essential fields
+              const email = user.email || `${user.id}@example.com`;
+              console.log(`[Auth Callback] Repairing profile for user ${user.id}, email ${email}, role ${metadataRole}`);
+              
+              // For teachers especially, ensure they have a valid profile
+              await supabaseAdmin.from('profiles').upsert({
+                user_id: user.id,
+                email: email,  // Email is marked NOT NULL in the schema, must provide it
+                role: metadataRole,
+                full_name: user.user_metadata?.full_name || 'User',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }, {
+                onConflict: 'user_id'
+              });
+              console.log(`[Auth Callback] Fixed profile for user ${user.id} with role ${metadataRole}`);
+            } catch (fixError) {
+              console.error('[Auth Callback] Failed to fix profile:', fixError);
+            }
+          }
+        }
+        
+        // Determine final redirect based on role (with fallbacks)
+        const effectiveRole = profileRole || metadataRole;
+        
+        if (effectiveRole === 'teacher') {
+          redirectTarget = `/teacher-dashboard?_t=${Date.now()}`;
+          console.log('[Auth Callback] Redirecting teacher to dashboard');
+        } else if (effectiveRole === 'student') {
+          redirectTarget = `/student/dashboard?_t=${Date.now()}`;
+          console.log('[Auth Callback] Redirecting student to dashboard');
+        } else {
+          // No role found anywhere, default to home
+          redirectTarget = '/';
+          console.warn(`[Auth Callback] No role found for user ${user.id}. Redirecting to home.`);
+        }
       }
+      
+      // Final redirect
+      return NextResponse.redirect(new URL(redirectTarget, origin));
     } else {
-        console.log('[Auth Callback] No user found after exchanging code. Redirecting to /auth.');
-        return NextResponse.redirect(new URL('/auth', origin));
+      console.log('[Auth Callback] No user found after exchanging code. Redirecting to /auth.');
+      return NextResponse.redirect(new URL('/auth', origin));
     }
   }
 

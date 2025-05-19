@@ -9,6 +9,7 @@ import { Button, Alert, Card, Container } from '@/styles/StyledComponents';
 import RoomList from '@/components/teacher/RoomList';
 import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
+import ArchivePanel from '@/components/teacher/ArchivePanel';
 import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -115,6 +116,7 @@ export default function ManageRoomsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<BaseRoom | null>(null);
+  const [showArchivedRooms, setShowArchivedRooms] = useState(false);
   const theme = useTheme();
   // const router = useRouter(); // Removed if not used
 
@@ -125,6 +127,12 @@ export default function ManageRoomsPage() {
     name: string;
   }>({ isOpen: false, type: 'Room', id: null, name: '' });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [archiveModal, setArchiveModal] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    name: string;
+  }>({ isOpen: false, id: null, name: '' });
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -174,6 +182,48 @@ export default function ManageRoomsPage() {
   const closeDeleteModal = () => {
     setDeleteModal({ isOpen: false, type: 'Room', id: null, name: '' });
   };
+  
+  const openArchiveModal = (room: BaseRoom) => {
+    setArchiveModal({ isOpen: true, id: room.room_id, name: room.room_name });
+  };
+  
+  const closeArchiveModal = () => {
+    setArchiveModal({ isOpen: false, id: null, name: '' });
+  };
+  
+  const handleArchiveRoom = async () => {
+    if (!archiveModal.id) return;
+    
+    setIsArchiving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/teacher/rooms/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roomId: archiveModal.id,
+          archive: true
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to archive room`);
+      }
+      
+      console.log(`Room ${archiveModal.id} archived successfully.`);
+      closeArchiveModal();
+      fetchData();
+    } catch (error) {
+      console.error(`Error archiving Room:`, error);
+      setError(error instanceof Error ? error.message : `Failed to archive Room.`);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
 
   const handleDeleteConfirm = async () => {
     if (!deleteModal.id) return;
@@ -219,13 +269,21 @@ export default function ManageRoomsPage() {
       <Container>
         <PageHeader>
           <Title>Classroom Rooms</Title>
-          <Button
-            onClick={() => setShowRoomForm(true)}
-            disabled={chatbots.length === 0 && !isLoading}
-            title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
-          >
-            + Create New Room
-          </Button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Button
+              variant="outline"
+              onClick={() => setShowArchivedRooms(!showArchivedRooms)}
+            >
+              {showArchivedRooms ? 'Hide Archived Rooms' : 'View Archived Rooms'}
+            </Button>
+            <Button
+              onClick={() => setShowRoomForm(true)}
+              disabled={chatbots.length === 0 && !isLoading}
+              title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
+            >
+              + Create New Room
+            </Button>
+          </div>
         </PageHeader>
 
         {chatbots.length === 0 && !isLoading && !error && (
@@ -246,8 +304,16 @@ export default function ManageRoomsPage() {
             onUpdate={fetchData}
             onEditRoom={handleEditRoom}
             onDeleteRoom={openDeleteModal}
+            onArchiveRoom={openArchiveModal}
             // 👇 CORRECTED: Pass the blue (skolrCyan) color from the theme
             accentColor={theme.colors.blue}
+          />
+        )}
+        
+        {showArchivedRooms && (
+          <ArchivePanel 
+            type="rooms"
+            onItemRestored={fetchData}
           />
         )}
       </Container>
@@ -277,6 +343,32 @@ export default function ManageRoomsPage() {
         onCancel={closeDeleteModal}
         isDeleting={isDeleting}
       />
+      
+      {/* Archive Modal */}
+      {archiveModal.isOpen && (
+        <ModalOverlay>
+          <ModalContent>
+            <ModalTitle>Archive Room</ModalTitle>
+            <ModalText>
+              Are you sure you want to archive the room &quot;
+              <strong>{archiveModal.name}</strong>
+              &quot;? The room will still be accessible but won't appear in your active rooms list.
+            </ModalText>
+            <ModalActions>
+              <Button variant="outline" onClick={closeArchiveModal} disabled={isArchiving}>
+                Cancel
+              </Button>
+              <Button
+                 variant="secondary"
+                 onClick={handleArchiveRoom}
+                 disabled={isArchiving}
+              >
+                {isArchiving ? 'Archiving...' : 'Archive Room'}
+              </Button>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </PageWrapper>
   );
 }

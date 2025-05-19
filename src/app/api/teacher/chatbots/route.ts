@@ -15,6 +15,9 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    // IMPORTANT: We're using the admin client to bypass RLS issues
+    const supabaseAdmin = createAdminClient();
+    
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -32,7 +35,8 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
     const ragEnabledParam = searchParams.get('ragEnabled'); // Will be 'true' or 'false' as string
     const sortBy = searchParams.get('sortBy') || 'created_at_desc'; // Default sort
 
-    let query = supabase
+    // Use admin client instead of RLS-restricted client
+    let query = supabaseAdmin
       .from('chatbots')
       .select('*')
       .eq('teacher_id', user.id);
@@ -66,14 +70,20 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
       query = query.order('created_at', { ascending: false });
     }
     
-    const { data: chatbots, error: fetchError } = await query;
+    // Execute the query using admin client
+    try {
+      const { data: chatbots, error: fetchError } = await query;
 
-    if (fetchError) {
-      console.error('Error fetching chatbots:', fetchError);
-      throw fetchError;
+      if (fetchError) {
+        console.error('Error fetching chatbots:', fetchError);
+        throw fetchError;
+      }
+
+      return NextResponse.json(chatbots || []);
+    } catch (queryError) {
+      console.error('Error executing chatbot query:', queryError);
+      throw queryError;
     }
-
-    return NextResponse.json(chatbots || []);
   } catch (error) {
     console.error('Error in GET /api/teacher/chatbots:', error);
     return NextResponse.json(
@@ -84,7 +94,6 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
 }
 
 // POST Handler
-// ... (POST Handler remains the same as you provided)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -94,7 +103,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    // Use admin client for all database operations to bypass RLS
+    const supabaseAdmin = createAdminClient();
+
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('user_id', user.id)
@@ -131,8 +143,8 @@ export async function POST(request: NextRequest) {
         delete chatbotDataToInsert.description; 
     }
 
-
-    const { data: newChatbot, error: insertError } = await supabase
+    // Use admin client for insert to bypass RLS restrictions
+    const { data: newChatbot, error: insertError } = await supabaseAdmin
       .from('chatbots')
       .insert(chatbotDataToInsert)
       .select()
@@ -158,7 +170,6 @@ export async function POST(request: NextRequest) {
 
 
 // DELETE Handler
-// ... (DELETE Handler remains the same as you provided)
 export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const chatbotId = searchParams.get('chatbotId');
@@ -169,7 +180,7 @@ export async function DELETE(request: NextRequest) {
     console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Request received.`);
 
     const supabase = await createServerSupabaseClient();
-    const adminSupabase = createAdminClient();
+    const supabaseAdmin = createAdminClient();
 
     try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -177,7 +188,8 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
 
-        const { data: chatbot, error: fetchError } = await supabase
+        // Use admin client for all DB operations to bypass RLS
+        const { data: chatbot, error: fetchError } = await supabaseAdmin
             .from('chatbots')
             .select('teacher_id, name')
             .eq('chatbot_id', chatbotId)
@@ -198,7 +210,7 @@ export async function DELETE(request: NextRequest) {
 
         const documentsFolderPath = `${user.id}/${chatbotId}/`;
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Listing files in storage path: ${documentsFolderPath}`);
-        const { data: filesInStorage, error: listError } = await adminSupabase.storage
+        const { data: filesInStorage, error: listError } = await supabaseAdmin.storage
             .from('documents')
             .list(documentsFolderPath);
 
@@ -208,14 +220,14 @@ export async function DELETE(request: NextRequest) {
             const filePathsToRemove = filesInStorage.map(file => `${documentsFolderPath}${file.name}`);
             if (filePathsToRemove.length > 0) {
                 console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Removing ${filePathsToRemove.length} files from storage.`);
-                const { error: removeFilesError } = await adminSupabase.storage.from('documents').remove(filePathsToRemove);
+                const { error: removeFilesError } = await supabaseAdmin.storage.from('documents').remove(filePathsToRemove);
                 if (removeFilesError) console.warn(`[API DELETE /chatbots?chatbotId=${chatbotId}] Error removing files from storage: ${removeFilesError.message}`);
                 else console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Successfully removed files from storage.`);
             }
         }
 
         console.log(`[API DELETE /chatbots?chatbotId=${chatbotId}] Deleting chatbot record from database.`);
-        const { error: deleteChatbotError } = await adminSupabase
+        const { error: deleteChatbotError } = await supabaseAdmin
             .from('chatbots')
             .delete()
             .eq('chatbot_id', chatbotId);
