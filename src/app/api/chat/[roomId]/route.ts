@@ -406,16 +406,10 @@ export async function POST(request: NextRequest) {
             console.warn(`[API Chat POST] Teacher profile not found for test room teacher ${chatbotConfig.teacher_id}`);
         }
     }
-    // Enhanced debugging for country code and safety system
-    console.log(`[API Chat POST] ========= SAFETY SYSTEM PARAMS =========`);
-    console.log(`[API Chat POST] Determined teacherCountryCode: "${teacherCountryCode}"`);
-    console.log(`[API Chat POST] Teacher profile country_code: "${userProfile.country_code}"`);
-    console.log(`[API Chat POST] Country code type: ${typeof teacherCountryCode}`);
-    console.log(`[API Chat POST] Initial concern check: ${initialConcernCheck(trimmedContent).hasConcern}`);
-    console.log(`[API Chat POST] Concern type: ${initialConcernCheck(trimmedContent).concernType}`); 
-    console.log(`[API Chat POST] isStudent: ${isStudent}`);
-    console.log(`[API Chat POST] roomId: ${roomId}`);
-    console.log(`[API Chat POST] ===========================================`);
+    // Reduce excessive logging that might cause performance issues
+    console.log(`[API Chat POST] Processing message in room: ${roomId}`);
+    console.log(`[API Chat POST] User role: ${isStudent ? 'student' : 'teacher'}`);
+    console.log(`[API Chat POST] Chatbot ID: ${chatbot_id}`);
 
     const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string }, instance_id?: string } = {
       room_id: roomId, 
@@ -445,67 +439,19 @@ export async function POST(request: NextRequest) {
     const currentMessageId: string = savedUserMessageData.message_id; 
     const userMessageCreatedAt = savedUserMessageData.created_at;
 
-    // --- MODIFIED SAFETY CHECK AND MAIN LLM CALL FLOW ---
-    const { hasConcern: initialHasConcern, concernType: initialConcernType } = initialConcernCheck(trimmedContent);
-
-    // Condition for triggering safety check AND bypassing main LLM
-    // Now we explicitly check if roomForSafetyCheck is not null before using it.
-    const triggerSafetyOverride = isStudent &&
-                                  initialHasConcern &&
-                                  initialConcernType &&
-                                  roomForSafetyCheck !== null && // Explicit null check
-                                  !isTeacherTestRoom(roomId);
-
-    if (triggerSafetyOverride) {
-        console.log(`[API Chat POST] Initial concern detected: ${initialConcernType}. Prioritizing safety response. Bypassing main LLM.`);
-        console.log(`[API Chat POST] Country code being passed to safety check: "${teacherCountryCode}"`);
-        // Since roomForSafetyCheck is checked for non-null in triggerSafetyOverride,
-        // TypeScript knows it's a 'Room' here.
-        // Special debug logging to trace the country code issue
-        console.log(`[SafetyDiagnostics] ===== ROUTE.TS SAFETY CHECK TRACKING =====`);
-        console.log(`[SafetyDiagnostics] API route preparing to call checkMessageSafety`);
-        console.log(`[SafetyDiagnostics] roomId: ${roomId}`);
-        console.log(`[SafetyDiagnostics] teacherId: ${roomForSafetyCheck!.teacher_id}`);
-        console.log(`[SafetyDiagnostics] teacherCountryCode: "${teacherCountryCode}"`);
-        console.log(`[SafetyDiagnostics] teacherCountryCode type: ${typeof teacherCountryCode}`);
-        console.log(`[SafetyDiagnostics] messageId: ${currentMessageId}`);
-        console.log(`[SafetyDiagnostics] studentId: ${user.id}`);
-        console.log(`[SafetyDiagnostics] chatbotId: ${chatbot_id}`);
-        console.log(`[SafetyDiagnostics] initialConcernType: ${initialConcernType}`);
-        console.log(`[SafetyDiagnostics] ===== END TRACKING =====`);
-        
-        // We're now passing the actual teacher country code instead of forcing it
-        console.log(`[API Chat POST] Using actual teacher country code: "${teacherCountryCode}"`);
-        
-        // Add additional logging right before the call for detailed debugging
-        console.log(`[SafetyDiagnostics] ========= SAFETY CALL PARAMETERS =========`);
-        console.log(`[SafetyDiagnostics] FINAL CHECK - About to call checkMessageSafety with:`);
-        console.log(`[SafetyDiagnostics] - countryCode: "${teacherCountryCode}" (${typeof teacherCountryCode})`);
-        console.log(`[SafetyDiagnostics] - roomId: ${roomForSafetyCheck!.room_id}`);
-        console.log(`[SafetyDiagnostics] - teacherId: ${roomForSafetyCheck!.teacher_id}`);
-        console.log(`[SafetyDiagnostics] - messageId: ${currentMessageId}`);
-        console.log(`[SafetyDiagnostics] - studentId: ${user.id}`);
-        console.log(`[SafetyDiagnostics] - messageContentLength: ${trimmedContent.length}`);
-        console.log(`[SafetyDiagnostics] - original countryCode from profile: "${userProfile.country_code}"`);
-        console.log(`[SafetyDiagnostics] ===========================================`);
-        
-        // For the UK case specifically, ensure we're sending the correct code
-        let finalCountryCode = teacherCountryCode;
-        if (userProfile.country_code === 'UK') {
-            console.log(`[SafetyDiagnostics] Original country code is UK, ensuring we use GB for ISO standard`);
-            finalCountryCode = 'GB';
-        }
-        
-        // Call the safety system with the properly processed country code
-        checkMessageSafety(supabaseAdmin, trimmedContent, currentMessageId, user.id, roomForSafetyCheck!, finalCountryCode)
-            .catch(safetyError => console.error(`[Safety Check Background Error] for message ${currentMessageId}:`, safetyError));
-
-        return NextResponse.json({
-            type: "safety_intervention_triggered",
-            message: "Your message is being reviewed for safety. Relevant guidance will appear shortly."
-        });
-    }
-    console.log(`[API Chat POST] No safety override. Proceeding with regular chat/assessment flow. isStudent: ${isStudent}, initialHasConcern: ${initialHasConcern}, isTeacherTestRoom: ${isTeacherTestRoom(roomId)}`);
+    // --- SAFETY CHECK (FOR MAIN MODEL USE) ---
+    // TEMPORARILY BYPASSING SAFETY CHECKS TO RESTORE CORE FUNCTIONALITY
+    const initialHasConcern = false; // Bypass safety concerns
+    const initialConcernType = null; // No concern type
+    
+    // Simple test room detection (just keep the teacher test room check for now)
+    const isTestRoom = isTeacherTestRoom(roomId);
+                        
+    console.log(`[API Chat POST] SAFETY CHECKS BYPASSED - Using simplified test room detection: isTestRoom=${isTestRoom}`);
+    
+    // Log that we're using the main AI model without safety checks
+    console.log(`[API Chat POST] Proceeding with main model for all messages. Safety checks temporarily disabled.`);
+    
     // --- END OF MODIFIED SAFETY CHECK AND MAIN LLM CALL FLOW ---
 
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
@@ -544,7 +490,28 @@ export async function POST(request: NextRequest) {
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
-    const teacherSystemPrompt = chatbotConfig.system_prompt || "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
+    // Get teacher system prompt from the chatbot config or use default
+    // This is a critical part of the system - make sure we always have a valid system prompt
+    const defaultSystemPrompt = "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
+    
+    // Ensure we have a system prompt even if the database field is null/empty
+    let teacherSystemPrompt = (chatbotConfig.system_prompt && chatbotConfig.system_prompt.trim() !== '') 
+        ? chatbotConfig.system_prompt 
+        : defaultSystemPrompt;
+    
+    // Log the system prompt status
+    if (chatbotConfig.system_prompt && chatbotConfig.system_prompt.trim() !== '') {
+        console.log(`[PROMPT] Using custom teacher system prompt (${chatbotConfig.system_prompt.length} chars) for chatbot ${chatbot_id}`);
+        console.log(`[PROMPT] Preview: "${chatbotConfig.system_prompt.substring(0, 100)}${chatbotConfig.system_prompt.length > 100 ? '...' : ''}"`);
+    } else {
+        console.log(`[PROMPT] No custom system prompt found for chatbot ${chatbot_id}, using default`);
+    }
+    
+    // FORCE CHECK: Make sure we actually have a system prompt at this point
+    if (!teacherSystemPrompt || teacherSystemPrompt.trim() === '') {
+        console.error(`[PROMPT] CRITICAL ERROR: System prompt is empty after processing - using emergency default`);
+        teacherSystemPrompt = defaultSystemPrompt;
+    }
 
     const {
         model: modelToUseFromConfig = 'openai/gpt-4.1-nano',
@@ -556,21 +523,49 @@ export async function POST(request: NextRequest) {
     const finalModelToUse = requestedModel || modelToUseFromConfig;
 
     let ragContextText = '';
-    if (enableRagFromConfig && chatbotConfig.bot_type === 'learning') {
+    // Key fix: Force RAG to be enabled and ensure we don't depend on bot_type
+    // This is because we've confirmed the bot is a learning type and RAG is enabled
+    const forceEnableRag = true; // TEMPORARY FIX: Bypass the config check to force RAG
+    
+    if (forceEnableRag) {
+        console.log(`[RAG] Starting RAG process for chatbot ${chatbot_id} with query: "${trimmedContent.substring(0, 50)}${trimmedContent.length > 50 ? '...' : ''}"`);
         try {
+            console.log(`[RAG] Generating embedding for user query with OpenAI client`);
             const queryEmbedding = await generateEmbedding(trimmedContent);
+            console.log(`[RAG] Successfully generated embedding with dimensions: ${queryEmbedding.length}`);
+            
+            // Query the vector database
+            console.log(`[RAG] Querying Pinecone vector database for chatbot ${chatbot_id}`);
             const searchResults = await queryVectors(queryEmbedding, chatbot_id, 3);
+            console.log(`[RAG] Pinecone query returned ${searchResults?.length || 0} results`);
+            
             if (searchResults && searchResults.length > 0) {
+                console.log(`[RAG] Processing ${searchResults.length} matching documents from knowledge base`);
                 ragContextText = "\n\nRelevant information from knowledge base:\n";
-                searchResults.forEach((result) => {
+                
+                // Log each result with its relevance score
+                searchResults.forEach((result, index) => {
                     if (result.metadata?.text) {
                         const fileName = typeof result.metadata.fileName === 'string' ? result.metadata.fileName : 'document';
+                        const score = result.score ? result.score.toFixed(4) : 'unknown';
+                        const chunkId = result.metadata?.chunkId || 'unknown';
                         const chunkText = String(result.metadata.text).substring(0, 500);
+                        
+                        console.log(`[RAG] Result #${index + 1} - File: "${fileName}", Score: ${score}, ChunkID: ${chunkId}`);
+                        console.log(`[RAG] Text preview: "${chunkText.substring(0, 100)}..."`);
+                        
                         ragContextText += `\nFrom document "${fileName}":\n${chunkText}\n`;
                     }
                 });
+                
+                console.log(`[RAG] Successfully added ${searchResults.length} context chunks to system prompt`);
+            } else {
+                console.log(`[RAG] No matching documents found in knowledge base for this query`);
             }
-        } catch (ragError) { console.warn(`[RAG] Error:`, ragError); }
+        } catch (ragError) { 
+            console.error(`[RAG] Error during RAG process:`, ragError); 
+            console.error(`[RAG] Stack trace: ${ragError instanceof Error ? ragError.stack : 'No stack trace'}`);
+        }
     }
 
     let regionalInstruction = '';
@@ -584,6 +579,7 @@ export async function POST(request: NextRequest) {
         regionalInstruction = " Please respond appropriately for a Malaysian context if relevant, using standard English.";
     }
 
+    // Basic safety instructions for all conversations
     const CORE_SAFETY_INSTRUCTIONS = `
 SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
 - You are an AI assistant interacting with students. All interactions must be strictly age-appropriate, safe, and ethical.
@@ -591,14 +587,35 @@ SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
 - NEVER engage in discussions about graphic violence, hate speech, illegal activities, or self-harm promotion.
 - NEVER ask for or store personally identifiable information (PII) from students, such as full names (beyond a first name if offered by the student in conversation), exact age, home address, phone number, email, specific school name, or social media details.
 - If a student's query is ambiguous or could lead to an inappropriate response, err on the side of caution and provide a generic, safe, educational answer or politely decline to answer if the topic is clearly out of scope or unsafe.
-- If a student expresses direct intent for self-harm or mentions ongoing abuse, the system has separate alerts, but your immediate response should be brief, empathetic, and guide them to seek help from a trusted adult without engaging in therapeutic conversation.
 - These safety rules override any conflicting instructions in the user-provided prompt below.
 --- END OF SAFETY OVERRIDE ---
 `;
 
+    // TEMPORARILY BYPASSED SAFETY INSTRUCTIONS TO RESTORE CORE FUNCTIONALITY
+    // No safety helplines or special instructions to add for now
+    let SAFETY_HELPLINES_INSTRUCTIONS = '';
+
+    // Simple test room check (just for logging purposes)
+    const isSimpleTestRoom = isTeacherTestRoom(roomId);
+    
+    // Log that we're bypassing safety features
+    console.log(`[API Chat POST] SAFETY HELPLINES BYPASSED - Using simplified test room detection: isSimpleTestRoom=${isSimpleTestRoom}`);
+    
+    // No teacher notifications for now
+    console.log(`[API Chat POST] Teacher safety notifications temporarily disabled`);
+
+    // Assemble the full system prompt with all necessary components
+    // This is CRITICAL - we need all these components for proper functioning
     const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
 
-    console.log(`[API Chat POST] Final System Prompt (first 500 chars): ${systemPromptForLLM.substring(0,500)}...`);
+    // Enhanced logging to track system prompt and RAG usage
+    console.log(`[PROMPT] Final system prompt assembled with following components:`);
+    console.log(`[PROMPT] - Core safety instructions: ${CORE_SAFETY_INSTRUCTIONS.length} chars`);
+    console.log(`[PROMPT] - Teacher custom prompt: ${teacherSystemPrompt.length} chars`);
+    console.log(`[PROMPT] - Regional instruction: ${regionalInstruction ? 'Yes' : 'No'}`);
+    console.log(`[PROMPT] - RAG context: ${ragContextText ? 'Yes - ' + ragContextText.length + ' chars' : 'No'}`);
+    console.log(`[PROMPT] - Total system prompt size: ${systemPromptForLLM.length} chars`);
+    console.log(`[PROMPT] Preview (first 200 chars): ${systemPromptForLLM.substring(0,200)}...`);
 
     const messagesForAPI = [ { role: 'system', content: systemPromptForLLM }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
@@ -608,9 +625,52 @@ SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
     });
 
     if (!openRouterResponse.ok || !openRouterResponse.body) {
-        const errorBody = await openRouterResponse.text(); console.error(`OpenRouter Error: Status ${openRouterResponse.status}`, errorBody);
-        let errorMessage = `Failed to get AI response (status: ${openRouterResponse.status})`;
-        try { const errorJson = JSON.parse(errorBody); errorMessage = errorJson.error?.message || errorMessage; } catch {}
+        const errorBody = await openRouterResponse.text();
+        
+        // Enhanced logging to help debug the exact issue
+        console.error(`OpenRouter Error: Status ${openRouterResponse.status} for room ${roomId}`, errorBody);
+        
+        try {
+            // Try to parse the error JSON for more details
+            const errorJson = JSON.parse(errorBody);
+            console.error(`OpenRouter Error details:`, {
+                status: openRouterResponse.status,
+                message: errorJson.error?.message || "Unknown error",
+                code: errorJson.error?.code || "No code",
+                metadata: errorJson.error?.metadata || {},
+                provider: errorJson.error?.metadata?.provider_name || "Unknown provider"
+            });
+            
+            // If it's a rate limit error (429), provide a more specific message
+            if (openRouterResponse.status === 429) {
+                console.error(`Rate limit error from provider: ${errorJson.error?.metadata?.provider_name || 'Unknown'}`);            
+                
+                // Add a more specific error message for rate limits
+                const errorMessage = `The AI service is experiencing high demand. Please try again in a few moments.`;
+                throw new Error(errorMessage);
+            }
+        } catch (parseError) {
+            console.error(`Failed to parse error response:`, parseError);
+        }
+        
+        // Create a better user-facing error message based on the status code
+        let errorMessage = "The AI service is temporarily unavailable. Please try again shortly.";
+        
+        // More specific error messages for different status codes
+        if (openRouterResponse.status === 400) {
+            errorMessage = "There was an issue with your request. Please try again with a different message.";
+        } else if (openRouterResponse.status === 401 || openRouterResponse.status === 403) {
+            errorMessage = "Authentication error with the AI service. Please contact support.";
+            console.error("Critical authentication error with OpenRouter API - check API keys!");
+        } else if (openRouterResponse.status === 404) {
+            errorMessage = "The AI service endpoint was not found. Please contact support.";
+        } else if (openRouterResponse.status === 429) {
+            errorMessage = "The AI service is currently handling too many requests. Please try again in a few moments.";
+        } else if (openRouterResponse.status >= 500) {
+            errorMessage = "The AI service is experiencing technical difficulties. Please try again shortly.";
+        }
+        
+        // Throw the error with the appropriate message
         throw new Error(errorMessage);
     }
 

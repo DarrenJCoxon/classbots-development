@@ -1,7 +1,8 @@
-// src/app/api/homepage-chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET handler for homepage chat data

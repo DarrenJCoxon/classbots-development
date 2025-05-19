@@ -1,8 +1,9 @@
-// src/app/api/health/route.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

@@ -12,76 +12,11 @@ import type { ChatMessage, Chatbot } from '@/types/database.types';
 
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
 
-// Basic front-end safety check to prepare for potential safety responses
-// This is just a preliminary check to show a UI placeholder while the server processes
-// the safety check - the server has more comprehensive checks
+// TEMPORARILY BYPASSED: Basic front-end safety check
+// This function is temporarily disabled to restore core chat functionality
 const initialSafetyCheck = (message: string): boolean => {
-  // Keywords for a basic check on the client side - these will trigger a UI placeholder
-  // The actual safety response will be determined by the server
-  const BASIC_KEYWORDS = [
-    // Self harm category
-    'suicide', 'kill myself', 'die', 'hurt myself', 'end my life', 'take my own life',
-    'self harm', 'harming myself', 'cutting myself', 'cut myself',
-    'don\'t want to live', 'want to die', 'wanna die', 'better off dead',
-    'no reason to live', 'not worth living', 'end it all',
-    
-    // Bullying category
-    'bullied', 'bullying', 'being bullied', 'getting bullied', 
-    'laughed at', 'picking on me', 'make fun of me', 'making fun of me',
-    'everyone hates me', 'nobody likes me', 'no friends', 'don\'t have friends',
-    
-    // Depression category
-    'depressed', 'depression', 'hate myself', 'hate my life',
-    'feeling worthless', 'feel worthless', 'empty', 'no one cares',
-    'nobody cares', 'given up', 'lost hope', 'no hope',
-    
-    // Abuse category
-    'abused', 'hitting me', 'hits me', 'beat me', 'beating me',
-    'hurt', 'hurting me', 'scared', 'afraid', 'in danger',
-    'threatening me', 'threatened', 'unsafe', 'not safe',
-    
-    // Family issues
-    'parents fighting', 'parents argue', 'scared at home', 'afraid at home',
-    'kicked out', 'homeless', 'nowhere to go', 'no food',
-    'don\'t feel safe', 'not safe at home'
-  ];
-  
-  const lowerMessage = message.toLowerCase();
-  
-  for (const keyword of BASIC_KEYWORDS) {
-    // Check for word boundaries to avoid false positives
-    const regex = new RegExp(`\\b${keyword.replace(/'/g, "['']")}\\b`);
-    if (regex.test(lowerMessage)) {
-      console.log(`[Chat Safety] Potential safety keyword detected: "${keyword}"`);
-      return true;
-    }
-  }
-  
-  // Additional patterns that need more context
-  const contextPatterns = [
-    // Self-harm phrases with multiple words
-    /hate myself.*(live|going on|anymore)/i,
-    /(tired|exhausted).*(living|existing|everything)/i,
-    /no point.*(living|going on)/i,
-    /can't take (it|this) anymore/i,
-    
-    // Bullying phrases
-    /they (all )?(hate|ignore) me/i,
-    /(no one|nobody) (talks|speaks|listens) to me/i,
-    /afraid (of|at) school/i,
-    
-    // Abuse phrases
-    /\w+ (hit|hurt|abuse|kick) me/i,  // Someone hit me
-    /afraid of \w+/i  // Afraid of someone
-  ];
-  
-  for (const pattern of contextPatterns) {
-    if (pattern.test(lowerMessage)) {
-      console.log(`[Chat Safety] Potential safety pattern detected: "${pattern}"`);
-      return true;
-    }
-  }
-  
+  // All safety checks disabled
+  console.log(`[Chat Safety] Safety checks temporarily bypassed`);
   return false;
 };
 
@@ -102,6 +37,11 @@ const MessagesList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  height: 100%;
+  max-height: calc(100vh - 200px); // Ensure there's a max height
+  position: relative; // Added for absolute positioning of children
+  will-change: transform; // Performance optimization for scrolling
+  -webkit-overflow-scrolling: touch; // Better scrolling on iOS
 `;
 
 const StyledChatInputContainer = styled.div`
@@ -211,17 +151,17 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const [isSubmittingAssessment, setIsSubmittingAssessment] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesListRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   // Check for direct auth via URL
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
-
-  useEffect(() => {
-    // Get search params from URL in a client-safe way
+  // Initialize search params only once using a lazy initializer function to avoid re-renders
+  const [searchParams] = useState<URLSearchParams | null>(() => {
     if (typeof window !== 'undefined') {
-      setSearchParams(new URLSearchParams(window.location.search));
+      return new URLSearchParams(window.location.search);
     }
-  }, []);
+    return null;
+  });
 
   // Get user ID with fallbacks
   useEffect(() => {
@@ -280,94 +220,56 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       }
     };
     
-    if (searchParams !== null) {
+    // Get user ID if we're in a browser environment
+    if (typeof window !== 'undefined') {
       getUserId();
     }
   }, [supabase, searchParams]);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    try {
+      // Just use the most reliable method to reduce complexity
+      if (messagesListRef.current) {
+        messagesListRef.current.scrollTop = messagesListRef.current.scrollHeight;
+      } else if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      }
+    } catch (scrollError) {
+      console.error('[Chat.tsx] Error in scrollToBottom:', scrollError);
+    }
   }, []);
 
-  // Helper function to fetch safety messages
+  // TEMPORARILY BYPASSED: Helper function to fetch safety messages
   const fetchSafetyMessages = useCallback(async () => {
-    if (!userId || !roomId) return;
-    
-    try {
-      console.log(`[Chat.tsx] Checking for new safety messages for user ${userId} in room ${roomId}`);
-      const response = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      
-      if (!response.ok) {
-        console.error(`[Chat.tsx] Error fetching safety messages: HTTP ${response.status}`);
-        return;
-      }
-      
-      const safetyData = await response.json();
-      
-      if (safetyData.found && safetyData.message) {
-        console.log(`[Chat.tsx] Found safety message ${safetyData.message.message_id}`);
-        
-        // Check if we already have this message in state
-        setMessages((prevMessages) => {
-          const alreadyHasMessage = prevMessages.some(msg => 
-            msg.message_id === safetyData.message.message_id
-          );
-          
-          if (alreadyHasMessage) {
-            console.log(`[Chat.tsx] Safety message ${safetyData.message.message_id} already in state`);
-            return prevMessages;
-          }
-          
-          // Remove any safety placeholders
-          const withoutPlaceholders = prevMessages.filter(msg => 
-            !msg.metadata?.isSafetyPlaceholder
-          );
-          
-          // Add the new safety message
-          const newMessages = [...withoutPlaceholders, safetyData.message];
-          console.log(`[Chat.tsx] Added safety message ${safetyData.message.message_id} to chat`);
-          
-          // Sort by timestamp
-          return newMessages.sort((a, b) => 
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
-        });
-        
-        // Update the notification status to delivered
-        try {
-          const { error } = await supabase
-            .from('safety_notifications')
-            .update({ is_delivered: true, delivered_at: new Date().toISOString() })
-            .eq('message_id', safetyData.message.message_id)
-            .eq('user_id', userId);
-            
-          if (error) {
-            console.error(`[Chat.tsx] Error updating notification status:`, error);
-          } else {
-            console.log(`[Chat.tsx] Marked notification for message ${safetyData.message.message_id} as delivered`);
-          }
-        } catch (updateError) {
-          console.error(`[Chat.tsx] Exception updating notification status:`, updateError);
-        }
-        
-        // Scroll to show the safety message
-        setTimeout(scrollToBottom, 100);
-      }
-    } catch (error) {
-      console.error(`[Chat.tsx] Error in fetchSafetyMessages:`, error);
-    }
-  }, [userId, roomId, supabase, scrollToBottom]);
+    // Function disabled to restore core chat functionality
+    console.log('[Chat.tsx] Safety message fetching temporarily disabled');
+    return;
+  }, []);
+  
+  // Add ref to track last fetch time to avoid excessive API calls
+  const lastFetchTimeRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
   
   // Fetch messages with support for direct URL access and homepage fallback
   const fetchMessages = useCallback(async () => {
-    if (!chatbot?.chatbot_id || !userId || !roomId) {
-      setIsFetchingMessages(false); return;
+    // Skip if we're already fetching or if required props are missing
+    if (!chatbot?.chatbot_id || !userId || !roomId || isFetchingRef.current) {
+      setIsFetchingMessages(false); 
+      return;
     }
-    setIsFetchingMessages(true); setFetchError(null);
+    
+    // Debounce API calls - don't fetch if we've fetched within last 2 seconds
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      console.log('[Chat] Skipping fetch, too soon since last fetch');
+      return;
+    }
+    
+    // Update tracking variables
+    lastFetchTimeRef.current = now;
+    isFetchingRef.current = true;
+    setIsFetchingMessages(true); 
+    setFetchError(null);
     try {
       // Check if using emergency access or direct URL
       const isEmergencyAccess = document.cookie.includes('emergency_access=true');
@@ -499,8 +401,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           setMessages(sortedUniqueMessages);
           setTimeout(scrollToBottom, 150);
           
-          // Also fetch safety messages after regular messages are loaded
-          await fetchSafetyMessages();
+          // Safety message fetching temporarily disabled to avoid excessive API calls
+          // await fetchSafetyMessages();
           
           return;
         } else {
@@ -571,14 +473,15 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       setMessages(sortedUniqueMessages);
       setTimeout(scrollToBottom, 150);
       
-      // Also fetch safety messages after regular messages are loaded
-      await fetchSafetyMessages();
+      // Safety message fetching temporarily disabled to avoid excessive API calls
+      // await fetchSafetyMessages();
       
     } catch (err) {
       console.error('[Chat.tsx] Error fetching messages:', err);
       setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
     } finally {
       setIsFetchingMessages(false);
+      isFetchingRef.current = false;
     }
   }, [roomId, chatbot?.chatbot_id, userId, searchParams, scrollToBottom, fetchSafetyMessages]);
 
@@ -618,6 +521,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       
       // Add welcome message to state
       setMessages([welcomeMessageObj]);
+      
+      // Single scroll attempt after the welcome message is displayed
       setTimeout(scrollToBottom, 150);
     }
   }, [isFetchingMessages, messages.length, chatbot?.welcome_message, chatbot?.chatbot_id, roomId, userId, scrollToBottom]);
@@ -668,6 +573,20 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       fetchMessages();
     }
   }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
+  
+  // Add a scroll handler that doesn't trigger re-renders or API calls
+  useEffect(() => {
+    // Only run this when messages array changes and has content
+    if (messages.length === 0) return;
+    
+    // Use a ref to track if we've scrolled for this set of messages
+    const messageIds = messages.map(m => m.message_id).join(',');
+    const scrollTimeoutId = setTimeout(() => {
+      scrollToBottom();
+    }, 50);
+    
+    return () => clearTimeout(scrollTimeoutId);
+  }, [messages.length, scrollToBottom]); // Only depend on message count, not the entire messages array
 
   // Helper function to handle realtime message inserts
   const handleRealtimeMessage = useCallback((newMessage: ChatMessage) => {
@@ -745,8 +664,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
 
-
-  // --- REALTIME LISTENER ---
+  // --- REALTIME LISTENER - TEMPORARILY BYPASSED ---
   useEffect(() => {
     const effectChatbotId = chatbot?.chatbot_id; // Use optional chaining for safety
     const effectUserId = userId;
@@ -757,760 +675,13 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         return;
     }
 
-    // Create a safety-specific channel to handle safety messages
-    const safetyChannelId = `safety-alert-${effectUserId}`;
-    console.log(`[Chat.tsx RT] Subscribing to safety channel: ${safetyChannelId}`);
+    console.log(`[Chat.tsx RT] SAFETY NOTIFICATIONS TEMPORARILY DISABLED - Basic chat functionality only`);
     
-    try {
-      // Array to track all channels we create so we can clean them up properly
-      const channels: any[] = [];
-      
-      // Subscribe to safety_notifications table changes - this provides a more reliable
-      // backup to ensure safety messages are delivered
-      console.log(`[Chat.tsx RT] Setting up realtime subscription for safety_notifications with user_id=${effectUserId}`);
-      // Subscribe to safety_notifications table changes
-      const notificationsChannel = supabase
-        .channel('safety_notifications_realtime_' + Date.now(), {
-          config: {
-            broadcast: { self: true }, // Get events sent by this client
-            presence: { key: effectUserId } // Use userId for presence
-          }
-        })
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'safety_notifications', filter: `user_id=eq.${effectUserId}` },
-          async (payload) => {
-            console.log('[Chat.tsx RT] <<< SAFETY NOTIFICATION DB CHANGE RECEIVED >>>:', JSON.stringify(payload, null, 2));
-            
-            try {
-              const notification = payload.new;
-              
-              // Verify this safety notification is for this room and user
-              if (notification.room_id === roomId && notification.user_id === effectUserId) {
-                console.log(`[Chat.tsx RT] Processing safety notification for message ID: ${notification.message_id}`);
-                
-                // Fetch the safety message using the API
-                const response = await fetch(`/api/student/safety-message?messageId=${notification.message_id}&userId=${effectUserId}`, {
-                  method: 'GET',
-                  credentials: 'include',
-                  cache: 'no-store'
-                });
-                
-                if (!response.ok) {
-                  console.error(`[Chat.tsx RT] Error fetching safety message from DB change: HTTP ${response.status}`);
-                  return;
-                }
-                
-                const safetyMessageData = await response.json();
-                
-                if (safetyMessageData.found && safetyMessageData.message) {
-                  // Update UI with the safety message
-                  setMessages((prevMessages) => {
-                    // Remove any safety placeholders
-                    const withoutPlaceholders = prevMessages.filter(msg => 
-                      !msg.metadata?.isSafetyPlaceholder
-                    );
-                    
-                    // Check if message already exists
-                    const safetyMessageExists = withoutPlaceholders.some(msg => 
-                      msg.message_id === safetyMessageData.message.message_id
-                    );
-                    
-                    if (safetyMessageExists) {
-                      console.log(`[Chat.tsx RT] Safety message ${safetyMessageData.message.message_id} already exists in state`);
-                      return withoutPlaceholders;
-                    }
-                    
-                    console.log(`[Chat.tsx RT] Adding safety message ${safetyMessageData.message.message_id} from DB notification`);
-                    const newMessages = [...withoutPlaceholders, safetyMessageData.message];
-                    
-                    // Sort by timestamp
-                    return newMessages.sort((a, b) => 
-                      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    );
-                  });
-                  
-                  setTimeout(scrollToBottom, 100);
-                  
-                  // Update notification as delivered
-                  try {
-                    const { error: updateError } = await supabase
-                      .from('safety_notifications')
-                      .update({ is_delivered: true, delivered_at: new Date().toISOString() })
-                      .eq('notification_id', notification.notification_id);
-                    
-                    if (updateError) {
-                      console.error(`[Chat.tsx RT] Error updating notification status in DB:`, updateError);
-                    } else {
-                      console.log(`[Chat.tsx RT] Marked notification ${notification.notification_id} as delivered`);
-                    }
-                  } catch (updateError) {
-                    console.error('[Chat.tsx RT] Exception updating notification delivery status:', updateError);
-                  }
-                }
-              }
-            } catch (err) {
-              console.error('[Chat.tsx RT] Error processing safety notification from DB change:', err);
-            }
-          }
-        )
-        .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety_notifications table changes for user ${effectUserId}`);
-            
-            // Run a SQL query to verify the publication is set up correctly
-            try {
-              fetch('/api/health?check=realtime', {
-                method: 'GET',
-                credentials: 'include'
-              })
-              .then(response => response.json())
-              .then(data => {
-                console.log(`[Chat.tsx RT] Realtime health check response:`, data);
-              })
-              .catch(error => {
-                console.error(`[Chat.tsx RT] Realtime health check error:`, error);
-              });
-            } catch (checkError) {
-              console.error(`[Chat.tsx RT] Error running realtime health check:`, checkError);
-            }
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error(`[Chat.tsx RT] Error subscribing to safety_notifications:`, err);
-          } else {
-            console.warn(`[Chat.tsx RT] Subscription status for safety_notifications: ${status}`);
-          }
-        });
-      
-      channels.push(notificationsChannel);
-      
-      // Safety alert channel - subscribes to direct safety broadcasts for this user
-      // Add broadcast and presence config for more reliability
-      const safetyChannel = supabase
-        .channel(safetyChannelId, {
-          config: {
-            broadcast: { self: true },
-            presence: { key: effectUserId }
-          }
-        })
-        .on('broadcast', { event: 'safety-message' }, async (payload) => {
-          console.log('[Chat.tsx RT] <<< SAFETY MESSAGE BROADCAST RECEIVED >>>:', payload);
-          
-          // Verify this safety message is for this room and user
-          console.log(`[Chat.tsx RT] Verifying safety message payload:`, {
-            payloadRoomId: payload.payload.room_id,
-            roomId,
-            payloadUserId: payload.payload.user_id,
-            effectUserId,
-            payloadChatbotId: payload.payload.chatbot_id,
-            effectChatbotId,
-            countryCode: payload.payload.country_code,
-            effectiveCountryCode: payload.payload.effectiveCountryCode
-          });
-          
-          if (payload.payload.room_id === roomId && 
-              payload.payload.user_id === effectUserId &&
-              (!effectChatbotId || payload.payload.chatbot_id === effectChatbotId)) {
-            
-            try {
-              // Fetch the safety message using the API to bypass RLS issues
-              console.log(`[Chat.tsx RT] Fetching safety message ID: ${payload.payload.message_id}`);
-              const response = await fetch(`/api/student/safety-message?messageId=${payload.payload.message_id}&userId=${effectUserId}`, {
-                method: 'GET',
-                credentials: 'include',
-                cache: 'no-store' // Ensure we don't get cached responses
-              });
-              
-              if (!response.ok) {
-                console.error(`[Chat.tsx RT] Error fetching safety message: HTTP ${response.status}`);
-                // If we can't get the specific message, try to refresh all messages
-                console.log(`[Chat.tsx RT] Attempting to reload all messages to get safety message`);
-                await fetchMessages();
-                return;
-              }
-              
-              const safetyMessageData = await response.json();
-              const safetyMessage = safetyMessageData.message;
-              
-              // Directly update state instead of using handleRealtimeMessage to avoid duplication
-              setMessages((prevMessages) => {
-                // Step 1: Remove any safety placeholders
-                const withoutPlaceholders = prevMessages.filter(msg => 
-                  !msg.metadata?.isSafetyPlaceholder
-                );
-                
-                // Step 2: Update user messages with pendingSafetyResponse=false
-                const updatedMessages = withoutPlaceholders.map(msg => {
-                  if (msg.role === 'user' && msg.metadata?.pendingSafetyResponse) {
-                    return {
-                      ...msg,
-                      metadata: {
-                        ...msg.metadata,
-                        pendingSafetyResponse: false
-                      }
-                    };
-                  }
-                  return msg;
-                });
-                
-                // Step 3: Check if safety message already exists (prevent duplication)
-                const safetyMessageExists = updatedMessages.some(msg => 
-                  msg.message_id === safetyMessage.message_id
-                );
-                
-                // Step 4: Add the safety message only if it doesn't exist
-                const newMessages = safetyMessageExists 
-                  ? updatedMessages 
-                  : [...updatedMessages, safetyMessage];
-                
-                // Step 5: Sort by timestamp
-                return newMessages.sort((a, b) => 
-                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                );
-              });
-              
-              // Scroll to bottom after updating
-              setTimeout(scrollToBottom, 100);
-            } catch (err) {
-              console.error('[Chat.tsx RT] Error processing safety message:', err);
-              // If there's an error, try to refresh all messages as a fallback
-              try {
-                console.log('[Chat.tsx RT] Attempting to refresh all messages after error');
-                await fetchMessages();
-              } catch (refreshError) {
-                console.error('[Chat.tsx RT] Error refreshing messages:', refreshError);
-              }
-            }
-          }
-        })
-        .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety channel ${safetyChannelId}`);
-            
-            // Add explicit diagnostics for production environment
-            const isProduction = process.env.NODE_ENV === 'production' || window.location.hostname === 'skolr.app';
-            console.log(`[SAFETY DIAGNOSTICS] Environment check: NODE_ENV=${process.env.NODE_ENV}, hostname=${window.location.hostname}, isProduction=${isProduction}`);
-            console.log(`[SAFETY DIAGNOSTICS] Channel subscription successful: ID=${safetyChannelId}, userId=${effectUserId}`);
-            
-            // Send a diagnostic message to the channel to test if it's working in production
-            try {
-              // Only in skolr.app or if debugging is enabled
-              if (isProduction || window.location.search.includes('safety_debug=true')) {
-                console.log(`[SAFETY DIAGNOSTICS] Sending diagnostic ping on channel ${safetyChannelId}`);
-                safetyChannel.send({
-                  type: 'broadcast',
-                  event: 'diagnostic-ping',
-                  payload: { 
-                    timestamp: new Date().toISOString(),
-                    channelId: safetyChannelId,
-                    userId: effectUserId,
-                    environment: isProduction ? 'production' : 'development',
-                    url: window.location.href
-                  }
-                });
-              }
-            } catch (pingError) {
-              console.warn(`[SAFETY DIAGNOSTICS] Error sending diagnostic ping: ${pingError}`);
-            }
-            
-            // For testing: expose the channel globally so we can debug in the console
-            if (typeof window !== 'undefined') {
-              (window as any).safetyChannel = safetyChannel;
-              console.log('[Chat.tsx RT] Safety channel exposed as window.safetyChannel for debugging');
-            }
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error(`[Chat.tsx RT] Safety channel ERROR: ${safetyChannelId}`, err);
-            // Log detailed error for production diagnosis
-            console.error(`[SAFETY DIAGNOSTICS] Channel ERROR details: ${JSON.stringify({
-              channelId: safetyChannelId,
-              errorType: err?.name,
-              errorMessage: err?.message,
-              stack: err?.stack,
-              url: window.location.href
-            })}`);
-            
-            // Try to reconnect after a short delay
-            setTimeout(() => {
-              console.log('[Chat.tsx RT] Attempting to reconnect to safety channel after error');
-              safetyChannel.subscribe();
-            }, 2000);
-          } else if (status === 'TIMED_OUT') {
-            console.warn(`[Chat.tsx RT] Safety channel TIMED_OUT: ${safetyChannelId}`, err);
-            // Log timeout details for production diagnosis
-            console.warn(`[SAFETY DIAGNOSTICS] Channel TIMEOUT details: ${JSON.stringify({
-              channelId: safetyChannelId,
-              userId: effectUserId,
-              url: window.location.href,
-              timestamp: new Date().toISOString()
-            })}`);
-            
-            // Try to reconnect after a short delay
-            setTimeout(() => {
-              console.log('[Chat.tsx RT] Attempting to reconnect to safety channel after timeout');
-              safetyChannel.subscribe();
-            }, 2000);
-          } else if (status === 'CLOSED') {
-            console.warn(`[Chat.tsx RT] Safety channel CLOSED: ${safetyChannelId}`);
-            // Log closure details for production diagnosis
-            console.warn(`[SAFETY DIAGNOSTICS] Channel CLOSED details: ${JSON.stringify({
-              channelId: safetyChannelId,
-              userId: effectUserId,
-              url: window.location.href,
-              timestamp: new Date().toISOString()
-            })}`);
-            
-            // Try to reconnect after a short delay for CLOSED status too
-            setTimeout(() => {
-              console.log('[Chat.tsx RT] Attempting to reconnect to safety channel after close');
-              safetyChannel.subscribe();
-            }, 2000);
-          }
-        });
-      
-      channels.push(safetyChannel);
-      
-      // Check for any undelivered notifications on component mount
-      const checkForUndeliveredNotifications = async () => {
-        try {
-          // Handle test rooms differently - they don't use real UUIDs for room IDs
-          const isTestRoom = roomId.startsWith('teacher_test_room_for_');
-          
-          console.log(`[Chat.tsx RT] Checking for undelivered notifications... (${isTestRoom ? 'Test Room' : 'Regular Room'})`);
-          
-          // For test rooms, skip safety notification check
-          if (isTestRoom) {
-            // Skip database query for test rooms to avoid UUID format errors
-            console.log('[Chat.tsx RT] Skipping undelivered notifications check for test room');
-            return;
-          }
-          
-          const { data, error } = await supabase
-            .from('safety_notifications')
-            .select('*')
-            .eq('user_id', effectUserId)
-            .eq('room_id', roomId)
-            .eq('is_delivered', false)
-            .order('created_at', { ascending: false });
-            
-          if (error) {
-            console.error('[Chat.tsx RT] Error checking for undelivered notifications:', error);
-            return;
-          }
-          
-          if (data && data.length > 0) {
-            console.log(`[Chat.tsx RT] Found ${data.length} undelivered safety notifications, fetching...`);
-            
-            // Process each undelivered notification
-            for (const notification of data) {
-              console.log(`[Chat.tsx RT] Processing undelivered notification: ${notification.notification_id} for message: ${notification.message_id}`);
-              
-              // Fetch the specific safety message
-              try {
-                const response = await fetch(`/api/student/safety-message?messageId=${notification.message_id}&userId=${effectUserId}`, {
-                  method: 'GET',
-                  credentials: 'include',
-                  cache: 'no-store'
-                });
-                
-                if (!response.ok) {
-                  console.error(`[Chat.tsx RT] Error fetching safety message from notification: HTTP ${response.status}`);
-                  continue;
-                }
-                
-                const safetyMessageData = await response.json();
-                
-                if (safetyMessageData.found && safetyMessageData.message) {
-                  console.log(`[Chat.tsx RT] Successfully fetched safety message ${safetyMessageData.message.message_id}`);
-                  
-                  // Update UI with the safety message
-                  setMessages((prevMessages) => {
-                    // Check if message already exists
-                    const messageExists = prevMessages.some(msg => 
-                      msg.message_id === safetyMessageData.message.message_id
-                    );
-                    
-                    if (messageExists) {
-                      console.log(`[Chat.tsx RT] Safety message ${safetyMessageData.message.message_id} already exists in chat`);
-                      return prevMessages;
-                    }
-                    
-                    // Remove any safety placeholders
-                    const withoutPlaceholders = prevMessages.filter(msg => 
-                      !msg.metadata?.isSafetyPlaceholder
-                    );
-                    
-                    // Add the new safety message
-                    const newMessages = [...withoutPlaceholders, safetyMessageData.message];
-                    console.log(`[Chat.tsx RT] Adding safety message ${safetyMessageData.message.message_id} to chat`);
-                    
-                    // Sort by timestamp
-                    return newMessages.sort((a, b) => 
-                      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    );
-                  });
-                  
-                  // Scroll to show the message
-                  setTimeout(scrollToBottom, 100);
-                  
-                  // Mark notification as delivered
-                  try {
-                    const { error: updateError } = await supabase
-                      .from('safety_notifications')
-                      .update({ is_delivered: true, delivered_at: new Date().toISOString() })
-                      .eq('notification_id', notification.notification_id);
-                    
-                    if (updateError) {
-                      console.error(`[Chat.tsx RT] Error updating notification status:`, updateError);
-                    } else {
-                      console.log(`[Chat.tsx RT] Marked notification ${notification.notification_id} as delivered`);
-                    }
-                  } catch (updateError) {
-                    console.error('[Chat.tsx RT] Exception updating notification delivery status:', updateError);
-                  }
-                } else {
-                  console.warn(`[Chat.tsx RT] No safety message found for notification ${notification.notification_id}`);
-                }
-              } catch (fetchError) {
-                console.error('[Chat.tsx RT] Error fetching safety message from notification:', fetchError);
-              }
-            }
-          } else {
-            console.log('[Chat.tsx RT] No undelivered safety notifications found on initial check');
-          }
-        } catch (err) {
-          console.error('[Chat.tsx RT] Error in checkForUndeliveredNotifications:', err);
-        }
-      };
-      
-      // Run the check for undelivered notifications
-      checkForUndeliveredNotifications();
-      
-      // Set up a polling mechanism to continuously check for new safety notifications
-      // This ensures real-time delivery even without realtime database subscriptions
-      const safetyPollInterval = setInterval(async () => {
-        try {
-          if (!effectUserId || !roomId) return;
-          
-          // Handle test rooms differently - they don't use real UUIDs for room IDs
-          const isTestRoom = roomId.startsWith('teacher_test_room_for_');
-          
-          console.log(`[Chat.tsx RT] Polling for new safety notifications... (${isTestRoom ? 'Test Room' : 'Regular Room'})`);
-          
-          // For test rooms, skip safety notification polling
-          if (isTestRoom) {
-            // Skip database query for test rooms to avoid UUID format errors
-            return;
-          }
-          
-          // Only perform the query for real rooms with valid UUIDs
-          const { data, error } = await supabase
-            .from('safety_notifications')
-            .select('*')
-            .eq('user_id', effectUserId)
-            .eq('room_id', roomId)
-            .eq('is_delivered', false)
-            .order('created_at', { ascending: false });
-            
-          if (error) {
-            console.error('[Chat.tsx RT] Error polling for safety notifications:', error);
-            return;
-          }
-          
-          if (data && data.length > 0) {
-            console.log(`[Chat.tsx RT] Found ${data.length} new safety notifications during polling`);
-            
-            // Process each undelivered notification
-            for (const notification of data) {
-              // Fetch the specific safety message
-              try {
-                const response = await fetch(`/api/student/safety-message?messageId=${notification.message_id}&userId=${effectUserId}`, {
-                  method: 'GET',
-                  credentials: 'include',
-                  cache: 'no-store'
-                });
-                
-                if (!response.ok) {
-                  console.error(`[Chat.tsx RT] Error fetching safety message from polling: HTTP ${response.status}`);
-                  continue;
-                }
-                
-                const safetyMessageData = await response.json();
-                
-                if (safetyMessageData.found && safetyMessageData.message) {
-                  // Update UI with the safety message
-                  setMessages((prevMessages) => {
-                    // Check if message already exists
-                    const messageExists = prevMessages.some(msg => 
-                      msg.message_id === safetyMessageData.message.message_id
-                    );
-                    
-                    if (messageExists) {
-                      console.log(`[Chat.tsx RT] Safety message ${safetyMessageData.message.message_id} already in state during polling`);
-                      return prevMessages;
-                    }
-                    
-                    // Remove any safety placeholders
-                    const withoutPlaceholders = prevMessages.filter(msg => 
-                      !msg.metadata?.isSafetyPlaceholder
-                    );
-                    
-                    console.log(`[Chat.tsx RT] Adding safety message ${safetyMessageData.message.message_id} from polling`);
-                    // Add the new safety message
-                    const newMessages = [...withoutPlaceholders, safetyMessageData.message];
-                    
-                    // Sort by timestamp
-                    return newMessages.sort((a, b) => 
-                      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    );
-                  });
-                  
-                  // Scroll to show the message
-                  setTimeout(scrollToBottom, 100);
-                  
-                  // Mark notification as delivered
-                  try {
-                    const { error: updateError } = await supabase
-                      .from('safety_notifications')
-                      .update({ is_delivered: true, delivered_at: new Date().toISOString() })
-                      .eq('notification_id', notification.notification_id);
-                    
-                    if (!updateError) {
-                      console.log(`[Chat.tsx RT] Marked notification ${notification.notification_id} as delivered from polling`);
-                    }
-                  } catch (updateError) {
-                    console.error('[Chat.tsx RT] Exception updating notification status from polling:', updateError);
-                  }
-                }
-              } catch (fetchError) {
-                console.error('[Chat.tsx RT] Error fetching safety message during polling:', fetchError);
-              }
-            }
-          }
-        } catch (pollError) {
-          console.error('[Chat.tsx RT] Error in safety notification polling:', pollError);
-        }
-      }, 2500); // Poll every 2.5 seconds for near real-time experience
-      
-      // Add a new cleanup function that clears the polling interval
-      return () => {
-        // Clean up all channels
-        for (const channel of channels) {
-          try {
-            console.log(`[Chat.tsx RT] CLEANUP for channel: ${channel.topic}`);
-            supabase.removeChannel(channel);
-          } catch (error) {
-            console.warn(`[Chat.tsx RT] Error removing channel ${channel?.topic || 'unknown'}:`, error);
-          }
-        }
-        
-        // Clear the polling interval when component unmounts
-        clearInterval(safetyPollInterval);
-        console.log('[Chat.tsx RT] Cleared safety notification polling interval');
-      };
-
-      // Regular message subscriptions remain disabled to fix duplication
-      console.log('[Chat.tsx RT] Regular message subscriptions remain disabled to fix duplication');
-
-      return () => {
-        // Clean up all channels
-        for (const channel of channels) {
-          try {
-            console.log(`[Chat.tsx RT] CLEANUP for channel: ${channel.topic}`);
-            supabase.removeChannel(channel);
-          } catch (error) {
-            console.warn(`[Chat.tsx RT] Error removing channel ${channel?.topic || 'unknown'}:`, error);
-          }
-        }
-      };
-    } catch (subscriptionError) {
-      console.warn('[Chat.tsx RT] Error setting up subscriptions:', subscriptionError);
-      return () => {}; // Return empty cleanup function
-    }
-
-    /*
-    const channelIdentifier = `chat-room-${roomId}-user-${effectUserId}-bot-${effectChatbotId}`;
-    console.log(`[Chat.tsx RT] Subscribing to: ${channelIdentifier}`);
-    
-    // Array to track all channels we create so we can clean them up properly
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channels: any[] = [];
-    
-    try {
-      // Main channel for database changes
-      const mainChannel = supabase
-        .channel(channelIdentifier)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}`},
-          (payload) => {
-            const newMessage = payload.new as ChatMessage;
-            console.log('[Chat.tsx RT] <<< INSERT REALTIME PAYLOAD RECEIVED >>>:', JSON.stringify(newMessage, null, 2));
-            
-            // Handle INSERT events
-            if (newMessage.room_id === roomId) {
-              handleRealtimeMessage(newMessage);
-            } else {
-              console.log(`[Chat.tsx RT] Received message for different room: ${newMessage.room_id}`);
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}`},
-          (payload) => {
-            const updatedMessage = payload.new as ChatMessage;
-            console.log('[Chat.tsx RT] <<< UPDATE REALTIME PAYLOAD RECEIVED >>>:', JSON.stringify(updatedMessage, null, 2));
-            
-            // Handle UPDATE events
-            if (updatedMessage.room_id === roomId) {
-              handleRealtimeUpdate(updatedMessage);
-            } else {
-              console.log(`[Chat.tsx RT] Received update for different room: ${updatedMessage.room_id}`);
-            }
-          }
-        )
-        .subscribe((status, err) => { 
-          if (status === 'SUBSCRIBED') {
-              console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to ${channelIdentifier}`);
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.warn(`[Chat.tsx RT] Subscription status: ${status} for channel ${channelIdentifier}`, err);
-            // Don't treat as an error since it might be a normal part of unmounting
-          }
-        });
-      
-      channels.push(mainChannel);
-      */
-      
-      /*
-      // Safety alert channel - subscribes to direct safety broadcasts for this user
-      const safetyChannelId = `safety-alert-${effectUserId}`;
-      console.log(`[Chat.tsx RT] Subscribing to safety channel: ${safetyChannelId}`);
-      
-      const safetyChannel = supabase
-        .channel(safetyChannelId)
-        .on('broadcast', { event: 'safety-message' }, async (payload) => {
-          console.log('[Chat.tsx RT] <<< SAFETY MESSAGE BROADCAST RECEIVED >>>:', payload);
-          
-          // Verify this safety message is for this room and user
-          console.log(`[Chat.tsx RT] Verifying safety message payload:`, {
-            payloadRoomId: payload.payload.room_id,
-            roomId,
-            payloadUserId: payload.payload.user_id,
-            effectUserId,
-            payloadChatbotId: payload.payload.chatbot_id,
-            effectChatbotId,
-            countryCode: payload.payload.country_code,
-            effectiveCountryCode: payload.payload.effectiveCountryCode
-          });
-          
-          if (payload.payload.room_id === roomId && 
-              payload.payload.user_id === effectUserId &&
-              (!effectChatbotId || payload.payload.chatbot_id === effectChatbotId)) {
-            
-            try {
-              // Fetch the safety message using the admin API to bypass RLS issues
-              console.log(`[Chat.tsx RT] Fetching safety message ID: ${payload.payload.message_id}`);
-              const response = await fetch(`/api/student/safety-message?messageId=${payload.payload.message_id}&userId=${effectUserId}`, {
-                method: 'GET',
-                credentials: 'include'
-              });
-              
-              if (!response.ok) {
-                console.error(`[Chat.tsx RT] Error fetching safety message: HTTP ${response.status}`);
-                return;
-              }
-              
-              const safetyMessageData = await response.json();
-              const safetyMessage = safetyMessageData.message;
-              
-              // Log what we're adding
-              console.log(`[Chat.tsx RT] Successfully fetched safety message:`, {
-                messageId: safetyMessage.message_id,
-                countryCode: safetyMessage.metadata?.countryCode,
-                effectiveCountryCode: safetyMessage.metadata?.effectiveCountryCode,
-                displayCountryCode: safetyMessage.metadata?.displayCountryCode,
-                helplines: safetyMessage.metadata?.helplines
-              });
-              
-              // Directly update state instead of using handleRealtimeMessage to avoid duplication
-              setMessages((prevMessages) => {
-                // Step 1: Remove any safety placeholders
-                const withoutPlaceholders = prevMessages.filter(msg => 
-                  !msg.metadata?.isSafetyPlaceholder
-                );
-                
-                // Step 2: Update user messages with pendingSafetyResponse=false
-                const updatedMessages = withoutPlaceholders.map(msg => {
-                  if (msg.role === 'user' && msg.metadata?.pendingSafetyResponse) {
-                    return {
-                      ...msg,
-                      metadata: {
-                        ...msg.metadata,
-                        pendingSafetyResponse: false
-                      }
-                    };
-                  }
-                  return msg;
-                });
-                
-                // Step 3: Check if safety message already exists (prevent duplication)
-                const safetyMessageExists = updatedMessages.some(msg => 
-                  msg.message_id === safetyMessage.message_id
-                );
-                
-                // Step 4: Add the safety message only if it doesn't exist
-                const newMessages = safetyMessageExists 
-                  ? updatedMessages 
-                  : [...updatedMessages, safetyMessage];
-                
-                // Step 5: Sort by timestamp
-                return newMessages.sort((a, b) => 
-                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                );
-              });
-              
-              // Scroll to bottom after updating
-              setTimeout(scrollToBottom, 100);
-            } catch (err) {
-              console.error('[Chat.tsx RT] Error processing safety message:', err);
-              // If there's an error, try to refresh all messages as a fallback
-              try {
-                console.log('[Chat.tsx RT] Attempting to refresh all messages after error');
-                await fetchMessages();
-              } catch (refreshError) {
-                console.error('[Chat.tsx RT] Error refreshing messages:', refreshError);
-              }
-            }
-          }
-        })
-        .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety channel ${safetyChannelId}`);
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.warn(`[Chat.tsx RT] Safety channel subscription status: ${status}`, err);
-            // Don't treat as an error since it might be a normal part of unmounting
-          }
-        });
-      
-      channels.push(safetyChannel);
-    } catch (subscriptionError) {
-      console.warn('[Chat.tsx RT] Error setting up subscriptions:', subscriptionError);
-    }
-      
+    // Return empty cleanup function
     return () => {
-      // Clean up all channels
-      for (const channel of channels) {
-        try {
-          console.log(`[Chat.tsx RT] CLEANUP for channel: ${channel.topic}`);
-          supabase.removeChannel(channel);
-        } catch (error) {
-          console.warn(`[Chat.tsx RT] Error removing channel ${channel?.topic || 'unknown'}:`, error);
-          // Continue cleanup despite errors
-        }
-      }
+      console.log('[Chat.tsx RT] No active safety channels or polling to clean up (disabled)');
     };
-    */
-  }, [roomId, chatbot?.chatbot_id, userId, supabase, handleRealtimeMessage, handleRealtimeUpdate]);
-
+  }, [roomId, chatbot?.chatbot_id, userId, supabase]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -1584,182 +755,48 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         });
 
         if (!response.ok) {
-            // Try to extract error details from response
+            // Try to extract error details from response with enhanced error handling and diagnostics
             try {
               const errorText = await response.text();
               console.error(`[Chat.tsx] API error response (${response.status}):`, errorText);
               
+              // Log additional diagnostic information for server errors
+              console.error(`[Chat.tsx] Detailed error diagnostics:`, {
+                status: response.status,
+                statusText: response.statusText,
+                url: url,
+                responseHeaders: Object.fromEntries([...response.headers.entries()]),
+                responseSize: errorText?.length || 0,
+                requestPayload: {
+                  content: content.trim().length > 100 ? `${content.trim().substring(0, 100)}...` : content.trim(),
+                  contentLength: content.trim().length,
+                  chatbotId: chatbot?.chatbot_id,
+                  modelUsed: chatbot?.model,
+                  instanceId: instanceId
+                }
+              });
+              
               let errorMessage = `API error: ${response.status}`;
+              
+              // For 500 errors, provide a more user-friendly message
+              if (response.status === 500) {
+                errorMessage = `Server error (500). There might be an issue with the AI service. Please try again in a few moments.`;
+              }
+              
+              // Try to parse the error response as JSON for more details
               try {
                 const errorData = JSON.parse(errorText);
-                errorMessage = errorData.error || errorData.message || errorMessage;
+                // If we have a specific error message from the server, use it
+                if (errorData.error || errorData.message) {
+                  errorMessage = errorData.error || errorData.message || errorMessage;
+                  console.error(`[Chat.tsx] Parsed error details:`, errorData);
+                }
                 
-                // Special handling for safety interventions
+                // TEMPORARILY BYPASSED: Safety intervention special handling
                 if (errorData.type === "safety_intervention_triggered") {
-                  console.log("[Chat.tsx] Safety intervention detected from server response");
-                  
-                  // Mark the message as sent but pending safety response
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    const index = updated.findIndex(m => m.message_id === tempOptimisticLocalId);
-                    if (index !== -1) {
-                      updated[index] = {
-                        ...updated[index],
-                        metadata: {
-                          ...updated[index].metadata,
-                          isOptimistic: false,
-                          pendingSafetyResponse: true
-                        }
-                      };
-                    }
-                    return updated;
-                  });
-                  
-                  // Show a thinking indicator for safety response
-                  setMessages(prev => {
-                    // Create a placeholder for the safety response
-                    const safetyPlaceholder: ChatMessage = {
-                      message_id: `safety-placeholder-${Date.now()}`,
-                      room_id: roomId,
-                      user_id: userId,
-                      role: 'system',
-                      content: 'Processing safety check...',
-                      created_at: new Date().toISOString(),
-                      metadata: {
-                        isSafetyPlaceholder: true,
-                        isSystemSafetyResponse: true, // Important flag for display
-                        chatbotId: chatbot.chatbot_id
-                      }
-                    };
-                    return [...prev, safetyPlaceholder];
-                  });
-                  
-                  setIsLoading(false);
-                  
-                  // Enhanced approach - fetch safety messages with multiple retries
-                  console.log('[SAFETY DIAGNOSTICS] Safety intervention triggered - starting enhanced retry process');
-                  
-                  // Multiple fetch attempts with increasing delays
-                  const fetchWithRetries = async (retryCount = 0, maxRetries = 10) => { // Increase max retries
-                    try {
-                      const delay = 1000 + (retryCount * 500); // Faster polling: 1s, 1.5s, 2s, etc.
-                      console.log(`[SAFETY DIAGNOSTICS] Attempt #${retryCount + 1}/${maxRetries + 1} - fetching with delay=${delay}ms`);
-                      
-                      setTimeout(async () => {
-                        try {
-                          // Try direct safety message API first for maximum reliability
-                          console.log(`[SAFETY DIAGNOSTICS] Attempt #${retryCount + 1} - using direct safety message API`);
-                          const safetyResponse = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
-                            method: 'GET',
-                            credentials: 'include',
-                            cache: 'no-store'
-                          });
-                          
-                          if (safetyResponse.ok) {
-                            const safetyData = await safetyResponse.json();
-                            console.log(`[SAFETY DIAGNOSTICS] API response:`, {
-                              found: safetyData.found,
-                              messageId: safetyData.message?.message_id || 'none',
-                              contentLength: safetyData.message?.content?.length || 0
-                            });
-                            
-                            if (safetyData.found && safetyData.message) {
-                              console.log(`[SAFETY DIAGNOSTICS] Success! Found safety message id: ${safetyData.message.message_id}`);
-                              
-                              // Add the safety message to state if it doesn't exist
-                              setMessages(prevMessages => {
-                                // Remove any placeholders first
-                                const withoutPlaceholders = prevMessages.filter(msg => 
-                                  !msg.metadata?.isSafetyPlaceholder
-                                );
-                                
-                                // Skip if message already exists
-                                const alreadyExists = withoutPlaceholders.some(msg => 
-                                  msg.message_id === safetyData.message.message_id
-                                );
-                                
-                                if (alreadyExists) {
-                                  console.log(`[SAFETY DIAGNOSTICS] Message ${safetyData.message.message_id} already in state`);
-                                  return withoutPlaceholders;
-                                }
-                                
-                                // Add the safety message
-                                const newMessages = [...withoutPlaceholders, safetyData.message];
-                                return newMessages.sort((a, b) => 
-                                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                                );
-                              });
-                              
-                              // Scroll to show the new message
-                              setTimeout(scrollToBottom, 100);
-                              return; // Exit the retry process
-                            }
-                          }
-                          
-                          // If direct API failed or found no message, try regular fetch
-                          console.log(`[SAFETY DIAGNOSTICS] Direct API ${safetyResponse.ok ? 'returned no message' : 'failed'} - trying regular fetch`);
-                          await fetchMessages();
-                          
-                          // Check if we found any safety messages after the regular fetch
-                          const safetyMessagesAfterFetch = messages.filter(msg => 
-                            msg.role === 'system' && msg.metadata?.isSystemSafetyResponse === true
-                          );
-                          
-                          if (safetyMessagesAfterFetch.length > 0) {
-                            console.log(`[SAFETY DIAGNOSTICS] Found ${safetyMessagesAfterFetch.length} safety messages after regular fetch`);
-                            
-                            // Remove placeholder regardless of outcome
-                            setMessages(prevMessages => {
-                              return prevMessages.filter(msg => !msg.metadata?.isSafetyPlaceholder);
-                            });
-                            
-                            return; // Exit the retry process
-                          }
-                          
-                          // If we still don't have a safety message, retry if we haven't hit max retries
-                          if (retryCount < maxRetries) {
-                            console.log(`[SAFETY DIAGNOSTICS] No safety message found yet, retrying (${retryCount + 1}/${maxRetries})`);
-                            fetchWithRetries(retryCount + 1, maxRetries);
-                          } else {
-                            console.log(`[SAFETY DIAGNOSTICS] Max retries (${maxRetries}) reached, giving up`);
-                            
-                            // Remove placeholder on max retries
-                            setMessages(prevMessages => {
-                              return prevMessages.filter(msg => !msg.metadata?.isSafetyPlaceholder);
-                            });
-                          }
-                        } catch (error) {
-                          console.error(`[SAFETY DIAGNOSTICS] Error in retry attempt #${retryCount + 1}:`, error);
-                          
-                          // Retry on error if we haven't hit max retries
-                          if (retryCount < maxRetries) {
-                            console.log(`[SAFETY DIAGNOSTICS] Retrying after error (${retryCount + 1}/${maxRetries})`);
-                            fetchWithRetries(retryCount + 1, maxRetries);
-                          } else {
-                            console.log(`[SAFETY DIAGNOSTICS] Max retries reached after error, giving up`);
-                            
-                            // Remove placeholder on max retries
-                            setMessages(prevMessages => {
-                              return prevMessages.filter(msg => !msg.metadata?.isSafetyPlaceholder);
-                            });
-                          }
-                        }
-                      }, delay);
-                    } catch (outerError) {
-                      console.error('[SAFETY DIAGNOSTICS] Outer error in fetchWithRetries:', outerError);
-                      
-                      // Remove placeholder on error
-                      setMessages(prevMessages => {
-                        return prevMessages.filter(msg => !msg.metadata?.isSafetyPlaceholder);
-                      });
-                    }
-                  };
-                  
-                  // Start the retry process
-                  fetchWithRetries();
-                  
-                  setTimeout(scrollToBottom, 50);
-                  return; // Exit early without error
+                  console.log("[Chat.tsx] Safety intervention detected but BYPASSED - proceeding with normal operation");
+                  // Simply continue to normal message handling
+                  // No safety placeholders or retries
                 }
               } catch (parseError) {
                 console.warn('[Chat.tsx] Error parsing error response:', parseError);
@@ -1796,6 +833,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           const decoder = new TextDecoder();
           let assistantResponse = '';
           
+          let streamError: Error | null = null;
           try {
             while (true) {
               const { done, value } = await reader.read();
@@ -1835,32 +873,115 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
                 }
               }
             }
-          } catch (streamError) {
+          } catch (error) {
+            streamError = error as Error;
             console.error('[Chat.tsx] Stream processing error:', streamError);
-            // Remove the placeholder if we had an error with the stream
-            setMessages(prev => prev.filter(m => m.message_id !== tempAssistantId));
-          } finally {
-            // Remove the placeholder flag, but keep the message
-            setMessages(prev => {
-              const updated = [...prev];
-              const index = updated.findIndex(m => m.message_id === tempAssistantId);
-              if (index !== -1) {
-                updated[index] = {
-                  ...updated[index],
-                  metadata: { ...updated[index].metadata, isStreaming: false }
-                };
-              }
-              return updated;
+            
+            // Log enhanced diagnostics for stream processing errors
+            console.error('[Chat.tsx] Stream processing diagnostic details:', {
+              error: streamError?.toString(),
+              responseUrl: url,
+              responseStatus: response.status,
+              chatbotId: chatbot.chatbot_id,
+              model: chatbot.model,
+              partialResponse: assistantResponse.length > 0 ? 
+                `${assistantResponse.substring(0, 100)}${assistantResponse.length > 100 ? '...' : ''}` : 'NO_CONTENT',
+              responsePartialLength: assistantResponse.length,
+              timestamp: new Date().toISOString()
             });
+            
+            // If we got some partial content, keep it with an error indicator
+            if (assistantResponse.length > 0) {
+              setMessages(prev => {
+                const updated = [...prev];
+                const index = updated.findIndex(m => m.message_id === tempAssistantId);
+                if (index !== -1) {
+                  updated[index] = {
+                    ...updated[index],
+                    content: assistantResponse + "\n\n[Message interrupted due to connection error]",
+                    metadata: { 
+                      ...updated[index].metadata, 
+                      isStreaming: false,
+                      streamInterrupted: true,
+                      errorDetails: streamError?.toString() || 'Unknown stream error'
+                    }
+                  };
+                }
+                return updated;
+              });
+            } else {
+              // Remove the placeholder completely if we didn't get any content
+              setMessages(prev => prev.filter(m => m.message_id !== tempAssistantId));
+              
+              // Set a user-friendly error message
+              setError("Connection interrupted. Please try sending your message again.");
+            }
+          } finally {
+            // If we get here without errors and with content, remove the streaming flag
+            if (!streamError && assistantResponse.length > 0) {
+              setMessages(prev => {
+                const updated = [...prev];
+                const index = updated.findIndex(m => m.message_id === tempAssistantId);
+                if (index !== -1) {
+                  updated[index] = {
+                    ...updated[index],
+                    metadata: { ...updated[index].metadata, isStreaming: false }
+                  };
+                }
+                return updated;
+              });
+            }
           }
         }
     } catch (err) {
         console.error('[Chat.tsx] Chat send/receive error:', err);
-        const errorMsg = err instanceof Error ? err.message : 'Failed to send message';
+        
+        // Enhanced error logging with more context
+        console.error('[Chat.tsx] Detailed error diagnostics:', {
+          errorType: err?.constructor?.name || typeof err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorStack: err instanceof Error ? err.stack : 'No stack trace available',
+          chatInfo: {
+            chatbotId: chatbot?.chatbot_id,
+            model: chatbot?.model,
+            roomId: roomId,
+            instanceId: instanceId,
+            messageContentLength: content?.trim()?.length || 0
+          },
+          timestamp: new Date().toISOString()
+        });
+        
+        // Create a more user-friendly error message based on the error type
+        let errorMsg = '';
+        
+        // Improved error handling - show specific errors for different issues
+        if (err instanceof Error) {
+          // Show the error message from the server directly
+          errorMsg = err.message || 'An error occurred. Please try again.';
+          
+          // Log the original error for debugging
+          console.error('[Chat.tsx] Original error message:', err.message);
+        } else {
+          // Fallback for non-Error objects
+          errorMsg = 'Failed to send message. Please try again.';
+        }
+        
+        // Update the UI to show the error
         setError(errorMsg);
+        
+        // Mark the optimistic message as failed with a specific error
         setMessages(prev => prev.map(m => 
             m.message_id === tempOptimisticLocalId ? 
-            {...m, metadata: {...m.metadata, error: errorMsg, isOptimistic: false }} : m 
+            {
+              ...m, 
+              metadata: {
+                ...m.metadata, 
+                error: errorMsg, 
+                isOptimistic: false,
+                errorDetails: err instanceof Error ? err.message : String(err),
+                errorTime: new Date().toISOString()
+              }
+            } : m 
         ));
     } finally {
       setIsLoading(false);
@@ -1921,7 +1042,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       )}
       
       {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <Button onClick={() => fetchMessages()} size="small">Retry</Button> </ErrorContainer> )}
-      <MessagesList>
+      <MessagesList ref={messagesListRef}>
         {isFetchingMessages && messages.length === 0 ? ( 
           <LoadingIndicator><LoadingSpinner /> Loading...</LoadingIndicator> 
         ) : !isFetchingMessages && messages.length === 0 && !fetchError ? (

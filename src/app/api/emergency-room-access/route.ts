@@ -1,7 +1,8 @@
-// src/app/api/emergency-room-access/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { v4 as uuidv4 } from 'uuid';
+
+export const dynamic = 'force-dynamic';
 
 // This is a last-resort emergency endpoint for getting students into a room
 // when all other methods fail. It's a simplified version of the join-room API.
