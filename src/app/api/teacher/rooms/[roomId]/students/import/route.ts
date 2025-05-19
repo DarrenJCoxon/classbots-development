@@ -263,7 +263,17 @@ export async function POST(request: NextRequest, { params }: any) {
         // Add uuidv4 to ensure uniqueness even if same student is added multiple times
         const uniqueToken = uuidv4();
         const simpleLinkCode = `${room.room_code}_${userId}_${encodeURIComponent(fullName)}_${uniqueToken.substring(0, 8)}`;
-        const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/m/${simpleLinkCode}`;
+        
+        // For production, ensure we're using skolr.app domain
+        let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        
+        // If we're in production, but the URL isn't skolr.app, force it to be
+        if (process.env.NODE_ENV === 'production' && !baseUrl.includes('skolr.app')) {
+          console.log('[CSV Import API] Enforcing production domain for magic link');
+          baseUrl = 'https://skolr.app';
+        }
+        
+        const magicLink = `${baseUrl}/m/${simpleLinkCode}`;
         
         // Add to successful imports
         successfulImports.push({

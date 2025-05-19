@@ -82,7 +82,17 @@ export async function GET(request: NextRequest) {
     // Generate the magic link using the format: roomCode_userId_encodedStudentName
     const encodedName = encodeURIComponent(profile.full_name);
     const simpleLinkCode = `${room.room_code}_${studentId}_${encodedName}`;
-    const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/m/${simpleLinkCode}`;
+    
+    // For production, ensure we're using skolr.app domain
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    // If we're in production, but the URL isn't skolr.app, force it to be
+    if (process.env.NODE_ENV === 'production' && !baseUrl.includes('skolr.app')) {
+      console.log('[Magic Link Gen API] Enforcing production domain for magic link');
+      baseUrl = 'https://skolr.app';
+    }
+    
+    const magicLink = `${baseUrl}/m/${simpleLinkCode}`;
 
     console.log('[Magic Link API] Generated link with code:', simpleLinkCode);
 
@@ -170,7 +180,17 @@ export async function POST(request: NextRequest) {
     // Generate the magic link
     const encodedName = encodeURIComponent(profile.full_name);
     const simpleLinkCode = `${room.room_code}_${studentId}_${encodedName}`;
-    const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/m/${simpleLinkCode}`;
+    
+    // For production, ensure we're using skolr.app domain
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    // If we're in production, but the URL isn't skolr.app, force it to be
+    if (process.env.NODE_ENV === 'production' && !baseUrl.includes('skolr.app')) {
+      console.log('[Magic Link Gen API] Enforcing production domain for magic link');
+      baseUrl = 'https://skolr.app';
+    }
+    
+    const magicLink = `${baseUrl}/m/${simpleLinkCode}`;
 
     console.log('[Magic Link API] Regenerated link with code:', simpleLinkCode);
 
