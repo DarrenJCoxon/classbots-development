@@ -591,6 +591,35 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
 
+  // Periodic check for safety notifications
+  useEffect(() => {
+    if (!userId || !roomId || !supabase) return;
+    
+    console.log('[Chat] Setting up periodic safety notifications check');
+    
+    // Function to check for undelivered safety messages
+    const checkSafetyMessages = async () => {
+      try {
+        console.log('[Chat] Running periodic safety notification check');
+        await fetchSafetyMessages();
+      } catch (error) {
+        console.error('[Chat] Error in periodic safety check:', error);
+      }
+    };
+    
+    // Run the check immediately on mount
+    checkSafetyMessages();
+    
+    // Set up interval to check every 5 seconds
+    const intervalId = setInterval(checkSafetyMessages, 5000);
+    
+    // Clean up on unmount
+    return () => {
+      clearInterval(intervalId);
+      console.log('[Chat] Cleared safety notification check interval');
+    };
+  }, [userId, roomId, supabase, fetchSafetyMessages]);
+
   // --- REALTIME LISTENER ---
   useEffect(() => {
     const effectChatbotId = chatbot?.chatbot_id; // Use optional chaining for safety
@@ -612,13 +641,14 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       
       // Subscribe to safety_notifications table changes - this provides a more reliable
       // backup to ensure safety messages are delivered
+      console.log(`[Chat.tsx RT] Setting up realtime subscription for safety_notifications with user_id=${effectUserId}`);
       const notificationsChannel = supabase
-        .channel('safety_notifications_realtime')
+        .channel('safety_notifications_realtime_' + Date.now()) // Add timestamp to ensure unique channel name
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'safety_notifications', filter: `user_id=eq.${effectUserId}` },
           async (payload) => {
-            console.log('[Chat.tsx RT] <<< SAFETY NOTIFICATION DB CHANGE RECEIVED >>>:', payload);
+            console.log('[Chat.tsx RT] <<< SAFETY NOTIFICATION DB CHANGE RECEIVED >>>:', JSON.stringify(payload, null, 2));
             
             try {
               const notification = payload.new;
@@ -694,9 +724,28 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
-            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety_notifications table changes`);
+            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety_notifications table changes for user ${effectUserId}`);
+            
+            // Run a SQL query to verify the publication is set up correctly
+            try {
+              fetch('/api/health?check=realtime', {
+                method: 'GET',
+                credentials: 'include'
+              })
+              .then(response => response.json())
+              .then(data => {
+                console.log(`[Chat.tsx RT] Realtime health check response:`, data);
+              })
+              .catch(error => {
+                console.error(`[Chat.tsx RT] Realtime health check error:`, error);
+              });
+            } catch (checkError) {
+              console.error(`[Chat.tsx RT] Error running realtime health check:`, checkError);
+            }
           } else if (status === 'CHANNEL_ERROR') {
             console.error(`[Chat.tsx RT] Error subscribing to safety_notifications:`, err);
+          } else {
+            console.warn(`[Chat.tsx RT] Subscription status for safety_notifications: ${status}`);
           }
         });
       
@@ -1155,7 +1204,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
   }, [roomId, chatbot?.chatbot_id, userId, supabase, handleRealtimeMessage, handleRealtimeUpdate]);
 
   // Enhanced function to fetch all messages, including safety messages
-  const fetchSafetyMessages = async () => {
+  const fetchSafetyMessages = useCallback(async () => {
     if (!userId || !roomId) return;
     
     try {
@@ -1259,7 +1308,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     } catch (error) {
       console.error(`[SAFETY DIAGNOSTICS] Error in fetchSafetyMessages:`, error);
     }
-  };
+  }, [userId, roomId, scrollToBottom]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -1389,9 +1438,9 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
                   console.log('[SAFETY DIAGNOSTICS] Safety intervention triggered - starting enhanced retry process');
                   
                   // Multiple fetch attempts with increasing delays
-                  const fetchWithRetries = async (retryCount = 0, maxRetries = 3) => {
+                  const fetchWithRetries = async (retryCount = 0, maxRetries = 10) => { // Increase max retries
                     try {
-                      const delay = 2000 + (retryCount * 1000); // Increasing delay: 2s, 3s, 4s
+                      const delay = 1000 + (retryCount * 500); // Faster polling: 1s, 1.5s, 2s, etc.
                       console.log(`[SAFETY DIAGNOSTICS] Attempt #${retryCount + 1}/${maxRetries + 1} - fetching with delay=${delay}ms`);
                       
                       setTimeout(async () => {
