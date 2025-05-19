@@ -1071,6 +1071,18 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       // Check for any undelivered notifications on component mount
       const checkForUndeliveredNotifications = async () => {
         try {
+          // Handle test rooms differently - they don't use real UUIDs for room IDs
+          const isTestRoom = roomId.startsWith('teacher_test_room_for_');
+          
+          console.log(`[Chat.tsx RT] Checking for undelivered notifications... (${isTestRoom ? 'Test Room' : 'Regular Room'})`);
+          
+          // For test rooms, skip safety notification check
+          if (isTestRoom) {
+            // Skip database query for test rooms to avoid UUID format errors
+            console.log('[Chat.tsx RT] Skipping undelivered notifications check for test room');
+            return;
+          }
+          
           const { data, error } = await supabase
             .from('safety_notifications')
             .select('*')
@@ -1178,7 +1190,18 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         try {
           if (!effectUserId || !roomId) return;
           
-          console.log(`[Chat.tsx RT] Polling for new safety notifications...`);
+          // Handle test rooms differently - they don't use real UUIDs for room IDs
+          const isTestRoom = roomId.startsWith('teacher_test_room_for_');
+          
+          console.log(`[Chat.tsx RT] Polling for new safety notifications... (${isTestRoom ? 'Test Room' : 'Regular Room'})`);
+          
+          // For test rooms, skip safety notification polling
+          if (isTestRoom) {
+            // Skip database query for test rooms to avoid UUID format errors
+            return;
+          }
+          
+          // Only perform the query for real rooms with valid UUIDs
           const { data, error } = await supabase
             .from('safety_notifications')
             .select('*')
