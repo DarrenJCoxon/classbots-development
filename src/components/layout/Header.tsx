@@ -24,6 +24,8 @@ const HeaderContent = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative; /* For absolute positioning of Nav */
+  min-height: 50px; /* Ensure consistent height even when Nav is empty */
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-wrap: wrap;
@@ -48,9 +50,16 @@ const Logo = styled(Link)`
 const Nav = styled.nav`
   display: flex;
   align-items: center;
+  justify-content: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   gap: ${({ theme }) => theme.spacing.lg};
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    position: relative;
+    left: auto;
+    transform: none;
     order: 3;
     width: 100%;
     justify-content: center;
@@ -191,20 +200,22 @@ export default function Header() {
             {APP_NAME}
           </Logo>
           
-          {user && userRole && (
-            <Nav>
-              {userRole === 'teacher' && (
-                <NavLink href="/teacher-dashboard" $isActive={isLinkActive('/teacher-dashboard')}>
-                  Dashboard
-                </NavLink>
-              )}
-              {userRole === 'student' && (
-                <NavLink href="/student/dashboard" $isActive={isLinkActive('/student/dashboard')}>
-                  Dashboard 
-                </NavLink>
-              )}
-            </Nav>
-          )}
+          <Nav>
+            {user && userRole ? (
+              <>
+                {userRole === 'teacher' && (
+                  <NavLink href="/teacher-dashboard" $isActive={isLinkActive('/teacher-dashboard')}>
+                    Dashboard
+                  </NavLink>
+                )}
+                {userRole === 'student' && (
+                  <NavLink href="/student/dashboard" $isActive={isLinkActive('/student/dashboard')}>
+                    Dashboard 
+                  </NavLink>
+                )}
+              </>
+            ) : null}
+          </Nav>
           
           <UserSection>
             {user ? (
