@@ -591,6 +591,34 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
 
+  // Periodic check for safety notifications
+  useEffect(() => {
+    if (!userId || !roomId || !supabase) return;
+    
+    console.log('[Chat] Setting up periodic safety notifications check');
+    
+    // Function to check for undelivered safety messages
+    const checkSafetyMessages = async () => {
+      try {
+        console.log('[Chat] Running periodic safety notification check');
+        await fetchSafetyMessages();
+      } catch (error) {
+        console.error('[Chat] Error in periodic safety check:', error);
+      }
+    };
+    
+    // Run the check immediately on mount
+    checkSafetyMessages();
+    
+    // Set up interval to check every 5 seconds
+    const intervalId = setInterval(checkSafetyMessages, 5000);
+    
+    // Clean up on unmount
+    return () => {
+      clearInterval(intervalId);
+      console.log('[Chat] Cleared safety notification check interval');
+    };
+  }, [userId, roomId, supabase, fetchSafetyMessages]);
 
   // --- REALTIME LISTENER ---
   useEffect(() => {
@@ -614,12 +642,13 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       // Subscribe to safety_notifications table changes - this provides a more reliable
       // backup to ensure safety messages are delivered
       console.log(`[Chat.tsx RT] Setting up realtime subscription for safety_notifications with user_id=${effectUserId}`);
-      // Subscribe to safety_notifications table changes
+      // Use a more reliable channel configuration
       const notificationsChannel = supabase
         .channel('safety_notifications_realtime_' + Date.now(), {
           config: {
             broadcast: { self: true }, // Get events sent by this client
-            presence: { key: effectUserId } // Use userId for presence
+            presence: { key: effectUserId }, // Use userId for presence
+            persistence: true // Enable more reliable persistence
           }
         })
         .on(
@@ -862,6 +891,20 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
             if (typeof window !== 'undefined') {
               (window as any).safetyChannel = safetyChannel;
               console.log('[Chat.tsx RT] Safety channel exposed as window.safetyChannel for debugging');
+              
+              // Also add a helper function to manually fetch safety messages
+              (window as any).fetchSafetyMessages = async () => {
+                console.log('[SAFETY DIAGNOSTICS] Manual safety message fetch triggered');
+                try {
+                  await fetchSafetyMessages();
+                  console.log('[SAFETY DIAGNOSTICS] Manual fetch completed');
+                  return 'Fetch completed';
+                } catch (error) {
+                  console.error('[SAFETY DIAGNOSTICS] Manual fetch error:', error);
+                  return `Error: ${error}`;
+                }
+              };
+              console.log('[SAFETY DIAGNOSTICS] Added window.fetchSafetyMessages() helper function');
             }
           } else if (status === 'CHANNEL_ERROR') {
             console.error(`[Chat.tsx RT] Safety channel ERROR: ${safetyChannelId}`, err);
@@ -936,8 +979,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
             // Process the first undelivered notification
             const notification = data[0];
             
-            // Fetch all messages to ensure we get safety messages
-            fetchMessages();
+            // Fetch the safety message
+            fetchSafetyMessages();
             
             // Mark notification as delivered
             try {
@@ -1167,6 +1210,112 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     */
   }, [roomId, chatbot?.chatbot_id, userId, supabase, handleRealtimeMessage, handleRealtimeUpdate]);
 
+  // Enhanced function to fetch all messages, including safety messages
+  const fetchSafetyMessages = useCallback(async () => {
+    if (!userId || !roomId) return;
+    
+    try {
+      const isProduction = process.env.NODE_ENV === 'production' || window.location.hostname === 'skolr.app';
+      console.log(`[SAFETY DIAGNOSTICS] fetchSafetyMessages called in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+      console.log(`[SAFETY DIAGNOSTICS] Environment: hostname=${window.location.hostname}, path=${window.location.pathname}`);
+      console.log(`[SAFETY DIAGNOSTICS] Fetching all messages to get safety responses for user ${userId} in room ${roomId}`);
+      
+      // First try the direct safety message API endpoint
+      try {
+        console.log(`[SAFETY DIAGNOSTICS] Directly fetching latest safety message via API...`);
+        const safetyResponse = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store' // Ensure we don't get cached responses
+        });
+        
+        if (safetyResponse.ok) {
+          const safetyData = await safetyResponse.json();
+          console.log(`[SAFETY DIAGNOSTICS] Safety message API response: success=${safetyData.found}, messageId=${safetyData.message?.message_id || 'none'}`);
+          
+          if (safetyData.found && safetyData.message) {
+            console.log(`[SAFETY DIAGNOSTICS] Found safety message via direct API!`);
+            console.log(`[SAFETY DIAGNOSTICS] Safety message details:`, {
+              messageId: safetyData.message.message_id,
+              countryCode: safetyData.message.metadata?.countryCode,
+              effectiveCountryCode: safetyData.message.metadata?.effectiveCountryCode,
+              displayCountryCode: safetyData.message.metadata?.displayCountryCode,
+              helplines: safetyData.message.metadata?.helplines,
+              contentLength: safetyData.message.content?.length || 0,
+              contentStart: safetyData.message.content?.substring(0, 50) + '...'
+            });
+            
+            // Update UI with the found safety message
+            setMessages(prevMessages => {
+              // Remove any safety placeholders
+              const withoutPlaceholders = prevMessages.filter(msg => 
+                !msg.metadata?.isSafetyPlaceholder
+              );
+              
+              // Check if this safety message already exists in the state
+              const safetyMessageExists = withoutPlaceholders.some(msg => 
+                msg.message_id === safetyData.message.message_id
+              );
+              
+              if (safetyMessageExists) {
+                console.log(`[SAFETY DIAGNOSTICS] Safety message ${safetyData.message.message_id} already exists in state`);
+                return withoutPlaceholders;
+              }
+              
+              console.log(`[SAFETY DIAGNOSTICS] Adding safety message ${safetyData.message.message_id} to UI`);
+              const newMessages = [...withoutPlaceholders, safetyData.message];
+              
+              // Sort by timestamp
+              return newMessages.sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            });
+            
+            setTimeout(scrollToBottom, 100);
+            
+            // Important: Return here to avoid falling back to regular fetch if we found the safety message
+            return;
+          } else {
+            console.log(`[SAFETY DIAGNOSTICS] No safety message found via direct API`);
+          }
+        } else {
+          const errorText = await safetyResponse.text();
+          console.error(`[SAFETY DIAGNOSTICS] Error fetching from safety message API: ${safetyResponse.status}`, errorText);
+        }
+      } catch (safetyApiError) {
+        console.error(`[SAFETY DIAGNOSTICS] Exception in safety message API call:`, safetyApiError);
+      }
+      
+      // Fallback: use the regular fetchMessages function
+      console.log(`[SAFETY DIAGNOSTICS] Falling back to regular fetchMessages`);
+      await fetchMessages();
+      
+      // After fetchMessages, log current message state to see if safety messages are present
+      const safetyMessagesInState = messages.filter(msg => 
+        msg.role === 'system' && msg.metadata?.isSystemSafetyResponse === true
+      );
+      
+      if (safetyMessagesInState.length > 0) {
+        console.log(`[SAFETY DIAGNOSTICS] Found ${safetyMessagesInState.length} safety messages in state after fetchMessages`);
+        safetyMessagesInState.forEach((msg, idx) => {
+          console.log(`[SAFETY DIAGNOSTICS] Safety message #${idx+1}:`, {
+            messageId: msg.message_id,
+            countryCode: msg.metadata?.countryCode,
+            effectiveCountryCode: msg.metadata?.effectiveCountryCode,
+            displayCountryCode: msg.metadata?.displayCountryCode,
+            contentLength: msg.content?.length || 0,
+            contentStart: msg.content?.substring(0, 50) + '...'
+          });
+        });
+      } else {
+        console.log(`[SAFETY DIAGNOSTICS] No safety messages found in state after fetchMessages`);
+      }
+      
+      console.log(`[SAFETY DIAGNOSTICS] Completed safety message fetch process`);
+    } catch (error) {
+      console.error(`[SAFETY DIAGNOSTICS] Error in fetchSafetyMessages:`, error);
+    }
+  }, [userId, roomId, scrollToBottom]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -1353,8 +1502,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
                           }
                           
                           // If direct API failed or found no message, try regular fetch
-                          console.log(`[SAFETY DIAGNOSTICS] Direct API ${safetyResponse.ok ? 'returned no message' : 'failed'} - trying regular fetch`);
-                          await fetchMessages();
+                          console.log(`[SAFETY DIAGNOSTICS] Direct API ${safetyResponse.ok ? 'returned no message' : 'failed'} - trying fetchSafetyMessages`);
+                          await fetchSafetyMessages();
                           
                           // Check if we found any safety messages after the regular fetch
                           const safetyMessagesAfterFetch = messages.filter(msg => 
