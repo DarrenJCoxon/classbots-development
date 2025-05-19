@@ -610,6 +610,98 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       // Array to track all channels we create so we can clean them up properly
       const channels: any[] = [];
       
+      // Subscribe to safety_notifications table changes - this provides a more reliable
+      // backup to ensure safety messages are delivered
+      const notificationsChannel = supabase
+        .channel('safety_notifications_realtime')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'safety_notifications', filter: `user_id=eq.${effectUserId}` },
+          async (payload) => {
+            console.log('[Chat.tsx RT] <<< SAFETY NOTIFICATION DB CHANGE RECEIVED >>>:', payload);
+            
+            try {
+              const notification = payload.new;
+              
+              // Verify this safety notification is for this room and user
+              if (notification.room_id === roomId && notification.user_id === effectUserId) {
+                console.log(`[Chat.tsx RT] Processing safety notification for message ID: ${notification.message_id}`);
+                
+                // Fetch the safety message using the API
+                const response = await fetch(`/api/student/safety-message?messageId=${notification.message_id}&userId=${effectUserId}`, {
+                  method: 'GET',
+                  credentials: 'include',
+                  cache: 'no-store'
+                });
+                
+                if (!response.ok) {
+                  console.error(`[Chat.tsx RT] Error fetching safety message from DB change: HTTP ${response.status}`);
+                  return;
+                }
+                
+                const safetyMessageData = await response.json();
+                
+                if (safetyMessageData.found && safetyMessageData.message) {
+                  // Update UI with the safety message
+                  setMessages((prevMessages) => {
+                    // Remove any safety placeholders
+                    const withoutPlaceholders = prevMessages.filter(msg => 
+                      !msg.metadata?.isSafetyPlaceholder
+                    );
+                    
+                    // Check if message already exists
+                    const safetyMessageExists = withoutPlaceholders.some(msg => 
+                      msg.message_id === safetyMessageData.message.message_id
+                    );
+                    
+                    if (safetyMessageExists) {
+                      console.log(`[Chat.tsx RT] Safety message ${safetyMessageData.message.message_id} already exists in state`);
+                      return withoutPlaceholders;
+                    }
+                    
+                    console.log(`[Chat.tsx RT] Adding safety message ${safetyMessageData.message.message_id} from DB notification`);
+                    const newMessages = [...withoutPlaceholders, safetyMessageData.message];
+                    
+                    // Sort by timestamp
+                    return newMessages.sort((a, b) => 
+                      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                    );
+                  });
+                  
+                  setTimeout(scrollToBottom, 100);
+                  
+                  // Update notification as delivered
+                  try {
+                    const { error: updateError } = await supabase
+                      .from('safety_notifications')
+                      .update({ is_delivered: true, delivered_at: new Date().toISOString() })
+                      .eq('notification_id', notification.notification_id);
+                    
+                    if (updateError) {
+                      console.error(`[Chat.tsx RT] Error updating notification status in DB:`, updateError);
+                    } else {
+                      console.log(`[Chat.tsx RT] Marked notification ${notification.notification_id} as delivered`);
+                    }
+                  } catch (updateError) {
+                    console.error('[Chat.tsx RT] Exception updating notification delivery status:', updateError);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('[Chat.tsx RT] Error processing safety notification from DB change:', err);
+            }
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[Chat.tsx RT] Successfully SUBSCRIBED to safety_notifications table changes`);
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error(`[Chat.tsx RT] Error subscribing to safety_notifications:`, err);
+          }
+        });
+      
+      channels.push(notificationsChannel);
+      
       // Safety alert channel - subscribes to direct safety broadcasts for this user
       // Add broadcast and presence config for more reliability
       const safetyChannel = supabase
@@ -808,6 +900,55 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         });
       
       channels.push(safetyChannel);
+      
+      // Check for any undelivered notifications on component mount
+      const checkForUndeliveredNotifications = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('safety_notifications')
+            .select('*')
+            .eq('user_id', effectUserId)
+            .eq('room_id', roomId)
+            .eq('is_delivered', false)
+            .order('created_at', { ascending: false });
+            
+          if (error) {
+            console.error('[Chat.tsx RT] Error checking for undelivered notifications:', error);
+            return;
+          }
+          
+          if (data && data.length > 0) {
+            console.log(`[Chat.tsx RT] Found ${data.length} undelivered safety notifications, fetching...`);
+            
+            // Process the first undelivered notification
+            const notification = data[0];
+            
+            // Fetch the safety message
+            fetchSafetyMessages();
+            
+            // Mark notification as delivered
+            try {
+              const { error: updateError } = await supabase
+                .from('safety_notifications')
+                .update({ is_delivered: true, delivered_at: new Date().toISOString() })
+                .eq('notification_id', notification.notification_id);
+              
+              if (updateError) {
+                console.error(`[Chat.tsx RT] Error updating notification status in DB:`, updateError);
+              } else {
+                console.log(`[Chat.tsx RT] Marked notification ${notification.notification_id} as delivered`);
+              }
+            } catch (updateError) {
+              console.error('[Chat.tsx RT] Exception updating notification delivery status:', updateError);
+            }
+          }
+        } catch (err) {
+          console.error('[Chat.tsx RT] Error in checkForUndeliveredNotifications:', err);
+        }
+      };
+      
+      // Run the check for undelivered notifications
+      checkForUndeliveredNotifications();
 
       // Regular message subscriptions remain disabled to fix duplication
       console.log('[Chat.tsx RT] Regular message subscriptions remain disabled to fix duplication');

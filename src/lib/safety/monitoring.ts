@@ -1308,16 +1308,95 @@ export async function checkMessageSafety(
                         
                         console.log(`[Safety Check] Broadcasting safety message with payload:`, broadcastPayload);
                         
-                        await channel.send({
-                            type: 'broadcast',
-                            event: 'safety-message',
-                            payload: broadcastPayload
-                        });
-                        
-                        console.log(`[Safety Check] Broadcast sent for safety message ${safetyMessageData.message_id}`);
-                        
-                        // Remove the channel (we only needed it for one message)
-                        await adminClient.removeChannel(channel);
+                        try {
+                            // First attempt - use the configured broadcast method
+                            await channel.send({
+                                type: 'broadcast',
+                                event: 'safety-message',
+                                payload: broadcastPayload
+                            });
+                            
+                            console.log(`[Safety Check] Primary broadcast sent for safety message ${safetyMessageData.message_id}`);
+                            
+                            // Don't remove the channel immediately - keep it alive a bit longer
+                            setTimeout(async () => {
+                                try {
+                                    // Send a second broadcast after a short delay for redundancy
+                                    console.log(`[Safety Check] Sending secondary broadcast for message ${safetyMessageData.message_id}`);
+                                    await channel.send({
+                                        type: 'broadcast',
+                                        event: 'safety-message',
+                                        payload: {
+                                            ...broadcastPayload,
+                                            isSecondaryBroadcast: true,
+                                            secondaryTimestamp: new Date().toISOString(),
+                                        }
+                                    });
+                                    
+                                    // Also try using a database insert trigger approach to work around potential broadcast issues
+                                    console.log(`[Safety Check] Creating notification record in safety_notifications table`);
+                                    const { data: notificationData, error: notificationError } = await adminClient
+                                        .from('safety_notifications')
+                                        .insert({
+                                            user_id: studentId,
+                                            message_id: safetyMessageData.message_id,
+                                            room_id: room.room_id,
+                                            notification_type: 'safety_message',
+                                            created_at: new Date().toISOString(),
+                                            metadata: {
+                                                originalBroadcastTime: broadcastPayload.timestamp,
+                                                backupNotificationTime: new Date().toISOString(),
+                                                countryCode: effectiveCountryCode,
+                                                helplines: countryHelplines.map(h => h.name).join(','),
+                                                firstHelpline: countryHelplines.length > 0 ? countryHelplines[0].name : 'NONE',
+                                                messageId: safetyMessageData.message_id,
+                                                safetyMessageVersion: '2.1'
+                                            }
+                                        })
+                                        .select('notification_id');
+                                        
+                                    if (notificationError) {
+                                        console.error(`[Safety Check] Error creating notification record:`, notificationError);
+                                    } else {
+                                        console.log(`[Safety Check] Created notification record ${notificationData?.[0]?.notification_id}`);
+                                    }
+                                    
+                                    // Now remove the channel
+                                    await adminClient.removeChannel(channel);
+                                    console.log(`[Safety Check] Channel removed after secondary broadcasts`);
+                                } catch (secondaryError) {
+                                    console.error('[Safety Check] Error during secondary broadcast:', secondaryError);
+                                    await adminClient.removeChannel(channel);
+                                }
+                            }, 1000);
+                        } catch (primaryError) {
+                            console.error('[Safety Check] Error during primary broadcast:', primaryError);
+                            
+                            // Try an alternative broadcast method
+                            try {
+                                console.log(`[Safety Check] Attempting alternative broadcast...`);
+                                const fallbackChannel = adminClient.channel(`fallback-safety-${studentId}-${Date.now()}`);
+                                await fallbackChannel.subscribe();
+                                
+                                await fallbackChannel.send({
+                                    type: 'broadcast',
+                                    event: 'safety-message',
+                                    payload: {
+                                        ...broadcastPayload,
+                                        isFallbackBroadcast: true,
+                                        fallbackTimestamp: new Date().toISOString()
+                                    }
+                                });
+                                
+                                console.log(`[Safety Check] Fallback broadcast sent`);
+                                await adminClient.removeChannel(fallbackChannel);
+                            } catch (fallbackError) {
+                                console.error('[Safety Check] Fallback broadcast also failed:', fallbackError);
+                            }
+                            
+                            // Clean up the original channel
+                            await adminClient.removeChannel(channel);
+                        }
                     } catch (broadcastError) {
                         console.error('[Safety Check] Error broadcasting safety message:', broadcastError);
                         // Continue execution - this is just an enhancement, not critical
