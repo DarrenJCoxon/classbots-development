@@ -259,23 +259,6 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, on
   const [isDeleting, setIsDeleting] = useState(false);
   const [csvUploadRoom, setCsvUploadRoom] = useState<BaseRoom | null>(null); 
 
-  const toggleRoomStatus = async (roomId: string, currentStatus: boolean) => {
-    setLoadingState(prev => ({ ...prev, [roomId]: true }));
-    try {
-      const response = await fetch(`/api/teacher/rooms/${roomId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !currentStatus }),
-      });
-      if (!response.ok) throw new Error('Failed to update room status');
-      onUpdate();
-    } catch (error) {
-      console.error('Error updating room status:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Could not update room status.'}`);
-    } finally {
-      setLoadingState(prev => ({ ...prev, [roomId]: false }));
-    }
-  };
 
   const copyRoomCode = async (code: string) => {
     try {
@@ -397,7 +380,6 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, on
                         >
                           Import Students
                         </Button>
-                        <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading} title={room.is_active ? 'Deactivate Room' : 'Activate Room'}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
                         <Button size="small" variant="secondary" onClick={() => onArchiveRoom(room)} disabled={isLoading} title="Archive Room">Archive</Button>
                         <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading} title="Delete Room">Delete</Button>
                       </ActionButtons>
@@ -451,7 +433,6 @@ export default function RoomList({ rooms, onUpdate, onEditRoom, onDeleteRoom, on
                     >
                       Import Students
                     </Button>
-                    <Button size="small" variant={room.is_active ? 'secondary' : 'primary'} onClick={() => toggleRoomStatus(room.room_id, room.is_active)} disabled={isLoading}>{isLoading ? '...' : room.is_active ? 'Deactivate' : 'Activate'}</Button>
                     <Button size="small" variant="secondary" onClick={() => onArchiveRoom(room)} disabled={isLoading}>Archive</Button>
                     <Button size="small" variant="magenta" onClick={() => openDeleteModal(room)} disabled={isLoading}>Delete</Button>
                   </MobileActions>
