@@ -268,7 +268,7 @@ export default function ManageRoomsPage() {
     <PageWrapper>
       <Container>
         <PageHeader>
-          <Title>Classroom Rooms</Title>
+          <Title>Rooms</Title>
           <div style={{ display: 'flex', gap: '10px' }}>
             <Button
               variant="outline"
