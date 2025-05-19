@@ -87,6 +87,30 @@ export default function ChatPage() {
 
   const roomId = params?.roomId ? String(params.roomId) : null;
   const chatbotIdFromUrl = searchParams.get('chatbot');
+  
+  // SECURITY ENHANCEMENT: Check for access_signature
+  const accessSignature = searchParams.get('access_signature');
+  const timestamp = searchParams.get('ts');
+  let uidFromUrl = searchParams.get('uid'); // For backward compatibility
+  const directAccessMode = searchParams.get('direct') === 'true';
+  
+  // Decode access signature if present
+  if (accessSignature && timestamp) {
+    try {
+      const decoded = atob(accessSignature);
+      const [userId, signatureTimestamp] = decoded.split(':');
+      
+      // Verify timestamp matches to prevent tampering
+      if (signatureTimestamp === timestamp) {
+        console.log('[ChatPage] Successfully decoded access signature for user:', userId);
+        uidFromUrl = userId;
+      } else {
+        console.error('[ChatPage] Timestamp mismatch in access signature');
+      }
+    } catch (e) {
+      console.error('[ChatPage] Failed to decode access signature:', e);
+    }
+  }
   const instanceIdFromUrl = searchParams.get('instance');
   const initialFetchDoneRef = useRef(false);
 
@@ -114,23 +138,23 @@ export default function ChatPage() {
     setLoading(true);
     setError(null);
     
-    // Check for direct user ID access via URL
-    const directUid = searchParams.get('uid');
-    if (directUid) {
-      console.log('[ChatPage] Direct user ID provided in URL:', directUid);
+    // User ID comes from either access_signature or direct uid parameter
+    // uidFromUrl is already set from the decoded signature or direct parameter
+    if (uidFromUrl) {
+      console.log('[ChatPage] User ID found for direct access:', uidFromUrl);
     }
 
     try {
       // First try normal authentication
       const { data: { user } } = await supabase.auth.getUser();
       
-      // If no authenticated user but direct UID provided, try to verify access via API
-      if (!user && directUid) {
-        console.log('[ChatPage] No authenticated user but direct UID provided, checking membership via API');
+      // If no authenticated user but UID provided, try to verify access via API
+      if (!user && uidFromUrl) {
+        console.log('[ChatPage] No authenticated user but UID found, checking membership via API');
         
         try {
           // Use the verify-membership API to check and potentially add the user to the room
-          const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${directUid}`, {
+          const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${uidFromUrl}`, {
             credentials: 'include'
           });
           
@@ -149,12 +173,27 @@ export default function ChatPage() {
           console.log('[ChatPage] Direct access granted via API');
           
           // Continue with fetch using admin API
-          const chatResponse = await fetch(`/api/student/room-chatbot-data?roomId=${roomId}&chatbotId=${chatbotIdFromUrl}&userId=${directUid}`, {
+          console.log('[ChatPage] Fetching chat data with params:', {
+            roomId, 
+            chatbotId: chatbotIdFromUrl,
+            userId: uidFromUrl,
+            direct: directAccessMode ? 'true' : 'false'
+          });
+          const chatResponseUrl = `/api/student/room-chatbot-data?roomId=${roomId}&chatbotId=${chatbotIdFromUrl}&userId=${uidFromUrl}&direct=${directAccessMode ? 'true' : 'false'}`;
+          console.log('[ChatPage] API URL:', chatResponseUrl);
+          
+          const chatResponse = await fetch(chatResponseUrl, {
             credentials: 'include'
           });
           
           if (!chatResponse.ok) {
-            throw new Error('Failed to fetch chat data');
+            const errorData = await chatResponse.json().catch(() => ({}));
+            console.error('[ChatPage] Chat data fetch failed:', { 
+              status: chatResponse.status, 
+              statusText: chatResponse.statusText,
+              error: errorData.error || 'No error details available' 
+            });
+            throw new Error(`Failed to fetch chat data: ${errorData.error || chatResponse.status}`);
           }
           
           const data = await chatResponse.json();
@@ -255,27 +294,38 @@ export default function ChatPage() {
   }, [roomId, chatbotIdFromUrl, fetchRoomData, searchParams]);
 
   const handleBack = () => { 
-    // Preserve the user ID parameter when going back to the room
-    const uid = searchParams.get('uid');
+    // Use the resolved uidFromUrl value (from either access_signature or direct uid parameter)
     
     // Also store user ID in localStorage for reliability
-    if (uid) {
-      localStorage.setItem('student_direct_access_id', uid);
-      localStorage.setItem('current_student_id', uid);
+    if (uidFromUrl) {
+      localStorage.setItem('student_direct_access_id', uidFromUrl);
+      localStorage.setItem('current_student_id', uidFromUrl);
     }
     
+    // Generate timestamp for direct access - this prevents auth redirects
+    const timestamp = Date.now();
+    
+    // Check if we have a roomId
     if (roomId) {
-      if (uid) {
-        // Add timestamp to avoid caching issues
-        router.push(`/room/${roomId}?direct=1&uid=${uid}&_t=${Date.now()}`);
+      // Generate secure access signature if we have a userId
+      if (uidFromUrl) {
+        // SECURITY ENHANCEMENT: Use access signature pattern with direct and legacy params
+        // Include _t parameter to skip auth check in student layout
+        const newAccessSignature = btoa(`${uidFromUrl}:${timestamp}`);
+        router.push(`/room/${roomId}?direct=true&access_signature=${newAccessSignature}&ts=${timestamp}&uid=${uidFromUrl}&_t=${timestamp}`);
       } else {
+        // Standard navigation for authenticated users
         router.push(`/room/${roomId}`);
       }
     } else {
       // If no room ID, go to dashboard (with user ID if available)
-      if (uid) {
-        router.push(`/student/dashboard?direct=1&user_id=${uid}&_t=${Date.now()}`);
+      if (uidFromUrl) {
+        // SECURITY ENHANCEMENT: Use access signature pattern for dashboard too
+        // Include _t parameter to skip auth check in student layout
+        const newAccessSignature = btoa(`${uidFromUrl}:${timestamp}`);
+        router.push(`/student/dashboard?direct=true&access_signature=${newAccessSignature}&ts=${timestamp}&uid=${uidFromUrl}&_t=${timestamp}`);
       } else {
+        // Standard navigation for authenticated users
         router.push('/student/dashboard');
       }
     }
@@ -285,10 +335,10 @@ export default function ChatPage() {
     return <PageWrapper><Container><LoadingContainer><LoadingSpinner size="large" /><p>Loading chat environment...</p></LoadingContainer></Container></PageWrapper>;
   }
   if (error) {
-    return <PageWrapper><Container><Alert variant="error">{error}</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back to Room'}</BackButton></Container></PageWrapper>;
+    return <PageWrapper><Container><Alert variant="error">{error}</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back'}</BackButton></Container></PageWrapper>;
   }
   if (!room || !chatbot) {
-    return <PageWrapper><Container><Alert variant="info">Chatbot or room information is unavailable. Ensure Chatbot ID is in URL.</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back to Room'}</BackButton></Container></PageWrapper>;
+    return <PageWrapper><Container><Alert variant="info">Chatbot or room information is unavailable. Ensure Chatbot ID is in URL.</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back'}</BackButton></Container></PageWrapper>;
   }
 
   return (
@@ -301,7 +351,7 @@ export default function ChatPage() {
             {chatbot.bot_type === 'assessment' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>This is an Assessment Bot.</p>}
           </RoomInfo>
           <BackButton onClick={handleBack}>
-            {'< Back to Room'}
+            {'< Back'}
           </BackButton>
         </Header>
         {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}

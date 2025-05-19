@@ -86,12 +86,85 @@ const initialSafetyCheck = (message: string): boolean => {
 };
 
 // Styled Components (Keep as is)
-const ChatContainer = styled(Card)` /* ... */ `;
-const MessagesList = styled.div` /* ... */ `;
-const StyledChatInputContainer = styled.div` /* ... */ `;
-const EmptyState = styled.div` /* ... */ `;
-const ErrorContainer = styled(Alert)` /* ... */ `;
-const LoadingIndicator = styled.div` /* ... */ `;
+const ChatContainer = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+  overflow: hidden;
+  position: relative;
+`;
+
+const MessagesList = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+const StyledChatInputContainer = styled.div`
+  padding: 1rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.background};
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 2rem;
+  color: ${({ theme }) => theme.colors.textLight};
+  
+  h3 {
+    margin-bottom: 0.5rem;
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+const ErrorContainer = styled(Alert)`
+  margin: 1rem;
+`;
+
+const LoadingIndicator = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 0.5rem;
+  color: ${({ theme }) => theme.colors.textLight};
+`;
+
+const ClearChatButton = styled.button`
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textMuted};
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.backgroundDark};
+    color: ${({ theme }) => theme.colors.textLight};
+  }
+  
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
 const SubmitAssessmentButton = styled(Button)`
   margin-top: 1rem;
   width: 100%;
@@ -1787,8 +1860,43 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     }
   };
   
+  // Function to handle clearing the chat
+  const handleClearChat = () => {
+    // If there are no messages, don't do anything
+    if (messages.length === 0) return;
+    
+    // Ask for confirmation before clearing
+    if (window.confirm('Are you sure you want to clear all messages? This will only clear your local view of the conversation.')) {
+      // Keep only welcome message if present
+      const welcomeMessage = messages.find(msg => msg.metadata?.isWelcomeMessage);
+      
+      if (welcomeMessage) {
+        // If there's a welcome message, keep only that
+        setMessages([welcomeMessage]);
+      } else {
+        // Otherwise clear all messages
+        setMessages([]);
+      }
+      
+      console.log('[Chat.tsx] Chat cleared by user');
+    }
+  };
+  
   return (
     <ChatContainer>
+      {/* Add the clear chat button */}
+      {messages.length > 0 && (
+        <ClearChatButton 
+          onClick={handleClearChat} 
+          title="Clear chat"
+          aria-label="Clear chat"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </ClearChatButton>
+      )}
+      
       {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <Button onClick={() => fetchMessages()} size="small">Retry</Button> </ErrorContainer> )}
       <MessagesList>
         {isFetchingMessages && messages.length === 0 ? ( 
