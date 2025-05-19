@@ -642,8 +642,15 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       // Subscribe to safety_notifications table changes - this provides a more reliable
       // backup to ensure safety messages are delivered
       console.log(`[Chat.tsx RT] Setting up realtime subscription for safety_notifications with user_id=${effectUserId}`);
+      // Use a more reliable channel configuration
       const notificationsChannel = supabase
-        .channel('safety_notifications_realtime_' + Date.now()) // Add timestamp to ensure unique channel name
+        .channel('safety_notifications_realtime_' + Date.now(), {
+          config: {
+            broadcast: { self: true }, // Get events sent by this client
+            presence: { key: effectUserId }, // Use userId for presence
+            persistence: true // Enable more reliable persistence
+          }
+        })
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'safety_notifications', filter: `user_id=eq.${effectUserId}` },

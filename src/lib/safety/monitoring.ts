@@ -1346,11 +1346,7 @@ export async function checkMessageSafety(
                                             metadata: {
                                                 originalBroadcastTime: broadcastPayload.timestamp,
                                                 backupNotificationTime: new Date().toISOString(),
-                                                countryCode: effectiveCountryCode,
-                                                helplines: countryHelplines.map(h => h.name).join(','),
-                                                firstHelpline: countryHelplines.length > 0 ? countryHelplines[0].name : 'NONE',
-                                                messageId: safetyMessageData.message_id,
-                                                safetyMessageVersion: '2.1'
+                                                messageData: safetyMessageData
                                             }
                                         })
                                         .select('notification_id');
