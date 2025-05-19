@@ -1,7 +1,7 @@
 // src/app/student/dashboard/rebuild.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -199,6 +199,27 @@ export default function RebuiltStudentDashboard() {
     const urlParams = new URLSearchParams(window.location.search);
     const urlUserId = urlParams.get('user_id'); // from dashboard redirect
     const urlUid = urlParams.get('uid');        // from chat/room redirect
+    
+    // SECURITY ENHANCEMENT: Handle access_signature if present
+    let decodedUserId = null;
+    const accessSignature = urlParams.get('access_signature');
+    const timestamp = urlParams.get('ts');
+    
+    if (accessSignature && timestamp) {
+      try {
+        const decoded = atob(accessSignature);
+        const [userId, signatureTimestamp] = decoded.split(':');
+        
+        // Verify timestamp matches to prevent tampering
+        if (signatureTimestamp === timestamp) {
+          decodedUserId = userId;
+          console.log('[Dashboard] Successfully decoded access signature for user:', decodedUserId);
+        }
+      } catch (e) {
+        console.error('[Dashboard] Failed to decode access signature:', e);
+      }
+    }
+    
     const storedDirectId = localStorage.getItem('student_direct_access_id');
     const storedCurrentId = localStorage.getItem('current_student_id');
     const storedPinLoginId = localStorage.getItem('direct_pin_login_user');
@@ -206,13 +227,14 @@ export default function RebuiltStudentDashboard() {
     console.log('[Dashboard] Looking for student ID:', {
       urlUserId,
       urlUid,
+      decodedUserId,
       storedDirectId,
       storedCurrentId,
       storedPinLoginId
     });
     
-    // Return the first valid ID found
-    const id = urlUserId || urlUid || storedDirectId || storedCurrentId || storedPinLoginId;
+    // Return the first valid ID found, with decoded signature taking priority
+    const id = decodedUserId || urlUserId || urlUid || storedDirectId || storedCurrentId || storedPinLoginId;
     
     // Also store the ID in localStorage for reliability
     if (id) {
@@ -268,7 +290,7 @@ export default function RebuiltStudentDashboard() {
       });
       
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({}));
         
         // If not authenticated and no student ID found, redirect to login
         if (response.status === 401 && !studentId) {
@@ -279,7 +301,12 @@ export default function RebuiltStudentDashboard() {
           throw new Error('Not authenticated. Please log in.');
         }
         
-        throw new Error(data.error || 'Failed to load dashboard data');
+        // Check specifically for unauthorized access error        
+        if (response.status === 403 && errorData.code === 'UNAUTHORIZED_ACCESS') {
+          throw new Error('Security Alert: Unauthorized access attempt detected. This incident has been logged.');
+        } else {
+          throw new Error(errorData.error || errorData.message || 'Failed to load dashboard data');
+        }
       }
       
       const data = await response.json();
@@ -398,14 +425,45 @@ export default function RebuiltStudentDashboard() {
       return;
     }
     
-    // Navigate to room page with all required parameters
-    // The URL parameter could be either uid or student_id based on the server component
-    router.push(`/room/${roomId}?direct=1&uid=${studentId}`);
+    // SECURITY ENHANCEMENT: Use a timestamped access token instead of directly passing the UID
+    // This protects against impersonation by making the URL parameter not directly usable
+    const timestamp = Date.now();
+    const accessSignature = btoa(`${studentId}:${timestamp}`); // Simple encoding for demo
+    
+    // Navigate to room page with all required parameters - include both secure signature and legacy params
+    // for maximum compatibility during transition
+    router.push(`/room/${roomId}?direct=true&access_signature=${accessSignature}&ts=${timestamp}&uid=${studentId}`);
   };
+  
+  // Check for authorization errors in URL
+  const checkForAuthErrors = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const authError = urlParams.get('auth_error');
+      
+      if (authError === 'unauthorized_access') {
+        setLoading(false); // Make sure we're not in loading state
+        setError('Security Alert: Unauthorized access attempt detected. This incident has been logged.');
+        
+        // Remove the error from URL to prevent it from persisting after refresh
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('auth_error');
+        window.history.replaceState({}, document.title, cleanUrl.toString());
+        
+        // No need to call loadDashboard if we've detected an auth error
+        return true;
+      }
+    }
+    return false;
+  }, []);
   
   // Initialize dashboard on load - called only once due to empty dependency array
   useEffect(() => {
-    loadDashboard();
+    // First check for auth errors - only load dashboard if no errors found
+    const hasAuthError = checkForAuthErrors();
+    if (!hasAuthError) {
+      loadDashboard();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   

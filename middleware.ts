@@ -2,6 +2,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { createServerClient } from '@supabase/ssr';
+import { verifyUserMatchesUrlParam } from '@/lib/supabase/auth-helpers';
 
 export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
@@ -56,6 +57,37 @@ export async function middleware(request: NextRequest) {
         if (profile?.role === 'teacher') {
           console.log(`[Middleware] Teacher detected from profile, redirecting away from student dashboard`);
           return NextResponse.redirect(new URL('/teacher-dashboard', request.url));
+        }
+      }
+      
+      // NEW: Check for identity mismatch: user trying to access another user's resources
+      // Only check this for routes that might have studentId or userId parameters
+      const studentPathPatterns = [
+        '/room/', 
+        '/student/'
+      ];
+      
+      const checkIdentityMismatch = studentPathPatterns.some(pattern => pathname.includes(pattern));
+      
+      if (checkIdentityMismatch && user) {
+        console.log(`[Middleware] Checking identity match for route: ${pathname}`);
+        
+        const { authorized, redirect, user: authUser, urlUserId } = await verifyUserMatchesUrlParam(request);
+        
+        if (!authorized && redirect) {
+          console.log(`[Middleware] Unauthorized access detected: User ${authUser?.id} attempting to access ${urlUserId} via ${pathname}`);
+          
+          // Log this security incident for future auditing
+          if (authUser && urlUserId) {
+            try {
+              // You could add actual security logging here in production
+              console.warn(`[SECURITY WARNING] User ${authUser.id} attempted unauthorized access to ${urlUserId}`);
+            } catch (logError) {
+              console.error('[Middleware] Failed to log security incident:', logError);
+            }
+          }
+          
+          return redirect;
         }
       }
     }

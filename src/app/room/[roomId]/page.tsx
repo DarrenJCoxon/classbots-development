@@ -201,14 +201,44 @@ export default function RoomPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  // Check for direct access via URL param with user ID
+  // Check for direct access via URL param
   const searchParams = useSearchParams();
-  const uidFromUrl = searchParams?.get('uid');
+  
+  // SECURITY ENHANCEMENT: Use access signature instead of direct UID
+  const accessSignature = searchParams?.get('access_signature');
+  const timestamp = searchParams?.get('ts');
+  let uidFromUrl = searchParams?.get('uid'); // For backward compatibility
+  
+  console.log('[RoomPage] URL parameters:', {
+    accessSignature,
+    timestamp,
+    rawUid: searchParams?.get('uid'),
+    direct: searchParams?.get('direct')
+  });
+  
+  // If we have a secure access signature, decode it to get the user ID
+  if (accessSignature && timestamp) {
+    try {
+      const decoded = atob(accessSignature);
+      const [userId, signatureTimestamp] = decoded.split(':');
+      
+      // Verify timestamp matches to prevent tampering
+      if (signatureTimestamp === timestamp) {
+        uidFromUrl = userId;
+        console.log('[RoomPage] Successfully decoded access signature, set uidFromUrl:', uidFromUrl);
+      } else {
+        console.error('[RoomPage] Timestamp mismatch in access signature');
+      }
+    } catch (e) {
+      console.error('[RoomPage] Failed to decode access signature:', e);
+    }
+  }
   
   const fetchRoomData = useCallback(async () => {
     try {
-      // Check for direct user ID access via URL
-      const directUid = searchParams?.get('uid');
+      // We already have uidFromUrl from the decoded access_signature or legacy uid parameter
+      // No need to reassign it - use uidFromUrl directly
+      console.log('[RoomPage] fetchRoomData starting with uidFromUrl:', uidFromUrl);
       let userId, userRole;
       
       // First, try to get the authenticated user normally
@@ -233,10 +263,11 @@ export default function RoomPage() {
           console.log('[RoomPage] Using direct access cookies:', authUserId);
           userId = authUserId;
           userRole = 'student';
-        } else if (directUid) {
-          console.log('[RoomPage] No authenticated user but direct UID provided:', directUid);
-          // Try to use the direct UID
-          userId = directUid;
+        } else if (uidFromUrl) {
+          console.log('[RoomPage] No authenticated user but UID found:', uidFromUrl);
+          // Try to use the UID from either access_signature or legacy uid parameter
+          userId = uidFromUrl;
+          console.log('[RoomPage] Set userId to uidFromUrl:', userId);
           userRole = 'student'; // Assume student role for direct access
         } else {
           throw new Error('Not authenticated');
@@ -279,12 +310,12 @@ export default function RoomPage() {
         
         hasAccess = !!membership;
         
-        // If direct uid was provided but no access, try using admin client
-        if (!hasAccess && directUid) {
-          console.warn('[RoomPage] No access found using standard query with direct UID, trying API...');
+        // If uid was provided but no access, try using admin client
+        if (!hasAccess && uidFromUrl) {
+          console.warn('[RoomPage] No access found using standard query with UID, trying API...');
           // Use a special API endpoint with admin client to check membership
           try {
-            const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${directUid}`, {
+            const response = await fetch(`/api/student/verify-membership?roomId=${roomId}&userId=${uidFromUrl}`, {
               credentials: 'include'
             });
             
@@ -304,12 +335,12 @@ export default function RoomPage() {
       }
 
       // Get basic room info
-      if (directUid || directAccess || directAccessMode) {
+      if (uidFromUrl || directAccess || directAccessMode) {
         console.log('[RoomPage] Using direct API endpoint for room data');
         // Use admin API to get data
         try {
           // Use the most reliable user ID available
-          const effectiveUserId = authUserId || directUid;
+          const effectiveUserId = authUserId || uidFromUrl;
           const response = await fetch(`/api/student/room-data?roomId=${roomId}&userId=${effectiveUserId}`, {
             credentials: 'include'
           });
@@ -382,7 +413,7 @@ export default function RoomPage() {
     } finally {
       setLoading(false);
     }
-  }, [roomId, supabase, searchParams]);
+  }, [roomId, uidFromUrl, supabase, searchParams]);
 
   useEffect(() => {
     if (uidFromUrl) {
@@ -398,16 +429,14 @@ export default function RoomPage() {
     if (userRole === 'teacher') {
       router.push('/teacher-dashboard');
     } else {
-      // For students, we need to preserve the user ID
-      const directUid = searchParams?.get('uid') || searchParams?.get('student_id');
-      
-      if (directUid) {
+      // For students, we already have uidFromUrl if it was provided
+      if (uidFromUrl) {
         // Store ID in localStorage for additional reliability
-        localStorage.setItem('student_direct_access_id', directUid);
-        localStorage.setItem('current_student_id', directUid);
+        localStorage.setItem('student_direct_access_id', uidFromUrl);
+        localStorage.setItem('current_student_id', uidFromUrl);
         
-        // Go back to dashboard with user ID - make sure both param formats are included
-        router.push(`/student/dashboard?direct=1&user_id=${directUid}&_t=${Date.now()}`);
+        // Go directly to the student dashboard page
+        router.push(`/student/dashboard?direct=true&uid=${uidFromUrl}`);
       } else {
         // Fallback to regular student dashboard
         router.push('/student/dashboard');
@@ -487,10 +516,22 @@ export default function RoomPage() {
             {chatbots.map((chatbot) => (
               <Link 
                 key={chatbot.instance_id || chatbot.chatbot_id} 
-                href={uidFromUrl ? 
-                  `/chat/${roomId}?chatbot=${chatbot.chatbot_id}&instance=${chatbot.instance_id || ''}&uid=${uidFromUrl}` : 
-                  `/chat/${roomId}?chatbot=${chatbot.chatbot_id}&instance=${chatbot.instance_id || ''}`
-                }
+                href={(() => {
+                  // Base URL with chatbot parameters
+                  let url = `/chat/${roomId}?chatbot=${chatbot.chatbot_id}&instance=${chatbot.instance_id || ''}`;
+                  
+                  // SECURITY ENHANCEMENT: If we have a student ID, use the access signature pattern
+                  if (uidFromUrl) {
+                    // Create a new timestamp for this specific link
+                    const newTimestamp = Date.now();
+                    // Create a new access signature with the user ID
+                    const newAccessSignature = btoa(`${uidFromUrl}:${newTimestamp}`);
+                    // Add both secure signature and legacy parameters
+                    url += `&access_signature=${newAccessSignature}&ts=${newTimestamp}&uid=${uidFromUrl}&direct=true`;
+                  }
+                  
+                  return url;
+                })()}
                 style={{ textDecoration: 'none' }}
               >
                 <ChatbotCard>

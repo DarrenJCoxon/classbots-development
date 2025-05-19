@@ -47,11 +47,15 @@ export default function StudentLayoutWrapper({
   useEffect(() => {
     // Check if this is a direct redirect from login
     const url = new URL(window.location.href);
-    const isDirectLoginRedirect = url.searchParams.has('_t');
+    // Check multiple patterns of direct access
+    const isDirectLoginRedirect = url.searchParams.has('_t') || 
+                                 (url.searchParams.has('direct') && 
+                                  (url.searchParams.has('uid') || 
+                                   url.searchParams.has('access_signature')));
     
     // If this is a direct login redirect, skip the usual checks to prevent loops
     if (isDirectLoginRedirect) {
-      console.log('Direct login redirect detected - skipping auth check');
+      console.log('Direct access detected - skipping auth check');
       setIsAuthorized(true);
       setIsLoading(false);
       return;

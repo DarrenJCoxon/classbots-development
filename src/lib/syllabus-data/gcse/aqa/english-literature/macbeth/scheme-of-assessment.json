@@ -1,0 +1,87 @@
+      {
+  "sectionTitle": "4 Scheme of assessment",
+  "generalInformation": {
+    "pastPapersUrl": "aqa.org.uk/pastpapers",
+    "courseStructure": "This specification is designed to be taken over two years with all assessments taken at the end of the course.",
+    "examAvailability": "GCSE exams and certification for this specification are available for the first time in May/June 2017 and then every May/June for the life of the specification.",
+    "qualificationType": "This is a linear qualification. In order to achieve the award, students must complete all exams in May/June in a single year. All assessments must be taken in the same series.",
+    "examFocus": [
+      "draw together their knowledge, skills and understanding from across the full course of study",
+      "provide extended responses"
+    ],
+    "language": "All materials are available in English only."
+  },
+  "aimsAndLearningOutcomes": {
+    "title": "4.1 Aims and learning outcomes",
+    "introduction": "Courses based on this specification should encourage students to develop knowledge and skills in reading, writing and critical thinking. Through literature, students have a chance to develop culturally and acquire knowledge of the best that has been thought and written. Studying GCSE English Literature should encourage students to read widely for pleasure, and as a preparation for studying literature at a higher level.",
+    "encouragementForStudents": [
+      "read a wide range of classic literature fluently and with good understanding, and make connections across their reading",
+      "read in depth, critically and evaluatively, so that they are able to discuss and explain their understanding and ideas",
+      "develop the habit of reading widely and often",
+      "appreciate the depth and power of the English literary heritage",
+      "write accurately, effectively and analytically about their reading, using Standard English",
+      "acquire and use a wide vocabulary, including the grammatical terminology and other literary and linguistic terms they need to criticise and analyse what they read."
+    ]
+  },
+  "assessmentObjectives": {
+    "title": "4.2 Assessment objectives",
+    "introduction": "Assessment objectives (AOs) are set by Ofqual and are the same across all GCSE English Literature specifications and all exam boards. The exams will measure how students have achieved the following assessment objectives.",
+    "objectives": [
+      {
+        "code": "AO1",
+        "description": "Read, understand and respond to texts. Students should be able to:",
+        "bullets": [
+          "maintain a critical style and develop an informed personal response",
+          "use textual references, including quotations, to support and illustrate interpretations."
+        ]
+      },
+      {
+        "code": "AO2",
+        "description": "Analyse the language, form and structure used by a writer to create meanings and effects, using relevant subject terminology where appropriate."
+      },
+      {
+        "code": "AO3",
+        "description": "Show understanding of the relationships between texts and the contexts in which they were written."
+      },
+      {
+        "code": "AO4",
+        "description": "Use a range of vocabulary and sentence structures for clarity, purpose and effect, with accurate spelling and punctuation."
+      }
+    ],
+    "weightingTable": {
+      "title": "Weighting of assessment objectives for GCSE English Literature",
+      "headers": ["Assessment objectives (AOs)", "Component weightings (approx %) Paper 1", "Component weightings (approx %) Paper 2", "Overall weighting (approx %)"],
+      "rows": [
+        {"AO": "AO1", "Paper1": 15, "Paper2": 22.5, "Overall": 37.5},
+        {"AO": "AO2", "Paper1": 15, "Paper2": 27.5, "Overall": 42.5},
+        {"AO": "AO3", "Paper1": 7.5, "Paper2": 7.5, "Overall": 15},
+        {"AO": "AO4", "Paper1": 2.5, "Paper2": 2.5, "Overall": 5}
+      ],
+      "footer": {"OverallWeightingOfComponentsPaper1": 40, "OverallWeightingOfComponentsPaper2": 60, "OverallWeightingOfComponentsTotal": 100}
+    }
+  },
+  "assessmentWeightings": {
+    "title": "4.3 Assessment weightings",
+    "description": "The marks awarded on the papers will be scaled to meet the weighting of the components. Students' final marks will be calculated by adding together the scaled marks for each component. Grade boundaries will be set using this total scaled mark. The scaling and total scaled marks are shown in the table below.",
+    "table": {
+      "headers": ["Component", "Maximum raw mark", "Scaling factor", "Maximum scaled mark"],
+      "rows": [
+        {
+          "component": "Shakespeare and the 19th-century novel",
+          "maximumRawMark": 64,
+          "scalingFactor": "x1",
+          "maximumScaledMark": 64
+        },
+        {
+          "component": "Modern texts and poetry",
+          "maximumRawMark": 96,
+          "scalingFactor": "x1",
+          "maximumScaledMark": 96
+        }
+      ],
+      "totalScaledMark": 160
+    }
+  }
+}
+    
+

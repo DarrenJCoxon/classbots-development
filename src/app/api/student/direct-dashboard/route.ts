@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Room } from '@/types/database.types';
+import { createServerClient } from '@supabase/ssr';
 
 // Simple in-memory cache to reduce database load
 interface CacheEntry {
@@ -48,6 +49,60 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       console.error('[Direct Dashboard API] No user ID provided');
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+    
+    // SECURITY ENHANCEMENT: Check if the authenticated user matches the requested userId
+    // or if the authenticated user is a teacher (authorized to view student data)
+    try {
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return request.cookies.get(name)?.value;
+            },
+            set() { /* Not needed for this operation */ },
+            remove() { /* Not needed for this operation */ }
+          }
+        }
+      );
+      
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // If the user is requesting data for a different user ID
+        if (user.id !== userId) {
+          // Check if the user is a teacher (can access any student's data)
+          let isTeacher = user.user_metadata?.role === 'teacher';
+          
+          if (!isTeacher) {
+            // Check profile table as fallback
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('user_id', user.id)
+              .single();
+              
+            isTeacher = profile?.role === 'teacher';
+          }
+          
+          // If not a teacher, deny access with clear message
+          if (!isTeacher) {
+            console.error(`[Direct Dashboard API] Unauthorized access: User ${user.id} trying to access user ${userId}`);
+            return NextResponse.json({ 
+              error: 'Unauthorized access attempt',
+              message: 'You do not have permission to access another user\'s data',
+              code: 'UNAUTHORIZED_ACCESS'
+            }, { status: 403 });
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('[Direct Dashboard API] Error checking authorization:', authError);
+      // Continuing without auth check could be dangerous, so return an error
+      return NextResponse.json({ error: 'Authentication error' }, { status: 500 });
     }
     
     // Check cache first

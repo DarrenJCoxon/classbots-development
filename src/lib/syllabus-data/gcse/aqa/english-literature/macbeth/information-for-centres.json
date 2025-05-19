@@ -1,0 +1,100 @@
+{
+  "sectionTitle": "5 General administration",
+  "introduction": "You can find information about all aspects of administration, as well as all the forms you need, at aqa.org.uk/examsadmin",
+  "subSections": [
+    {
+      "title": "5.1 Entries and codes",
+      "content": [
+        "You only need to make one entry for each qualification – this will cover all the question papers and certification.",
+        "Every specification is given a national discount (classification) code by the Department for Education (DfE), which indicates its subject area.",
+        "If a student takes two specifications with the same discount code, Further and Higher Education providers are likely to take the view that they have only achieved one of the two qualifications. Please check this before your students start their course. Where two specifications have the same discount code, only one of them will be counted for the purpose of the School and College Performance tables – DfE's rules on 'early entry' will determine which one."
+      ],
+      "qualificationDetails": {
+        "qualificationTitle": "AQA GCSE in English Literature",
+        "aqaEntryCode": "8702",
+        "dfeDiscountCode": "FC4"
+      },
+      "ofqualCompliance": {
+        "statement": "This specification complies with Ofqual's:",
+        "conditions": [
+          "General Conditions of Recognition that apply to all regulated qualifications",
+          "GCSE qualification conditions that apply to all GCSEs",
+          "GCSE English Literature conditions that apply to all GCSEs in this subject."
+        ],
+        "qan": "The Ofqual qualification accreditation number (QAN) is 601/4447/6"
+      }
+    },
+    {
+      "title": "5.2 Overlaps with other qualifications",
+      "content": "There are no overlaps with any other AQA qualifications at this level."
+    },
+    {
+      "title": "5.3 Awarding grades and reporting results",
+      "content": [
+        "The qualification will be graded on a nine-point scale: 1 to 9 – where 9 is the best grade.",
+        "Students who fail to reach the minimum standard for grade 1 will be recorded as U (unclassified) and will not receive a qualification certificate."
+      ]
+    },
+    {
+      "title": "5.4 Re-sits and shelf life",
+      "content": "Students can re-sit the qualification as many times as they wish, within the shelf life of the qualification."
+    },
+    {
+      "title": "5.5 Previous learning and prerequisites",
+      "content": [
+        "There are no previous learning requirements. Students are not required to have taken any particular qualifications before taking this course. Any requirements for entry to a course based on this specification are at the discretion of schools and colleges.",
+        "However, as English literature is taught in progressively greater depth over the course of Key Stage 3 and Key Stage 4, GCSE outcomes may reflect or build upon subject content that is typically taught at Key Stage 3. There is no expectation that teaching of such content should be repeated during the GCSE course where it has already been effectively taught at an earlier stage."
+      ]
+    },
+    {
+      "title": "5.6 Access to assessment: diversity and inclusion",
+      "generalPrinciples": [
+        "General qualifications are designed to prepare students for a wide range of occupations and further study. Therefore our qualifications must assess a wide range of competences.",
+        "The subject criteria have been assessed to see if any of the skills or knowledge required present any possible difficulty to any students, whatever their ethnic background, religion, sex, age, disability or sexuality. If any difficulties were encountered, the criteria were reviewed again to make sure that tests of specific competences were only included if they were important to the subject."
+      ],
+      "jcqGuidelines": {
+        "statement": "As members of the Joint Council for Qualifications (JCQ) we participate in the production of the JCQ document Access Arrangements and Reasonable Adjustments: General and Vocational qualifications. We follow these guidelines when assessing the needs of individual students who may require an access arrangement or reasonable adjustment. This document is published on the JCQ website at jcq.org.uk"
+      },
+      "studentsWithDisabilitiesAndSpecialNeeds": {
+        "heading": "Students with disabilities and special needs",
+        "points": [
+          "We can make arrangements for disabled students and students with special needs to help them access the assessments, as long as the competences being tested are not changed. Access arrangements must be agreed before the assessment. For example, a Braille paper would be a reasonable adjustment for a Braille reader but not for a student who does not read Braille.",
+          "We are required by the Equality Act 2010 to make reasonable adjustments to remove or lessen any disadvantage that affects a disabled student.",
+          "If you have students who need access arrangements or reasonable adjustments, you can apply using the Access arrangements online service at aqa.org.uk/eaqa"
+        ]
+      },
+      "specialConsideration": {
+        "heading": "Special consideration",
+        "points": [
+          "We can give special consideration to students who have been disadvantaged at the time of the exam through no fault of their own – for example a temporary illness, injury or serious problem such as the death of a relative. We can only do this after the exam.",
+          "Your exams officer should apply online for special consideration at aqa.org.uk/eaqa",
+          "For more information and advice about access arrangements, reasonable adjustments and special consideration please see aqa.org.uk/access or email accessarrangementsqueries@aqa.org.uk"
+        ]
+      }
+    },
+    {
+      "title": "5.7 Safeguarding",
+      "content": "Some of the content within this curriculum may generate discussions or disclosures from students which raise safeguarding concerns. If this happens, please follow your centre's safeguarding policy to arrange support."
+    },
+    {
+      "title": "5.8 Working with AQA for the first time",
+      "content": [
+        "If your school or college has not previously offered any AQA specification, you need to register as an AQA centre to offer our exams to your students. Find out how at aqa.org.uk/becomeacentre",
+        "If your school or college is new to this specification, please let us know by completing an Intention to enter form. The easiest way to do this is via e-AQA at aqa.org.uk/eaqa"
+      ]
+    },
+    {
+      "title": "5.9 Private candidates",
+      "definition": "A private candidate is someone who enters for exams through an AQA-approved school or college but is not enrolled as a student there.",
+      "elaboration": "If you are a private candidate you may be self-taught, home-schooled or have private tuition, either with a tutor or through a distance learning organisation. You must be based in the UK.",
+      "queriesGuidance": {
+        "intro": "If you have any queries as a private candidate, you can:",
+        "options": [
+          "speak to the exams officer at the school or college where you intend to take your exams",
+          "visit our website at aqa.org.uk/examsadmin",
+          "email: privatecandidates@aqa.org.uk"
+        ]
+      }
+    }
+  ]
+}

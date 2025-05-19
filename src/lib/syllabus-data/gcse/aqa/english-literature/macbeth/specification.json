@@ -1,0 +1,77 @@
+      {
+  "sectionTitle": "2 Specification at a glance",
+  "assessmentOverview": [
+    "All assessments are closed book: any stimulus materials required will be provided as part of the assessment.",
+    "All assessments are compulsory."
+  ],
+  "papers": [
+    {
+      "paperTitle": "Paper 1: Shakespeare and the 19th-century novel",
+      "assessedContent": [
+        {
+          "item": "Shakespeare plays",
+          "detailsPage": 11
+        },
+        {
+          "item": "The 19th-century novel",
+          "detailsPage": 11
+        }
+      ],
+      "assessmentFormat": {
+        "type": "written exam",
+        "duration": "1 hour 45 minutes",
+        "marks": 64,
+        "weightingPercentage": 40
+      },
+      "questions": [
+        {
+          "section": "Section A Shakespeare",
+          "description": "students will answer one question on their play of choice. They will be required to write in detail about an extract from the play and then to write about the play as a whole."
+        },
+        {
+          "section": "Section B The 19th-century novel",
+          "description": "students will answer one question on their novel of choice. They will be required to write in detail about an extract from the novel and then to write about the novel as a whole."
+        }
+      ]
+    },
+    {
+      "paperTitle": "Paper 2: Modern texts and poetry",
+      "assessedContent": [
+        {
+          "item": "Modern prose or drama texts",
+          "detailsPage": 11
+        },
+        {
+          "item": "The poetry anthology",
+          "detailsPage": 12
+        },
+        {
+          "item": "Unseen poetry",
+          "detailsPage": 13
+        }
+      ],
+      "assessmentFormat": {
+        "type": "written exam",
+        "duration": "2 hours 15 minutes",
+        "marks": 96,
+        "weightingPercentage": 60
+      },
+      "questions": [
+        {
+          "section": "Section A Modern texts",
+          "description": "students will answer one essay question from a choice of two on their studied modern prose or drama text."
+        },
+        {
+          "section": "Section B Poetry",
+          "description": "students will answer one comparative question on one named poem printed on the paper and one other poem from their chosen anthology cluster."
+        },
+        {
+          "section": "Section C Unseen poetry",
+          "description": "Students will answer one question on one unseen poem and one question comparing this poem with a second unseen poem."
+        }
+      ]
+    }
+  ]
+}
+    
+

@@ -1,0 +1,103 @@
+      {
+  "sectionTitle": "3 Subject content",
+  "categories": [
+    {
+      "title": "3.1 Shakespeare and the 19th-century novel",
+      "subSections": [
+        {
+          "title": "3.1.1 Shakespeare",
+          "instruction": "Students will study one play from the list of six set texts. Students should study the whole text.",
+          "chooseOneOf": [
+            "Macbeth",
+            "Romeo and Juliet",
+            "The Tempest",
+            "The Merchant of Venice",
+            "Much Ado About Nothing",
+            "Julius Caesar"
+          ]
+        },
+        {
+          "title": "3.1.2 The 19th-century novel",
+          "instruction": "Students will study one novel from the list of seven set texts. Students should study the whole text.",
+          "chooseOneOf": [
+            {"author": "Robert Louis Stevenson", "title": "The Strange Case of Dr Jekyll and Mr Hyde"},
+            {"author": "Charles Dickens", "title": "A Christmas Carol"},
+            {"author": "Charles Dickens", "title": "Great Expectations (1867)"},
+            {"author": "Charlotte Brontë", "title": "Jane Eyre"},
+            {"author": "Mary Shelley", "title": "Frankenstein (1831)"},
+            {"author": "Jane Austen", "title": "Pride and Prejudice"},
+            {"author": "Sir Arthur Conan Doyle", "title": "The Sign of Four"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "3.2 Modern texts and poetry",
+      "subSections": [
+        {
+          "title": "3.2.1 Modern texts",
+          "instruction": "Students will study one from a choice of 12 set texts, which include post-1914 prose fiction and drama. Students should study the whole text.",
+          "chooseOneOf": {
+            "drama": [
+              {"author": "JB Priestley", "title": "An Inspector Calls"},
+              {"author": "Willy Russell", "title": "Blood Brothers (musical version)"},
+              {"author": "Alan Bennett", "title": "The History Boys", "note": "Last exam 2024"},
+              {"author": "Dennis Kelly", "title": "DNA"},
+              {"author": "Simon Stephens", "title": "The Curious Incident of the Dog in the Night-Time (play script)", "note": "Last exam 2024"},
+              {"author": "Shelagh Delaney", "title": "A Taste of Honey"},
+              {"author": "Chinonyerem Odimba", "title": "Princess & The Hustler", "note": "First teaching 2023, first exam 2025"},
+              {"author": "Winsome Pinnock", "title": "Leave Taking", "note": "First teaching 2023, first exam 2025"}
+            ],
+            "prose": [
+              {"author": "William Golding", "title": "Lord of the Flies"},
+              {"author": "AQA Anthology", "title": "Telling Tales"},
+              {"author": "George Orwell", "title": "Animal Farm"},
+              {"author": "Kazuo Ishiguro", "title": "Never Let Me Go", "note": "Last exam 2024"},
+              {"author": "Meera Syal", "title": "Anita and Me"},
+              {"author": "Stephen Kelman", "title": "Pigeon English"},
+              {"author": "Kit de Waal", "title": "My Name is Leon", "note": "First teaching 2023, first exam 2025"}
+            ]
+          }
+        },
+        {
+          "title": "3.2.2 Poetry",
+          "instruction": "Students will study one cluster of poems taken from the AQA poetry anthology, Poems Past and Present. There is a choice of three clusters, each containing 15 poems. The poems in each cluster are thematically linked and were written between 1789 and the present day.",
+          "additionalNote": "Students should study all 15 poems in their chosen cluster and be prepared to write about any of them in the examination.",
+          "clusterTitles": [
+            "Love and Relationships",
+            "Power and Conflict",
+            {"title": "Worlds and Lives", "note": "First teaching 2023, first exam 2025"}
+          ]
+        },
+        {
+          "title": "3.2.3 Unseen poetry",
+          "guidance": "In preparing for the unseen poetry section of the examination students should experience a wide range of poetry in order to develop their ability to closely analyse unseen poems. They should be able to analyse and compare key features such as their content, theme, structure and use of language."
+        }
+      ]
+    },
+    {
+      "title": "3.3 Skills",
+      "instruction": "In studying the set texts students should have the opportunity to develop the following skills.",
+      "skillCategories": [
+        {
+          "categoryName": "Reading comprehension and reading critically",
+          "skills": [
+            "Literal and inferential comprehension: understanding a word, phrase or sentence in context; exploring aspects of plot, characterisation, events and settings; distinguishing between what is stated explicitly and what is implied; explaining motivation, sequence of events, and the relationship between actions or events.",
+            "Critical reading: identifying the theme and distinguishing between themes; supporting a point of view by referring to evidence in the text; recognising the possibility of and evaluating different responses to a text; using understanding of writers' social, historical and cultural contexts to inform evaluation; making an informed personal response that derives from analysis and evaluation of the text.",
+            "Evaluation of a writer's choice of vocabulary, grammatical and structural features: analysing and evaluating how language, structure, form and presentation contribute to quality and impact; using linguistic and literary terminology for such evaluation.",
+            "Comparing texts: comparing and contrasting texts studied, referring where relevant to theme, characterisation, context (where known), style and literary quality; comparing two texts critically with respect to the above."
+          ]
+        },
+        {
+          "categoryName": "Writing",
+          "skills": [
+            "Producing clear and coherent text: writing effectively about literature for a range of purposes such as: to describe, explain, summarise, argue, analyse and evaluate; discussing and maintaining a point of view; selecting and emphasising key points; using relevant quotation and using detailed textual references.",
+            "Accurate Standard English: accurate spelling, punctuation and grammar."
+          ]
+        }
+      ]
+    }
+  ]
+}
+    
+
