@@ -471,11 +471,61 @@ export async function POST(request: NextRequest) {
         }
         const messageIdsToAssess = (contextMessagesForAssessment || []).map(m => m.message_id).reverse();
         const assessmentPayload = { student_id: user.id, chatbot_id: chatbot_id, room_id: roomId, message_ids_to_assess: messageIdsToAssess };
-        console.log(`[API Chat POST] Asynchronously calling /api/assessment/process.`);
+        console.log(`[API Chat POST] Calling /api/assessment/process with improved handling.`);
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-        fetch(`${baseUrl}/api/assessment/process`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assessmentPayload),
-        }).catch(fetchError => console.error(`[API Chat POST] Error calling /api/assessment/process internally:`, fetchError));
+        
+        // Create a more robust fetch with timeout and retries
+        const callAssessmentEndpoint = async (retryCount = 0, maxRetries = 2) => {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 sec timeout
+                
+                const response = await fetch(`${baseUrl}/api/assessment/process`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-assessment-source': 'internal-trigger',
+                        'x-request-id': `assess-${user.id}-${Date.now()}`
+                    },
+                    body: JSON.stringify(assessmentPayload),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    throw new Error(`Assessment API error (${response.status}): ${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log(`[API Chat POST] Assessment API successfully called. Result:`, result);
+                return result;
+            } catch (error) {
+                console.error(`[API Chat POST] Error calling assessment API (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+                
+                // Retry logic
+                if (retryCount < maxRetries) {
+                    const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
+                    console.log(`[API Chat POST] Retrying assessment API call in ${retryDelay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return callAssessmentEndpoint(retryCount + 1, maxRetries);
+                }
+                
+                throw error;
+            }
+        };
+        
+        // Execute the assessment call without blocking the response
+        callAssessmentEndpoint()
+            .then(result => {
+                console.log(`[API Chat POST] Assessment processing successful:`, result);
+            })
+            .catch(error => {
+                console.error(`[API Chat POST] Final assessment processing error:`, error);
+                // We could add a fallback response here if needed
+            });
+        
         return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });
     }
 

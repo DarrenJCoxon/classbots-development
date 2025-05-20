@@ -272,7 +272,18 @@ export default function AssessmentDetailPage() {
                 {assessed_at ? new Date(assessed_at).toLocaleString() : 'N/A'}
               </span>
             </DetailItem>
-            <DetailItem><strong>Teacher&apos;s Criteria Used:</strong> <p style={{whiteSpace: 'pre-wrap', fontStyle: 'italic', color: '#555'}}>{teacher_assessment_criteria_snapshot || 'N/A'}</p></DetailItem>
+            <DetailItem>
+              <strong>Teacher&apos;s Criteria Used:</strong> 
+              {ai_assessment_details_teacher?.criteria_summary ? (
+                <p style={{marginBottom: '10px'}}>{ai_assessment_details_teacher.criteria_summary}</p>
+              ) : null}
+              <details>
+                <summary style={{cursor: 'pointer', color: '#666', fontSize: '0.8rem', marginBottom: '5px'}}>
+                  View full criteria
+                </summary>
+                <p style={{whiteSpace: 'pre-wrap', fontStyle: 'italic', color: '#555'}}>{teacher_assessment_criteria_snapshot || 'N/A'}</p>
+              </details>
+            </DetailItem>
             
             <Divider />
             <CardHeader style={{fontSize: '1.1rem', marginTop:'1rem', borderBottom: 'none'}}>AI Generated Assessment</CardHeader>

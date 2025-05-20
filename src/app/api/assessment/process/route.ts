@@ -36,6 +36,7 @@ interface LLMAssessmentOutput {
     student_feedback: string;
     teacher_analysis: {
         summary: string;
+        criteria_summary?: string; // New field for summarized criteria
         strengths: string[];
         areas_for_improvement: string[];
         grading_rationale: string;
@@ -43,8 +44,12 @@ interface LLMAssessmentOutput {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = request.headers.get('x-request-id') || `assess-${Date.now()}`;
+  const requestSource = request.headers.get('x-assessment-source') || 'unknown';
+  
   console.log('--------------------------------------------------');
-  console.log('[API /assessment/process] Received assessment processing request.');
+  console.log(`[API /assessment/process] [ReqID: ${requestId}] Received assessment processing request from ${requestSource}.`);
+  console.log(`[API /assessment/process] Request method: ${request.method}, Content-Type: ${request.headers.get('content-type')}`);
   const adminSupabase = createAdminClient();
   
   // Initialize global document cache if not exists
@@ -59,10 +64,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API /assessment/process] Payload: userId=${userId}, chatbot_id=${chatbot_id}, room_id=${room_id}, isTestByTeacher=${isTestByTeacher}, messages_count=${message_ids_to_assess.length}`);
 
+    // Log the assessment request payload for debugging
+    console.log(`[API /assessment/process] [ReqID: ${requestId}] Processing assessment for student_id: ${userId}, chatbot_id: ${chatbot_id}, room_id: ${room_id}, messages: ${message_ids_to_assess.length}`);
+
     // 1. Fetch the Assessment Bot's configuration
     const { data: assessmentBotConfig, error: botConfigError } = await adminSupabase
       .from('chatbots')
-      .select('assessment_criteria_text, enable_rag, teacher_id')
+      .select('assessment_criteria_text, enable_rag, teacher_id, name')
       .eq('chatbot_id', chatbot_id)
       .eq('bot_type', 'assessment')
       .single();
@@ -176,6 +184,7 @@ Provide your evaluation ONLY as a single, valid JSON object matching the followi
   "student_feedback": "string (2-4 sentences of constructive feedback for the student, directly addressing their performance against the criteria. Start with 'Here is some feedback on your interaction:')",
   "teacher_analysis": {
     "summary": "string (A 1-2 sentence overall summary of the student's performance for the teacher.)",
+    "criteria_summary": "string (A concise 2-3 sentence summary of the key criteria that were used for assessment, not the full criteria text)",
     "strengths": [
       "string (A specific strength observed, referencing criteria/conversation. Be specific.)",
       "string (Another specific strength, if any. Up to 2-3 strengths total.)"
@@ -198,6 +207,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         student_feedback: "An error occurred during AI assessment. The AI could not generate feedback based on your interaction. Please inform your teacher.",
         teacher_analysis: {
             summary: "AI assessment could not be completed due to an error or unexpected LLM response.",
+            criteria_summary: "Unable to summarize assessment criteria due to processing error.",
             strengths: [],
             areas_for_improvement: [],
             grading_rationale: "Error during LLM processing or response parsing."
@@ -311,6 +321,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
                         student_feedback: parsedAssessment.student_feedback,
                         teacher_analysis: {
                             summary: parsedAssessment.teacher_analysis.summary || "No summary provided.",
+                            criteria_summary: parsedAssessment.teacher_analysis.criteria_summary || "Assessment based on teacher's provided criteria.",
                             strengths: Array.isArray(parsedAssessment.teacher_analysis.strengths) 
                                 ? parsedAssessment.teacher_analysis.strengths 
                                 : [],
@@ -357,18 +368,50 @@ Ensure all string values are properly escaped within the JSON. Do not include an
       };
       // console.log("[API /assessment/process] Payload for student_assessments insert:", JSON.stringify(insertPayload, null, 2));
 
-      const { data: savedAssessmentData, error: assessmentSaveError } = await adminSupabase
-        .from('student_assessments')
-        .insert(insertPayload)
-        .select('assessment_id').single();
+      // Add additional debugging information
+      console.log(`[API /assessment/process] [ReqID: ${requestId}] Ready to save assessment to database with status: ${assessmentStatusToSave}`);
+      console.log(`[API /assessment/process] [ReqID: ${requestId}] Teacher ID from bot config: ${assessmentBotConfig.teacher_id}`);
 
-      if (assessmentSaveError) {
-        console.error(`[API /assessment/process] CRITICAL: Error saving student assessment to DB:`, assessmentSaveError.message, assessmentSaveError.details, assessmentSaveError.hint);
-      } else if (savedAssessmentData) {
-        savedAssessmentId = savedAssessmentData.assessment_id;
-        console.log(`[API /assessment/process] Student assessment ${savedAssessmentId} saved successfully with status: ${assessmentStatusToSave}.`);
-      } else {
-        console.warn(`[API /assessment/process] Student assessment insert attempt completed but no data/ID returned, and no explicit error.`);
+      try {
+        // Insert with detailed error logging
+        const { data: savedAssessmentData, error: assessmentSaveError } = await adminSupabase
+          .from('student_assessments')
+          .insert(insertPayload)
+          .select('assessment_id').single();
+
+        if (assessmentSaveError) {
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] CRITICAL: Error saving student assessment to DB:`, 
+            assessmentSaveError.message, 
+            assessmentSaveError.details, 
+            assessmentSaveError.hint,
+            assessmentSaveError.code
+          );
+          
+          // Try an alternative approach if there was an error
+          console.log(`[API /assessment/process] [ReqID: ${requestId}] Attempting alternative database operation for assessment save...`);
+          
+          // Try just inserting without returning data (simpler operation)
+          const fallbackResult = await adminSupabase
+            .from('student_assessments')
+            .insert(insertPayload);
+            
+          if (fallbackResult.error) {
+            console.error(`[API /assessment/process] [ReqID: ${requestId}] Alternative insert also failed:`, 
+              fallbackResult.error.message,
+              fallbackResult.error.code
+            );
+          } else {
+            console.log(`[API /assessment/process] [ReqID: ${requestId}] Alternative insert succeeded, but no ID returned.`);
+          }
+        } else if (savedAssessmentData) {
+          savedAssessmentId = savedAssessmentData.assessment_id;
+          console.log(`[API /assessment/process] [ReqID: ${requestId}] SUCCESSFULLY saved student assessment ${savedAssessmentId} with status: ${assessmentStatusToSave}.`);
+          console.log(`[API /assessment/process] [ReqID: ${requestId}] Assessment details: Student ID: ${userId}, Bot: ${assessmentBotConfig.name || chatbot_id}, Room: ${room_id}`);
+        } else {
+          console.warn(`[API /assessment/process] [ReqID: ${requestId}] Student assessment insert COMPLETED but no data/ID returned, and no explicit error.`);
+        }
+      } catch (dbException) {
+        console.error(`[API /assessment/process] [ReqID: ${requestId}] EXCEPTION during assessment save:`, dbException);
       }
     } else {
         console.log(`[API /assessment/process] STEP 6: Teacher test assessment. LLM Call Successful: ${llmCallSuccessful}. Skipping save to student_assessments table.`);

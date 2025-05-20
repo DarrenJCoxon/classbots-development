@@ -152,6 +152,7 @@ export interface StudentAssessment extends BaseTable {
     ai_grade_raw?: string | null;
     ai_assessment_details_teacher?: {
         summary?: string;
+        criteria_summary?: string; // Added field for summarized criteria
         strengths?: string[];
         areas_for_improvement?: string[];
         grading_rationale?: string;
