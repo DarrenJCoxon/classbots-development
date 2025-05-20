@@ -166,9 +166,11 @@ interface ChatProps {
   directMode?: boolean;
   // New field for student-specific chatbot instances
   instanceId?: string;
+  // Added countryCode for safety messages
+  countryCode?: string;
 }
 
-export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
+export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatProps) {
   // studentId and directMode params removed as they're not used
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Keep for ChatInput
@@ -1013,6 +1015,12 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           headers['x-direct-access-user-id'] = userId;
         }
         
+        // Add country code for safety message localization if provided
+        if (countryCode) {
+          console.log(`[Chat.tsx] Adding country code to headers: ${countryCode}`);
+          headers['x-country-code'] = countryCode;
+        }
+        
         // Create a reader to process the streamed response
         const response = await fetch(url, {
           method: 'POST',
@@ -1021,7 +1029,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
             content: content.trim(), 
             chatbot_id: chatbot.chatbot_id, 
             model: chatbot.model,
-            instance_id: instanceId
+            instance_id: instanceId,
+            country_code: countryCode || null  // Include country code in body if available
           }),
           credentials: 'include'
         });

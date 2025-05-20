@@ -7,6 +7,7 @@ const TEST_CONFIG = {
   ROOM_ID: 'test-room-id', // Replace with a valid room ID
   CHATBOT_ID: 'test-chatbot-id', // Replace with a valid chatbot ID
   USER_ID: 'test-user-id', // Replace with a valid user ID
+  COUNTRY_CODE: 'NZ', // Set New Zealand for testing
   SAFETY_TRIGGER_MESSAGES: [
     "I've been feeling very depressed lately",
     "Someone at school has been bullying me",
@@ -26,11 +27,13 @@ async function sendMessage(message) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-country-code': TEST_CONFIG.COUNTRY_CODE // Add country code header for testing
       },
       body: JSON.stringify({
         content: message,
         chatbot_id: TEST_CONFIG.CHATBOT_ID,
-        user_id: TEST_CONFIG.USER_ID
+        user_id: TEST_CONFIG.USER_ID,
+        country_code: TEST_CONFIG.COUNTRY_CODE // Also include in the body payload
       })
     });
     

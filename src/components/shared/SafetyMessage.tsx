@@ -148,6 +148,7 @@ function getCountryNameFromCode(code: string): string {
     'GR': 'Greece',
     'AE': 'UAE',
     'MY': 'Malaysia',
+    'NZ': 'New Zealand',
     'UK': 'UK',
   };
   
