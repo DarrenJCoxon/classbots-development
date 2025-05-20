@@ -10,6 +10,7 @@ interface CacheEntry {
     profile: Record<string, unknown>;
     rooms: RoomWithChatbots[];
     isAnonymous: boolean;
+    recentAssessments?: any[]; // Add assessments to the cache structure
   };
   timestamp: number;
 }
@@ -151,16 +152,30 @@ export async function GET(request: NextRequest) {
     
     console.log('[Direct Dashboard API] Found memberships:', memberships?.length || 0);
     
-    // If no memberships, return early with empty rooms
+    // If no memberships, still check for assessments before returning
     if (!memberships || memberships.length === 0) {
       // Determine if this is a temporary user based on pin_code/username
       const isAnonymous = !profile.pin_code || !profile.username;
       
-      return NextResponse.json({
-        profile,
-        rooms: [],
-        isAnonymous
-      });
+      // Try to get assessments even if no rooms
+      const { data: assessmentsData } = await supabaseAdmin
+        .from('student_assessments')
+        .select('*')
+        .eq('student_id', userId)
+        .limit(1);
+        
+      // If no assessments either, return early
+      if (!assessmentsData || assessmentsData.length === 0) {
+        return NextResponse.json({
+          profile,
+          rooms: [],
+          isAnonymous,
+          recentAssessments: []
+        });
+      }
+      
+      // Otherwise, continue to assessments loading but with empty rooms
+      console.log('[Direct Dashboard API] No rooms but found assessments');
     }
     
     // Get detailed room info
@@ -233,11 +248,123 @@ export async function GET(request: NextRequest) {
     console.log('[Direct Dashboard API] User is anonymous:', isAnonymous);
     console.log('[Direct Dashboard API] Returning rooms with chatbots:', roomsWithChatbots.length);
     
+    // 3. Load student's recent assessments
+    let recentAssessments: any[] = [];
+    
+    // Load real assessments from database
+    const { data: assessmentsData, error: assessmentsError } = await supabaseAdmin
+      .from('student_assessments')
+      .select(`
+        assessment_id,
+        room_id, 
+        chatbot_id,
+        ai_grade_raw,
+        ai_feedback_student,
+        assessed_at,
+        status,
+        teacher_override_grade,
+        teacher_override_notes,
+        chatbot:chatbots!student_assessments_chatbot_id_fkey(name)
+      `)
+      .eq('student_id', userId)
+      .order('assessed_at', { ascending: false })
+      .limit(10);
+    
+    if (assessmentsError) {
+      console.error('[Direct Dashboard API] Error loading assessments:', assessmentsError);
+    }
+    
+    console.log('[Direct Dashboard API] Found assessments:', assessmentsData?.length || 0);
+    
+    if (assessmentsData && assessmentsData.length > 0) {
+      // Process real assessments to include room names
+      const roomIdsFromAssessments = [...new Set(
+        assessmentsData.map(a => a.room_id).filter(id => id && !id.startsWith('teacher_test_room_'))
+      )] as string[];
+      
+      // Build a map of room IDs to room names
+      const roomNamesMap: Map<string, string> = new Map();
+      
+      if (roomIdsFromAssessments.length > 0) {
+        const { data: roomNameData } = await supabaseAdmin
+          .from('rooms')
+          .select('room_id, room_name')
+          .in('room_id', roomIdsFromAssessments);
+          
+        if (roomNameData) {
+          roomNameData.forEach(r => roomNamesMap.set(r.room_id, r.room_name));
+        }
+      }
+      
+      // Format assessments with room names
+      for (const asmnt of assessmentsData) {
+        const chatbotData = asmnt.chatbot as { name?: string | null } | null;
+        let roomNameDisplay = 'N/A';
+        
+        if (asmnt.room_id) {
+          if (asmnt.room_id.startsWith('teacher_test_room_')) {
+            roomNameDisplay = 'Test Environment';
+          } else {
+            roomNameDisplay = roomNamesMap.get(asmnt.room_id) || `Room ID: ${asmnt.room_id.substring(0,6)}`;
+          }
+        }
+        
+        recentAssessments.push({
+          assessment_id: asmnt.assessment_id,
+          room_id: asmnt.room_id,
+          room_name: roomNameDisplay,
+          chatbot_id: asmnt.chatbot_id,
+          chatbot_name: chatbotData?.name || 'Assessment Bot',
+          ai_grade_raw: asmnt.ai_grade_raw,
+          ai_feedback_student: asmnt.ai_feedback_student,
+          assessed_at: asmnt.assessed_at,
+          status: asmnt.status,
+          teacher_override_grade: asmnt.teacher_override_grade,
+          teacher_override_notes: asmnt.teacher_override_notes
+        });
+      }
+    } else if (process.env.NODE_ENV !== 'production') {
+      // If no real assessments found and we're in development, create test data
+      console.log('[Direct Dashboard API] No real assessments found. Creating test assessment data');
+      
+      recentAssessments = [
+        {
+          assessment_id: 'test-assessment-123',
+          room_id: 'test-room-123',
+          room_name: 'Test Classroom 1',
+          chatbot_id: 'test-chatbot-123',
+          chatbot_name: 'Shakespeare Bot',
+          ai_grade_raw: 'B+',
+          ai_feedback_student: 'Good understanding of the themes in Romeo and Juliet. Your analysis of the characters could be more detailed.',
+          assessed_at: new Date().toISOString(),
+          status: 'ai_completed',
+          teacher_override_grade: null,
+          teacher_override_notes: null
+        },
+        {
+          assessment_id: 'test-assessment-456',
+          room_id: 'test-room-456',
+          room_name: 'Test Classroom 2',
+          chatbot_id: 'test-chatbot-456',
+          chatbot_name: 'History Bot',
+          ai_grade_raw: 'A-',
+          ai_feedback_student: 'Excellent work on your WWII timeline. Consider adding more details about the Pacific theater.',
+          assessed_at: new Date(Date.now() - 86400000).toISOString(), // Yesterday
+          status: 'teacher_reviewed',
+          teacher_override_grade: 'A',
+          teacher_override_notes: 'Great improvement! Your analysis shows deep understanding.'
+        }
+      ];
+    }
+    
+    console.log('[Direct Dashboard API] Returning assessments count:', recentAssessments.length);
+    
     // Prepare response data
     const responseData = {
       profile,
       rooms: roomsWithChatbots,
-      isAnonymous
+      isAnonymous,
+      recentAssessments
     };
     
     // Store in cache

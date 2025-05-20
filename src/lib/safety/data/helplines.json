@@ -59,6 +59,12 @@
     { "name": "Buddy Bear Helpline", "phone": "1-800-18-BEAR (2327)", "short_desc": "Support helpline for children" },
     { "name": "PS The Children (Protect and Save The Children)", "phone": "+603-7957 4344", "short_desc": "Child protection services" }
   ],
+  "NZ": [
+    { "name": "Youthline", "phone": "0800 376 633", "text_to": "234", "website": "youthline.co.nz", "short_desc": "24/7 service for young people 12-24 years" },
+    { "name": "What's Up", "phone": "0800 942 8787", "website": "whatsup.co.nz", "short_desc": "Phone counseling for ages 5-18, 11am-11pm daily" },
+    { "name": "Kidsline", "phone": "0800 54 37 54", "short_desc": "New Zealand's only 24/7 helpline run by youth volunteers" },
+    { "name": "1737 Need to Talk?", "phone": "1737", "website": "1737.org.nz", "short_desc": "Free national counseling service, call or text anytime" }
+  ],
   "DEFAULT": [
     { "name": "Your Local Emergency Services", "short_desc": "Contact if in immediate danger (e.g., 911, 112, 999, 000)." },
     { "name": "A Trusted Adult", "short_desc": "Speak to a teacher, school counselor, parent, or another family member." },

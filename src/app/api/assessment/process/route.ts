@@ -18,7 +18,7 @@ declare global {
 }
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const ASSESSMENT_LLM_MODEL = 'google/gemini-2.5-flash-preview'; // Or your preferred model like 'microsoft/phi-3-medium-128k-instruct'
+const ASSESSMENT_LLM_MODEL = 'google/gemini-2.5-flash-preview-05-20'; // Updated to newer model version
 
 interface ProcessAssessmentPayload {
   student_id: string; // For teacher tests, this will be the teacher's user_id

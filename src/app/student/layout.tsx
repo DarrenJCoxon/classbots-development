@@ -49,13 +49,30 @@ export default function StudentLayoutWrapper({
     const url = new URL(window.location.href);
     // Check multiple patterns of direct access
     const isDirectLoginRedirect = url.searchParams.has('_t') || 
-                                 (url.searchParams.has('direct') && 
-                                  (url.searchParams.has('uid') || 
-                                   url.searchParams.has('access_signature')));
+                                 url.searchParams.has('direct') || 
+                                 url.searchParams.has('uid') || 
+                                 url.searchParams.has('user_id') ||
+                                 url.searchParams.has('access_signature') ||
+                                 url.searchParams.has('pin_verified');
     
     // If this is a direct login redirect, skip the usual checks to prevent loops
     if (isDirectLoginRedirect) {
       console.log('Direct access detected - skipping auth check');
+      
+      // Check for student ID in URL or localStorage and store it
+      const urlUserId = url.searchParams.get('user_id');
+      const urlUid = url.searchParams.get('uid');
+      
+      // Try to get and save student ID
+      if (urlUserId || urlUid) {
+        const studentId = urlUserId || urlUid;
+        console.log('Storing student ID from URL:', studentId);
+        if (typeof window !== 'undefined' && studentId) {
+          localStorage.setItem('student_direct_access_id', studentId);
+          localStorage.setItem('current_student_id', studentId);
+        }
+      }
+      
       setIsAuthorized(true);
       setIsLoading(false);
       return;

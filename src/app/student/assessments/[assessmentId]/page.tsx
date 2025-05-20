@@ -148,6 +148,52 @@ export default function StudentAssessmentDetailPage() {
   const router = useRouter();
   const assessmentIdFromParams = params?.assessmentId as string; // Renamed for clarity
 
+  // Helper function to get student ID from various places
+  const getStudentId = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    
+    // Check various sources for student ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlUserId = urlParams.get('user_id');
+    const urlUid = urlParams.get('uid');
+    
+    // Handle access signature if present
+    let decodedUserId = null;
+    const accessSignature = urlParams.get('access_signature');
+    const timestamp = urlParams.get('ts');
+    
+    if (accessSignature && timestamp) {
+      try {
+        const decoded = atob(accessSignature);
+        const [userId, signatureTimestamp] = decoded.split(':');
+        
+        if (signatureTimestamp === timestamp) {
+          decodedUserId = userId;
+        }
+      } catch (e) {
+        console.error('Failed to decode access signature:', e);
+      }
+    }
+    
+    const storedDirectId = localStorage.getItem('student_direct_access_id');
+    const storedCurrentId = localStorage.getItem('current_student_id');
+    const storedPinLoginId = localStorage.getItem('direct_pin_login_user');
+    
+    // Return the first valid ID found
+    const id = decodedUserId || urlUserId || urlUid || storedDirectId || storedCurrentId || storedPinLoginId;
+    
+    // Store the ID in localStorage for reliability
+    if (id) {
+      localStorage.setItem('student_direct_access_id', id);
+      localStorage.setItem('current_student_id', id);
+      console.log('Using student ID:', id);
+    } else {
+      console.warn('No student ID found in any source');
+    }
+    
+    return id;
+  }, []);
+
   const fetchAssessmentDetails = useCallback(async () => {
     if (!assessmentIdFromParams) { // Use renamed variable
       setError("Assessment ID is missing from URL.");
@@ -157,8 +203,17 @@ export default function StudentAssessmentDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      // MODIFIED FETCH URL
-      const response = await fetch(`/api/student/assessment-detail?assessmentId=${assessmentIdFromParams}`); 
+      // Get the student ID
+      const studentId = getStudentId();
+      
+      // Building the API URL with userId parameter for direct access
+      const apiUrl = studentId 
+        ? `/api/student/assessment-detail?assessmentId=${assessmentIdFromParams}&userId=${studentId}`
+        : `/api/student/assessment-detail?assessmentId=${assessmentIdFromParams}`;
+        
+      console.log("Fetching assessment with URL:", apiUrl);
+      
+      const response = await fetch(apiUrl); 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch assessment details (status ${response.status})`);
@@ -172,7 +227,7 @@ export default function StudentAssessmentDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [assessmentIdFromParams]); // Depend on assessmentIdFromParams
+  }, [assessmentIdFromParams, getStudentId]); // Depend on assessmentIdFromParams and getStudentId
 
   useEffect(() => {
     fetchAssessmentDetails();
