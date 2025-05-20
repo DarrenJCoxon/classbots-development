@@ -6,17 +6,44 @@ import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Alert, Button } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
+import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { ChatMessage, Chatbot } from '@/types/database.types';
 
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
 
-// TEMPORARILY BYPASSED: Basic front-end safety check
-// This function is temporarily disabled to restore core chat functionality
+// Basic front-end safety check for potential concerns
+// This is a simple check that helps flag messages that might need attention
 const initialSafetyCheck = (message: string): boolean => {
-  // All safety checks disabled
-  console.log(`[Chat Safety] Safety checks temporarily bypassed`);
+  if (!message || typeof message !== 'string' || message.trim() === '') {
+    return false;
+  }
+  
+  const lowerMessage = message.toLowerCase();
+  
+  // Check for common concern keywords
+  const concernKeywords = [
+    // Self-harm related
+    'suicide', 'kill myself', 'want to die', 'end my life', 'hate myself',
+    // Bullying related
+    'bullied', 'bullying', 'bully', 'picking on me', 'harassing me',
+    // Abuse related
+    'abused', 'hitting me', 'hurt me', 'hurting me', 'threatened',
+    // Depression/mental health related
+    'depressed', 'depression', 'anxiety', 'panic attack', 'helpless',
+    // General distress signals
+    'help me', 'scared', 'afraid', 'terrified', 'in danger'
+  ];
+  
+  // Check if any keywords are in the message
+  for (const keyword of concernKeywords) {
+    if (lowerMessage.includes(keyword)) {
+      console.log(`[Chat Safety] Potential safety concern detected: "${keyword}"`);
+      return true;
+    }
+  }
+  
   return false;
 };
 
@@ -239,13 +266,6 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     }
   }, []);
 
-  // TEMPORARILY BYPASSED: Helper function to fetch safety messages
-  const fetchSafetyMessages = useCallback(async () => {
-    // Function disabled to restore core chat functionality
-    console.log('[Chat.tsx] Safety message fetching temporarily disabled');
-    return;
-  }, []);
-  
   // Add ref to track last fetch time to avoid excessive API calls
   const lastFetchTimeRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
@@ -264,6 +284,9 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       console.log('[Chat] Skipping fetch, too soon since last fetch');
       return;
     }
+    
+    // Track the message IDs before fetching to detect changes
+    const existingIds = new Set(messages.map(msg => msg.message_id));
     
     // Update tracking variables
     lastFetchTimeRef.current = now;
@@ -401,8 +424,8 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           setMessages(sortedUniqueMessages);
           setTimeout(scrollToBottom, 150);
           
-          // Safety message fetching temporarily disabled to avoid excessive API calls
-          // await fetchSafetyMessages();
+          // Safety messages will be fetched separately via polling
+          // Don't call fetchSafetyMessages directly to avoid circular dependencies
           
           return;
         } else {
@@ -461,6 +484,25 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           }
         }
         
+        // Special handling for safety messages to avoid duplication
+        if (msg.role === 'system' && msg.metadata?.isSystemSafetyResponse) {
+          // Check if we already have a safety message for this concern
+          const existingSafetyMessage = Array.from(uniqueMessages.values()).find(existingMsg => 
+            existingMsg.role === 'system' && 
+            existingMsg.metadata?.isSystemSafetyResponse && 
+            existingMsg.metadata?.originalConcernType === msg.metadata?.originalConcernType &&
+            existingMsg.message_id !== msg.message_id &&
+            // Only consider messages created within 5 minutes of each other
+            Math.abs(new Date(existingMsg.created_at).getTime() - new Date(msg.created_at).getTime()) < 5 * 60 * 1000
+          );
+          
+          if (existingSafetyMessage) {
+            console.log(`[Chat.tsx] Found duplicate safety message, keeping only the latest one`);
+            // Remove the existing safety message and add the new one
+            uniqueMessages.delete(existingSafetyMessage.message_id);
+          }
+        }
+        
         // Add this message
         uniqueMessages.set(msg.message_id, msg);
       });
@@ -470,11 +512,20 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
       console.log(`[Chat.tsx] Fetch complete - ${data.length} raw messages, ${sortedUniqueMessages.length} unique messages`);
-      setMessages(sortedUniqueMessages);
-      setTimeout(scrollToBottom, 150);
       
-      // Safety message fetching temporarily disabled to avoid excessive API calls
-      // await fetchSafetyMessages();
+      // Check if there are any changes from the original message set
+      const hasNewMessages = sortedUniqueMessages.some(msg => !existingIds.has(msg.message_id));
+      
+      if (hasNewMessages) {
+        console.log(`[Chat.tsx] Updating messages with ${sortedUniqueMessages.length} messages (new messages found)`);
+        setMessages(sortedUniqueMessages);
+        setTimeout(scrollToBottom, 150);
+      } else {
+        console.log(`[Chat.tsx] No new messages found, skipping update`);
+      }
+      
+      // Safety messages will be fetched separately via polling
+      // Don't call fetchSafetyMessages directly to avoid circular dependencies
       
     } catch (err) {
       console.error('[Chat.tsx] Error fetching messages:', err);
@@ -483,8 +534,72 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
       setIsFetchingMessages(false);
       isFetchingRef.current = false;
     }
-  }, [roomId, chatbot?.chatbot_id, userId, searchParams, scrollToBottom, fetchSafetyMessages]);
+  }, [roomId, chatbot?.chatbot_id, userId, searchParams, scrollToBottom]);
 
+  // Helper function to fetch safety messages
+  const fetchSafetyMessages = useCallback(async () => {
+    if (!userId || !roomId) return;
+    
+    try {
+      console.log(`[Chat.tsx] Fetching safety messages for user ${userId} in room ${roomId}`);
+      
+      // Try the direct safety message API endpoint
+      try {
+        const safetyResponse = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store' // Ensure we don't get cached responses
+        });
+        
+        if (safetyResponse.ok) {
+          const safetyData = await safetyResponse.json();
+          
+          if (safetyData.found && safetyData.message) {
+            console.log(`[Chat.tsx] Found safety message via direct API: ${safetyData.message.message_id}`);
+            
+            // Update UI with the safety message
+            setMessages(prevMessages => {
+              // Remove any safety placeholders
+              const withoutPlaceholders = prevMessages.filter(msg => 
+                !msg.metadata?.isSafetyPlaceholder
+              );
+              
+              // Check if safety message already exists in state
+              const safetyMessageExists = withoutPlaceholders.some(msg => 
+                msg.message_id === safetyData.message.message_id
+              );
+              
+              if (safetyMessageExists) {
+                console.log(`[Chat.tsx] Safety message ${safetyData.message.message_id} already exists in state`);
+                return withoutPlaceholders;
+              }
+              
+              console.log(`[Chat.tsx] Adding safety message ${safetyData.message.message_id} to UI`);
+              const newMessages = [...withoutPlaceholders, safetyData.message];
+              
+              // Sort by timestamp
+              return newMessages.sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            });
+            
+            setTimeout(scrollToBottom, 100);
+            return; // Success, no need for fallback
+          }
+        }
+      } catch (safetyApiError) {
+        console.error(`[Chat.tsx] Error in safety message API call:`, safetyApiError);
+      }
+      
+      // If we reach here, we need to fall back to regular fetch
+      console.log(`[Chat.tsx] Falling back to regular message fetch to get safety messages`);
+      fetchMessages(); // Don't await to avoid blocking
+      
+    } catch (error) {
+      console.error(`[Chat.tsx] Error in fetchSafetyMessages:`, error);
+    }
+  }, [userId, roomId, scrollToBottom, fetchMessages]);
+  
   // Add welcome message to empty chat
   useEffect(() => {
     console.log('[Chat] Checking welcome message conditions:', {
@@ -615,9 +730,9 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         }
       }
       
-      // For safety messages (system role with isSystemSafetyResponse), look for a safety placeholder
+      // For safety messages (system role with isSystemSafetyResponse), handle special logic
       if (newMessage.role === 'system' && newMessage.metadata?.isSystemSafetyResponse) {
-        // Find and remove any safety placeholder
+        // First check for any safety placeholders
         const safetyPlaceholderIndex = prevMessages.findIndex(msg => 
           msg.metadata?.isSafetyPlaceholder === true
         );
@@ -630,8 +745,24 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
           return updated;
         }
         
-        console.log(`[Chat.tsx RT] Adding safety message ${newMessage.message_id} (no placeholder found)`);
-        // No safety placeholder found, but still add the safety message
+        // Check for existing safety messages of the same type (to avoid duplicates)
+        const existingSafetyMessageIndex = prevMessages.findIndex(msg => 
+          msg.role === 'system' && 
+          msg.metadata?.isSystemSafetyResponse && 
+          msg.metadata?.originalConcernType === newMessage.metadata?.originalConcernType &&
+          // Only consider messages created within 5 minutes
+          Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 5 * 60 * 1000
+        );
+        
+        if (existingSafetyMessageIndex !== -1) {
+          console.log(`[Chat.tsx RT] Replacing existing safety message with new one ${newMessage.message_id}`);
+          const updated = [...prevMessages];
+          // Replace with the newer safety message
+          updated[existingSafetyMessageIndex] = newMessage;
+          return updated;
+        }
+        
+        console.log(`[Chat.tsx RT] Adding new safety message ${newMessage.message_id}`);
       }
       
       // No duplicate or placeholder found, add the new message
@@ -664,7 +795,7 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
 
-  // --- REALTIME LISTENER - TEMPORARILY BYPASSED ---
+  // --- REALTIME LISTENER FOR MESSAGES AND SAFETY NOTIFICATIONS ---
   useEffect(() => {
     const effectChatbotId = chatbot?.chatbot_id; // Use optional chaining for safety
     const effectUserId = userId;
@@ -675,13 +806,154 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
         return;
     }
 
-    console.log(`[Chat.tsx RT] SAFETY NOTIFICATIONS TEMPORARILY DISABLED - Basic chat functionality only`);
+    // Set up realtime listeners for both inserts and safety notifications
+    console.log(`[Chat.tsx RT] Setting up realtime listeners for room ${roomId}, user ${effectUserId}`);
     
-    // Return empty cleanup function
+    // Listen for safety message notifications on a safety-specific channel
+    // This handles realtime safety alerts from the system for this student
+    const safetyChannel = supabase.channel(`safety-alert-${effectUserId}`);
+    
+    safetyChannel
+      .on('broadcast', { event: 'safety-message' }, async (payload) => {
+        console.log('[Chat.tsx RT] <<< SAFETY MESSAGE BROADCAST RECEIVED >>>:', payload);
+        
+        // Verify this is a safety message relevant to this student and room
+        console.log(`[Chat.tsx RT] Verifying safety message payload:`, {
+          payloadRoomId: payload.payload.room_id,
+          roomId,
+          payloadUserId: payload.payload.user_id,
+          effectUserId,
+          payloadChatbotId: payload.payload.chatbot_id,
+          effectChatbotId,
+          countryCode: payload.payload.country_code
+        });
+        
+        if (payload.payload.room_id === roomId && 
+            payload.payload.user_id === effectUserId &&
+            (!effectChatbotId || payload.payload.chatbot_id === effectChatbotId)) {
+          
+          try {
+            // Fetch the safety message using the API
+            console.log(`[Chat.tsx RT] Fetching safety message ID: ${payload.payload.message_id}`);
+            const response = await fetch(`/api/student/safety-message?messageId=${payload.payload.message_id}&userId=${effectUserId}`, {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store' // Ensure we don't get cached responses
+            });
+            
+            if (!response.ok) {
+              console.error(`[Chat.tsx RT] Error fetching safety message: HTTP ${response.status}`);
+              // If we can't get the specific message, try to refresh all messages
+              console.log(`[Chat.tsx RT] Attempting to reload all messages to get safety message`);
+              await fetchMessages();
+              return;
+            }
+            
+            const safetyMessageData = await response.json();
+            const safetyMessage = safetyMessageData.message;
+            
+            if (!safetyMessage) {
+              console.error('[Chat.tsx RT] Safety message not found in API response');
+              await fetchMessages();
+              return;
+            }
+            
+            console.log(`[Chat.tsx RT] Successfully fetched safety message:`, {
+              messageId: safetyMessage.message_id,
+              countryCode: safetyMessage.metadata?.countryCode,
+              helplines: safetyMessage.metadata?.helplines,
+              content: safetyMessage.content.substring(0, 50) + '...'
+            });
+            
+            // Directly update state to add the safety message
+            setMessages((prevMessages) => {
+              // Step 1: Remove any safety placeholders
+              const withoutPlaceholders = prevMessages.filter(msg => 
+                !msg.metadata?.isSafetyPlaceholder
+              );
+              
+              // Step 2: Update user messages with pendingSafetyResponse=false
+              const updatedMessages = withoutPlaceholders.map(msg => {
+                if (msg.role === 'user' && msg.metadata?.pendingSafetyResponse) {
+                  return {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      pendingSafetyResponse: false
+                    }
+                  };
+                }
+                return msg;
+              });
+              
+              // Step 3: Check if safety message already exists (prevent duplication)
+              const safetyMessageExists = updatedMessages.some(msg => 
+                msg.message_id === safetyMessage.message_id
+              );
+              
+              if (safetyMessageExists) {
+                console.log(`[Chat.tsx RT] Safety message ${safetyMessage.message_id} already exists in state`);
+                return updatedMessages;
+              }
+              
+              console.log(`[Chat.tsx RT] Adding safety message ${safetyMessage.message_id} to UI`);
+              // Step 4: Add the safety message
+              const newMessages = [...updatedMessages, safetyMessage];
+              
+              // Step 5: Sort by timestamp
+              return newMessages.sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            });
+            
+            // Scroll to bottom after updating
+            setTimeout(scrollToBottom, 100);
+          } catch (err) {
+            console.error('[Chat.tsx RT] Error processing safety message:', err);
+            // If there's an error, try to refresh all messages as a fallback
+            try {
+              console.log('[Chat.tsx RT] Attempting to refresh all messages after error');
+              await fetchMessages();
+            } catch (refreshError) {
+              console.error('[Chat.tsx RT] Error refreshing messages:', refreshError);
+            }
+          }
+        }
+      })
+      .subscribe((status) => {
+        console.log(`[Chat.tsx RT] Safety channel subscription status:`, status);
+      });
+    
+    // Return cleanup function to remove channels
     return () => {
-      console.log('[Chat.tsx RT] No active safety channels or polling to clean up (disabled)');
+      supabase.removeChannel(safetyChannel);
+      console.log('[Chat.tsx RT] Cleaned up realtime channels');
     };
-  }, [roomId, chatbot?.chatbot_id, userId, supabase]);
+  }, [roomId, chatbot?.chatbot_id, userId, supabase, fetchMessages, fetchSafetyMessages]);
+  
+  // Fallback: Periodically check for safety messages
+  // This ensures that even if the realtime broadcast fails, we'll still get the safety message
+  useEffect(() => {
+    if (!roomId || !userId || isFetchingMessages) return;
+    
+    // Set up a polling interval (every 5 seconds) as a fallback
+    const pollingInterval = setInterval(() => {
+      // Only fetch if we're not already fetching and have all the required data
+      if (!isFetchingRef.current && roomId && userId && chatbot?.chatbot_id) {
+        console.log('[Chat.tsx] Polling for safety messages as fallback');
+        
+        // Use the dedicated safety message fetch function instead of full fetchMessages
+        // This is more efficient as it specifically targets safety messages
+        fetchSafetyMessages().catch(error => {
+          console.error('[Chat.tsx] Error in safety message polling:', error);
+        });
+      }
+    }, 5000);
+    
+    return () => {
+      clearInterval(pollingInterval);
+    };
+  }, [roomId, userId, chatbot?.chatbot_id, isFetchingMessages, fetchSafetyMessages]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -792,11 +1064,79 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
                   console.error(`[Chat.tsx] Parsed error details:`, errorData);
                 }
                 
-                // TEMPORARILY BYPASSED: Safety intervention special handling
+                // Handle safety intervention from the server
                 if (errorData.type === "safety_intervention_triggered") {
-                  console.log("[Chat.tsx] Safety intervention detected but BYPASSED - proceeding with normal operation");
-                  // Simply continue to normal message handling
-                  // No safety placeholders or retries
+                  console.log("[Chat.tsx] Safety intervention detected - showing placeholder");
+                  
+                  // Mark the message as sent but pending safety response
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    const index = updated.findIndex(m => m.message_id === tempOptimisticLocalId);
+                    if (index !== -1) {
+                      updated[index] = {
+                        ...updated[index],
+                        metadata: {
+                          ...updated[index].metadata,
+                          isOptimistic: false,
+                          pendingSafetyResponse: true
+                        }
+                      };
+                    }
+                    return updated;
+                  });
+                  
+                  // Add a placeholder for the safety message
+                  const safetyPlaceholder: ChatMessage = {
+                    message_id: `safety-placeholder-${Date.now()}`,
+                    room_id: roomId,
+                    user_id: userId,
+                    role: 'system',
+                    content: 'Processing safety check...',
+                    created_at: new Date().toISOString(),
+                    metadata: {
+                      isSafetyPlaceholder: true,
+                      isSystemSafetyResponse: true,
+                      chatbotId: chatbot.chatbot_id
+                    }
+                  };
+                  
+                  setMessages(prev => [...prev, safetyPlaceholder]);
+                  setIsLoading(false);
+                  setTimeout(scrollToBottom, 50);
+                  
+                  // Start polling for the safety message
+                  const checkForSafetyMessage = async (attempt = 0, maxAttempts = 5) => {
+                    if (attempt >= maxAttempts) {
+                      console.log(`[Chat.tsx] Max safety message polling attempts (${maxAttempts}) reached`);
+                      return;
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                    console.log(`[Chat.tsx] Polling for safety message (attempt ${attempt + 1}/${maxAttempts})`);
+                    
+                    try {
+                      fetchSafetyMessages(); // Don't await to avoid blocking
+                      
+                      // Check if we found any safety messages
+                      const hasSafetyMessages = messages.some(msg => 
+                        msg.role === 'system' && 
+                        msg.metadata?.isSystemSafetyResponse === true &&
+                        !msg.metadata?.isSafetyPlaceholder
+                      );
+                      
+                      if (!hasSafetyMessages && attempt < maxAttempts - 1) {
+                        checkForSafetyMessage(attempt + 1, maxAttempts);
+                      }
+                    } catch (error) {
+                      console.error(`[Chat.tsx] Error polling for safety message:`, error);
+                      if (attempt < maxAttempts - 1) {
+                        checkForSafetyMessage(attempt + 1, maxAttempts);
+                      }
+                    }
+                  };
+                  
+                  checkForSafetyMessage();
+                  return; // Skip normal error handling
                 }
               } catch (parseError) {
                 console.warn('[Chat.tsx] Error parsing error response:', parseError);
@@ -1067,9 +1407,31 @@ export default function Chat({ roomId, chatbot, instanceId }: ChatProps) {
               
               return false;
             })
-            .map((message) => (
-              <ChatMessageComponent key={message.message_id} message={message} chatbotName={chatbot.name} />
-            ))
+            .map((message) => {
+              // Check if this is a safety message
+              const isSafetyMessage = message.role === 'system' && 
+                                      message.metadata?.isSystemSafetyResponse === true;
+              
+              // Render different component based on message type
+              if (isSafetyMessage) {
+                return (
+                  <SafetyMessage 
+                    key={message.message_id} 
+                    message={message}
+                    countryCode={message.metadata?.countryCode as string | undefined}
+                  />
+                );
+              }
+              
+              // Otherwise render regular chat message
+              return (
+                <ChatMessageComponent 
+                  key={message.message_id} 
+                  message={message} 
+                  chatbotName={chatbot.name} 
+                />
+              );
+            })
         )}
         {isLoading && (
           <ThinkingIndicator>

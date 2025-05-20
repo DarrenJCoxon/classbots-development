@@ -16,6 +16,8 @@ import type { Room, Database } from '@/types/database.types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTeacherAlert } from '@/lib/safety/alerts';
+import { generateSafetyResponse } from '@/lib/safety/generateSafetyResponse';
+import { trackSafetyResponse } from '@/lib/safety/analytics';
 import fs from 'fs';
 import path from 'path';
 
@@ -135,8 +137,8 @@ const ALL_HELPLINES = { ...HELPLINE_DATA_JSON };
 
 // OpenRouter Configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Using a model that's better at following exact instructions for safety information
-const SAFETY_CHECK_MODEL = 'anthropic/claude-3-sonnet@20240229';
+// Use the same model as defined in DEFAULT_CHATBOT_CONFIG
+const SAFETY_CHECK_MODEL = 'openai/gpt-4.1-nano';
 const CONCERN_THRESHOLD = 3;
 
 // Keywords organized by category
@@ -664,22 +666,8 @@ export async function verifyConcern(
         }
     } catch (parseError) {
          console.error("[VerifyConcern] Failed to parse JSON from safety model:", rawResponseContent, parseError);
-         let fallbackAdvice = `I understand this might be a difficult time. ${teacherAwarenessMandatorySentence}\n\n`;
-         const defaultHelplines = ALL_HELPLINES.DEFAULT || [];
-         if (defaultHelplines.length > 0) {
-             defaultHelplines.slice(0,2).forEach(line => {
-                fallbackAdvice += `* ${line.name}`;
-                if (line.phone) fallbackAdvice += ` - Phone: ${line.phone}`;
-                else if (line.text_to && line.text_msg) fallbackAdvice += ` - Text: ${line.text_msg} to ${line.text_to}`;
-                else if (line.website) fallbackAdvice += ` - Website: ${line.website}`;
-                // Add short description when available
-                if (line.short_desc) {
-                    fallbackAdvice += ` (${line.short_desc})`;
-                }
-                fallbackAdvice += `\n`;
-             });
-         }
-         fallbackAdvice += "\n\nHelp is available.";
+         // Use the generateSafetyResponse function to create a consistent response
+         let fallbackAdvice = generateSafetyResponse(concernType, countryCode, ALL_HELPLINES);
          
          // Create a better explanation for teachers when the model response can't be parsed
          let teacherExplanation = "Message flagged by automated safety system for teacher review.";
@@ -810,35 +798,8 @@ export async function verifyConcern(
         }
     } else if (isRealConcern && concernLevel >= 2) {
         console.warn("[VerifyConcern] LLM met conditions for advice but 'aiGeneratedAdvice' field was missing or empty. Constructing concise default advice.");
-        let defaultAdvice = `I understand this may be a tough moment. ${teacherAwarenessMandatorySentence}\n\n===== MANDATORY HELPLINES - COPY THIS SECTION VERBATIM - DO NOT MODIFY =====\n`;
-        // Use exactly the same format as the reconstructed advice to maintain consistency
-        if (helplinesToList.length > 0) {
-            helplinesToList.forEach(line => {
-                defaultAdvice += `* ${line.name}`;
-                if (line.phone) defaultAdvice += ` - Phone: ${line.phone}`;
-                else if (line.text_to && line.text_msg) defaultAdvice += ` - Text: ${line.text_msg} to ${line.text_to}`;
-                else if (line.website) defaultAdvice += ` - Website: ${line.website}`;
-                // Add short description when available
-                if (line.short_desc) {
-                    defaultAdvice += ` (${line.short_desc})`;
-                }
-                defaultAdvice += "\n";
-            });
-        } else { 
-            const defaultFallbackHelplines = ALL_HELPLINES.DEFAULT || [];
-            defaultFallbackHelplines.slice(0,2).forEach(line => { 
-                defaultAdvice += `* ${line.name}`;
-                if (line.phone) defaultAdvice += ` - Phone: ${line.phone}`;
-                else if (line.text_to && line.text_msg) defaultAdvice += ` - Text: ${line.text_msg} to ${line.text_to}`;
-                else if (line.website) defaultAdvice += ` - Website: ${line.website}`;
-                // Add short description when available
-                if (line.short_desc) {
-                    defaultAdvice += ` (${line.short_desc})`;
-                }
-                defaultAdvice += "\n";
-            });
-        }
-        defaultAdvice += "===== END OF MANDATORY HELPLINES =====\n\nPlease reach out for support.";
+        // Use the generateSafetyResponse function to create a consistent response
+        let defaultAdvice = generateSafetyResponse(concernType, countryCode, ALL_HELPLINES);
         
         // Log what we're using in default case
         console.log(`[VerifyConcern] Using DEFAULT helpline message:\n${defaultAdvice}`);
@@ -851,20 +812,8 @@ export async function verifyConcern(
 
   } catch (error) {
     console.error('[VerifyConcern] Error during OpenRouter call or processing:', error);
-    let defaultFallbackAdvice = `It's important to reach out if you're struggling. ${teacherAwarenessMandatorySentence}\n\n`;
-    const defaultHelplinesOnCatch = ALL_HELPLINES.DEFAULT || [];
-    defaultHelplinesOnCatch.slice(0,2).forEach(line => {
-        defaultFallbackAdvice += `* ${line.name}`;
-        if (line.phone) defaultFallbackAdvice += ` - Phone: ${line.phone}`;
-        else if (line.text_to && line.text_msg) defaultFallbackAdvice += ` - Text: ${line.text_msg} to ${line.text_to}`;
-        else if (line.website) defaultFallbackAdvice += ` - Website: ${line.website}`;
-        // Add short description when available
-        if (line.short_desc) {
-            defaultFallbackAdvice += ` (${line.short_desc})`;
-        }
-        defaultFallbackAdvice += "\n";
-    });
-    defaultFallbackAdvice += "\n\nHelp is available.";
+    // Use the generateSafetyResponse function to create a consistent response
+    let defaultFallbackAdvice = generateSafetyResponse(concernType, countryCode, ALL_HELPLINES);
     
     // Create a more user-friendly explanation for the teacher
     let teacherExplanation = "Message flagged by automated safety system for teacher review.";
@@ -1122,89 +1071,32 @@ export async function checkMessageSafety(
                 // Get the current timestamp for consistent ordering
                 const timestamp = new Date().toISOString();
                 
-                // CRITICAL: Check if aiGeneratedAdvice actually contains country-specific helplines
-                // If not, we need to rebuild it from scratch using our countryHelplines
-                let finalAdvice = aiGeneratedAdvice || '';
+                // Use our new safety response generator to create a supportive message with appropriate helplines
+                let finalAdvice = generateSafetyResponse(concernType, countryCode, ALL_HELPLINES);
+                
+                console.log(`[Safety Check] Generated safety response for ${effectiveCountryCode}`);
                 
                 // Verify the advice contains country-specific helplines by checking for bullet point format
                 const hasHelplineFormat = finalAdvice.includes('* ') && 
                                        (finalAdvice.includes('Phone:') || finalAdvice.includes('Website:'));
-                                         
+                
                 // Verify that at least one of our expected helplines is there
                 const hasExpectedHelplines = countryHelplines.some(helpline => 
                     finalAdvice.includes(helpline.name));
                     
                 console.log(`[Safety Check] Verification - Has helpline format: ${hasHelplineFormat}, Has expected helplines: ${hasExpectedHelplines}`);
                 
-                // If the advice is missing required elements, rebuild it completely
-                if (!hasHelplineFormat || !hasExpectedHelplines) {
-                    console.warn(`[Safety Check] CRITICAL: Safety advice does not contain proper helplines, rebuilding from scratch`);
-                    
-                    // Get country name from the code (but don't hardcode specific countries)
-                                     
-                    // Start with gentle intro and mandatory teacher awareness sentence
-                    finalAdvice = `It's important to reach out if you're struggling. Remember, your teacher can see this conversation and is here to support you. Please feel comfortable reaching out to them or another trusted adult if you need help.\n\n`;
-                    
-                    // Add all available helplines for this country
-                    if (countryHelplines.length > 0) {
-                        countryHelplines.forEach(helpline => {
-                            finalAdvice += `* ${helpline.name}`;
-                            if (helpline.phone) {
-                                finalAdvice += ` - Phone: ${helpline.phone}`;
-                            } else if (helpline.text_to && helpline.text_msg) {
-                                finalAdvice += ` - Text: ${helpline.text_msg} to ${helpline.text_to}`;
-                            } else if (helpline.website) {
-                                finalAdvice += ` - Website: ${helpline.website}`;
-                            }
-                            if (helpline.short_desc) {
-                                finalAdvice += ` (${helpline.short_desc})`;
-                            }
-                            finalAdvice += `\n`;
-                        });
-                    } else {
-                        console.error(`[Safety Check] ERROR: No helplines available for rebuilding!`);
-                        // Use the DEFAULT helplines from the JSON - never hardcode anything
-                        if (ALL_HELPLINES.DEFAULT && Array.isArray(ALL_HELPLINES.DEFAULT)) {
-                            ALL_HELPLINES.DEFAULT.forEach(helpline => {
-                                finalAdvice += `* ${helpline.name}`;
-                                if (helpline.phone) {
-                                    finalAdvice += ` - Phone: ${helpline.phone}`;
-                                } else if (helpline.text_to && helpline.text_msg) {
-                                    finalAdvice += ` - Text: ${helpline.text_msg} to ${helpline.text_to}`;
-                                } else if (helpline.website) {
-                                    finalAdvice += ` - Website: ${helpline.website}`;
-                                }
-                                if (helpline.short_desc) {
-                                    finalAdvice += ` (${helpline.short_desc})`;
-                                }
-                                finalAdvice += `\n`;
-                            });
-                        } else {
-                            // If somehow DEFAULT is also missing, add a generic message pointing to the teacher
-                            finalAdvice += `* Please speak with your teacher or a trusted adult about getting help.\n`;
-                        }
-                    }
-                    
-                    // Add space after helplines
-                    finalAdvice += `\n`;
-                    
-                    // Add closing sentence
-                    finalAdvice += `Help is available.`;
-                    
-                    console.log(`[Safety Check] Rebuilt safety advice with ${countryHelplines.length} helplines for ${effectiveCountryCode}`);
-                    
-                    // Log the complete safety message for debugging
-                    console.log(`[Safety Check] ========= FINAL SAFETY MESSAGE CONTENT =========`);
-                    console.log(`[Safety Check] Country code: ${effectiveCountryCode}`);
-                    console.log(`[Safety Check] Helplines count: ${countryHelplines.length}`);
-                    if (countryHelplines.length > 0) {
-                        console.log(`[Safety Check] Helplines being used:`);
-                        countryHelplines.forEach((h, i) => console.log(`[Safety Check]   ${i+1}. ${h.name}${h.phone ? ` - Phone: ${h.phone}` : ''}${h.website ? ` - Website: ${h.website}` : ''}`));
-                    }
-                    console.log(`[Safety Check] --- First 500 chars of message ---`);
-                    console.log(finalAdvice.substring(0, 500) + '...');
-                    console.log(`[Safety Check] ==============================================`);
+                // Log the complete safety message for debugging
+                console.log(`[Safety Check] ========= FINAL SAFETY MESSAGE CONTENT =========`);
+                console.log(`[Safety Check] Country code: ${effectiveCountryCode}`);
+                console.log(`[Safety Check] Helplines count: ${countryHelplines.length}`);
+                if (countryHelplines.length > 0) {
+                    console.log(`[Safety Check] Helplines being used:`);
+                    countryHelplines.forEach((h, i) => console.log(`[Safety Check]   ${i+1}. ${h.name}${h.phone ? ` - Phone: ${h.phone}` : ''}${h.website ? ` - Website: ${h.website}` : ''}`));
                 }
+                console.log(`[Safety Check] --- First 500 chars of message ---`);
+                console.log(finalAdvice.substring(0, 500) + '...');
+                console.log(`[Safety Check] ==============================================`);
                 
                 // Insert the advice message
                 const { data: safetyMessageData, error: adviceInsertError } = await adminClient
@@ -1250,6 +1142,16 @@ export async function checkMessageSafety(
                     console.error(`[Safety Check] FAILED to insert AI advice message:`, adviceInsertError.message);
                 } else if (safetyMessageData) {
                     console.log(`[Safety Check] Successfully inserted AI advice message ID: ${safetyMessageData.message_id}`);
+                    
+                    // Track safety response for analytics
+                    await trackSafetyResponse(
+                        safetyMessageData.message_id,
+                        studentId,
+                        room.room_id,
+                        concernType,
+                        countryCode,
+                        timestamp
+                    );
                     
                     // Send a direct message to let the client know a safety message is available
                     // This helps with realtime display even when there are issues with Supabase realtime

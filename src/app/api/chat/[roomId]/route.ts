@@ -440,17 +440,58 @@ export async function POST(request: NextRequest) {
     const userMessageCreatedAt = savedUserMessageData.created_at;
 
     // --- SAFETY CHECK (FOR MAIN MODEL USE) ---
-    // TEMPORARILY BYPASSING SAFETY CHECKS TO RESTORE CORE FUNCTIONALITY
-    const initialHasConcern = false; // Bypass safety concerns
-    const initialConcernType = null; // No concern type
+    // Run initial safety keyword check
+    const { hasConcern, concernType } = initialConcernCheck(trimmedContent);
+    const initialHasConcern = hasConcern;
+    const initialConcernType = concernType || null;
+    
+    console.log(`[API Chat POST] Safety check result: hasConcern=${initialHasConcern}, concernType=${initialConcernType || 'none'}`);
     
     // Simple test room detection (just keep the teacher test room check for now)
     const isTestRoom = isTeacherTestRoom(roomId);
                         
-    console.log(`[API Chat POST] SAFETY CHECKS BYPASSED - Using simplified test room detection: isTestRoom=${isTestRoom}`);
-    
-    // Log that we're using the main AI model without safety checks
-    console.log(`[API Chat POST] Proceeding with main model for all messages. Safety checks temporarily disabled.`);
+    // Process safety check if a concern is detected
+    if (initialHasConcern && !isTestRoom) {
+        console.log(`[API Chat POST] Safety concern detected in message: ${currentMessageId}`);
+        // Get the room data for safety processing
+        const { data: roomData } = await supabaseAdmin
+            .from('rooms')
+            .select('*')
+            .eq('room_id', roomId)
+            .single();
+            
+        if (roomData) {
+            // Get teacherCountryCode for proper helpline selection
+            let countryCode = teacherCountryCode || 'DEFAULT';
+            
+            // Process the message for safety concerns
+            try {
+                await checkMessageSafety(
+                    supabaseAdmin,
+                    trimmedContent,
+                    currentMessageId,
+                    user.id,
+                    roomData,
+                    countryCode
+                );
+                console.log(`[API Chat POST] Safety check processing complete for message ${currentMessageId}`);
+                
+                // Return special response to client to indicate safety intervention
+                // This triggers the safety placeholder in the UI while waiting for the safety message
+                return NextResponse.json(
+                  { 
+                    type: "safety_intervention_triggered", 
+                    message: "Safety intervention triggered. A safety message will be displayed." 
+                  }, 
+                  { status: 200 }
+                );
+            } catch (safetyError) {
+                console.error(`[API Chat POST] Error processing safety check:`, safetyError);
+            }
+        } else {
+            console.error(`[API Chat POST] Could not find room data for safety processing: ${roomId}`);
+        }
+    }
     
     // --- END OF MODIFIED SAFETY CHECK AND MAIN LLM CALL FLOW ---
 
@@ -641,26 +682,34 @@ SAFETY OVERRIDE: The following are non-negotiable rules for your responses.
 --- END OF SAFETY OVERRIDE ---
 `;
 
-    // TEMPORARILY BYPASSED SAFETY INSTRUCTIONS TO RESTORE CORE FUNCTIONALITY
-    // No safety helplines or special instructions to add for now
+    // Include safety helplines instructions based on country
     let SAFETY_HELPLINES_INSTRUCTIONS = '';
-
+    
     // Simple test room check (just for logging purposes)
     const isSimpleTestRoom = isTeacherTestRoom(roomId);
     
-    // Log that we're bypassing safety features
-    console.log(`[API Chat POST] SAFETY HELPLINES BYPASSED - Using simplified test room detection: isSimpleTestRoom=${isSimpleTestRoom}`);
-    
-    // No teacher notifications for now
-    console.log(`[API Chat POST] Teacher safety notifications temporarily disabled`);
+    // If country code is available, add country-specific helplines guidance
+    if (teacherCountryCode && !isSimpleTestRoom) {
+        SAFETY_HELPLINES_INSTRUCTIONS = `
+If the student appears to be in emotional distress or mentions self-harm, bullying, abuse, or other serious issues:
+1. Remain calm and supportive in your response
+2. Acknowledge their feelings and validate their experience
+3. Remind them that their teacher can see this conversation and is here to support them
+4. Suggest they speak with a trusted adult like their teacher, counselor, or parent
+5. Provide country-specific helplines if the concern is urgent:
+   - For students in ${teacherCountryCode}: Include appropriate crisis resources or helplines
+`;
+        console.log(`[API Chat POST] Added country-specific (${teacherCountryCode}) safety guidance to system prompt`);
+    }
 
     // Assemble the full system prompt with all necessary components
     // This is CRITICAL - we need all these components for proper functioning
-    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
 
     // Enhanced logging to track system prompt and RAG usage
     console.log(`[PROMPT] Final system prompt assembled with following components:`);
     console.log(`[PROMPT] - Core safety instructions: ${CORE_SAFETY_INSTRUCTIONS.length} chars`);
+    console.log(`[PROMPT] - Safety helplines instructions: ${SAFETY_HELPLINES_INSTRUCTIONS ? SAFETY_HELPLINES_INSTRUCTIONS.length + ' chars' : 'None'}`);
     console.log(`[PROMPT] - Teacher custom prompt: ${teacherSystemPrompt.length} chars`);
     console.log(`[PROMPT] - Regional instruction: ${regionalInstruction ? 'Yes' : 'No'}`);
     console.log(`[PROMPT] - RAG context: ${ragContextText ? 'Yes - ' + ragContextText.length + ' chars' : 'No'}`);
