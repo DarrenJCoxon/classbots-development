@@ -732,12 +732,12 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   onChange={handleChange}
               >
                   <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1 Nano</option>
-                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta (Paid)</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B (Free)</option>
+                  <option value="openai/gpt-4.1-mini">OpenAI GPT-4.1 Mini</option>
+                  <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash Preview</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
               </StyledSelect>
               <HelpText>
-                  This model is used for the chatbot&apos;s direct replies to students. The assessment evaluation will use a dedicated model (Qwen3 235B by default for now).
+                  This model is used for the chatbot&apos;s direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.
               </HelpText>
             </FormGroup>
 
