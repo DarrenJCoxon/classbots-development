@@ -3,6 +3,7 @@
 
 import styled from 'styled-components';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Your client import
 import { Container, Button } from '@/styles/StyledComponents';
@@ -18,6 +19,9 @@ const HeaderWrapper = styled.header`
   position: sticky;
   top: 0;
   z-index: 100;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
 `;
 
 const HeaderContent = styled.div`
@@ -25,7 +29,8 @@ const HeaderContent = styled.div`
   justify-content: space-between;
   align-items: center;
   position: relative; /* For absolute positioning of Nav */
-  min-height: 50px; /* Ensure consistent height even when Nav is empty */
+  min-height: 60px; /* Ensure consistent height even when Nav is empty */
+  width: 100%;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-wrap: wrap;
@@ -34,17 +39,23 @@ const HeaderContent = styled.div`
 `;
 
 const Logo = styled(Link)`
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.primary};
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.sm} 0;
   
   &:hover {
     color: ${({ theme }) => theme.colors.primaryDark};
   }
+`;
+
+const LogoImage = styled(Image)`
+  height: auto;
+  width: auto;
 `;
 
 const Nav = styled.nav`
@@ -197,6 +208,13 @@ export default function Header() {
       <Container>
         <HeaderContent>
           <Logo href="/">
+            <LogoImage 
+              src="/images/skolr-logo.png" 
+              alt="Skolr Logo" 
+              width={60} 
+              height={60} 
+              priority
+            />
             {APP_NAME}
           </Logo>
           

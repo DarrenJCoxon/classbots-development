@@ -4,6 +4,7 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import styled from 'styled-components';
 import { Button, Alert } from '@/styles/StyledComponents';
+import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 
 // Styled components for the uploader
 const UploaderContainer = styled.div`
@@ -96,7 +97,7 @@ const StatusText = styled.div`
 
 interface EnhancedRagUploaderProps {
   chatbotId: string;
-  onUploadSuccess?: () => void;
+  onUploadSuccess?: (document?: KnowledgeDocument) => void;
 }
 
 export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: EnhancedRagUploaderProps) {
@@ -223,9 +224,9 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
       }
       setFile(null);
       
-      // Notify parent
+      // Notify parent with the document data
       if (onUploadSuccess) {
-        onUploadSuccess();
+        onUploadSuccess(uploadData.document);
       }
     } catch (err) {
       console.error('Error uploading document:', err);

@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Button, Alert, Input, FormGroup, Label } from '@/styles/StyledComponents';
+import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 
 // Styled components for the web scraper
 const ScraperContainer = styled.div`
@@ -50,7 +51,7 @@ const StatusText = styled.div`
 
 interface EnhancedRagScraperProps {
   chatbotId: string;
-  onScrapeSuccess?: () => void;
+  onScrapeSuccess?: (document?: KnowledgeDocument) => void;
 }
 
 export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: EnhancedRagScraperProps) {
@@ -150,9 +151,9 @@ export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: Enhan
       // Clear the URL input
       setUrl('');
       
-      // Notify parent
+      // Notify parent with the document data
       if (onScrapeSuccess) {
-        onScrapeSuccess();
+        onScrapeSuccess(scrapeData.document);
       }
     } catch (err) {
       console.error('Error scraping webpage:', err);

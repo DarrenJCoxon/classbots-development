@@ -5,6 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { processDocument as processDocumentFile } from '@/lib/document-processing/processor';
 import type { Document } from '@/types/knowledge-base.types';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   console.log("[API vectorize POST] Document processing request received");
 

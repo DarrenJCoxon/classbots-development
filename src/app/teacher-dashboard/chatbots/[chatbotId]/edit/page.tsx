@@ -60,6 +60,45 @@ const SectionTitle = styled.h2`
   font-size: 1.5rem;
 `;
 
+const KnowledgeBaseSummary = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const SummaryCard = styled.div<{ $variant?: 'default' | 'success' | 'warning' | 'error' }>`
+  background-color: ${({ theme, $variant }) => 
+    $variant === 'success' ? `${theme.colors.green}15` :
+    $variant === 'warning' ? `${theme.colors.secondary}15` :
+    $variant === 'error' ? `${theme.colors.red}15` :
+    theme.colors.backgroundDark
+  };
+  border: 1px solid ${({ theme, $variant }) => 
+    $variant === 'success' ? theme.colors.green :
+    $variant === 'warning' ? theme.colors.secondary :
+    $variant === 'error' ? theme.colors.red :
+    theme.colors.border
+  };
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  padding: ${({ theme }) => theme.spacing.md};
+  flex: 1;
+  min-width: 130px;
+  text-align: center;
+`;
+
+const SummaryNumber = styled.div`
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: ${({ theme }) => theme.spacing.xs};
+`;
+
+const SummaryLabel = styled.div`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
 const LoadingCard = styled(Card)`
     text-align: center;
     padding: ${({ theme }) => theme.spacing.xl};
@@ -253,6 +292,21 @@ export default function ConfigureChatbotPage() {
         setDocuments([]);
     }
   }, [chatbot.chatbot_id, chatbot.bot_type, chatbot.enable_rag, isCreateMode, fetchDocumentsData]);
+  
+  // Set up polling for document updates to ensure the UI stays fresh
+  useEffect(() => {
+    if (isCreateMode || !chatbot.chatbot_id || chatbot.bot_type !== 'learning' || !chatbot.enable_rag) return;
+    
+    // Poll for updates when documents are processing
+    const pollingInterval = setInterval(() => {
+      if (documents.some(doc => doc.status === 'processing')) {
+        console.log('[Edit Page] Polling for document status updates...');
+        fetchDocumentsData(chatbot.chatbot_id);
+      }
+    }, 5000);
+    
+    return () => clearInterval(pollingInterval);
+  }, [chatbot.bot_type, chatbot.chatbot_id, chatbot.enable_rag, documents, fetchDocumentsData, isCreateMode]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -384,6 +438,23 @@ export default function ConfigureChatbotPage() {
     if (!viewingDocumentId) return null;
     return documents.find(doc => doc.document_id === viewingDocumentId) || null;
   };
+  
+  // Calculate document statistics
+  const getDocumentStats = () => {
+    const total = documents.length;
+    const completed = documents.filter(doc => doc.status === 'completed').length;
+    const processing = documents.filter(doc => doc.status === 'processing').length;
+    const pending = documents.filter(doc => doc.status === 'uploaded' || doc.status === 'fetched').length;
+    const error = documents.filter(doc => doc.status === 'error').length;
+    
+    return {
+      total,
+      completed,
+      processing,
+      pending,
+      error
+    };
+  };
 
   // MODIFIED: Function to handle adding a webpage URL
   const handleAddWebpage = async (e: React.FormEvent) => {
@@ -415,9 +486,16 @@ export default function ConfigureChatbotPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to add webpage');
       }
-      setSuccessMessage(data.message || 'Webpage added successfully! Refreshing list...');
+      setSuccessMessage(data.message || 'Webpage added successfully!');
       setWebpageUrl(''); // Clear input
-      fetchDocumentsData(chatbot.chatbot_id); // Refresh the document list
+      
+      // Immediately add the new document to the list for better UX
+      if (data.document) {
+        setDocuments(prev => [data.document, ...prev]);
+      }
+      
+      // Also refresh the full list to ensure consistency
+      fetchDocumentsData(chatbot.chatbot_id);
     } catch (err) {
       setUrlError(err instanceof Error ? err.message : 'Could not add webpage.');
       console.error("Error adding webpage:", err);
@@ -537,6 +615,42 @@ export default function ConfigureChatbotPage() {
                 <Divider />
                 <SectionTitle>Knowledge Base Documents (for RAG)</SectionTitle>
                 
+                {/* Knowledge Base Summary */}
+                {!docsLoading && documents.length > 0 && (
+                  <KnowledgeBaseSummary>
+                    <SummaryCard>
+                      <SummaryNumber>{getDocumentStats().total}</SummaryNumber>
+                      <SummaryLabel>Total Documents</SummaryLabel>
+                    </SummaryCard>
+                    
+                    <SummaryCard $variant="success">
+                      <SummaryNumber>{getDocumentStats().completed}</SummaryNumber>
+                      <SummaryLabel>In Knowledge Base</SummaryLabel>
+                    </SummaryCard>
+                    
+                    {getDocumentStats().processing > 0 && (
+                      <SummaryCard $variant="warning">
+                        <SummaryNumber>{getDocumentStats().processing}</SummaryNumber>
+                        <SummaryLabel>Processing</SummaryLabel>
+                      </SummaryCard>
+                    )}
+                    
+                    {getDocumentStats().pending > 0 && (
+                      <SummaryCard>
+                        <SummaryNumber>{getDocumentStats().pending}</SummaryNumber>
+                        <SummaryLabel>Pending</SummaryLabel>
+                      </SummaryCard>
+                    )}
+                    
+                    {getDocumentStats().error > 0 && (
+                      <SummaryCard $variant="error">
+                        <SummaryNumber>{getDocumentStats().error}</SummaryNumber>
+                        <SummaryLabel>Failed</SummaryLabel>
+                      </SummaryCard>
+                    )}
+                  </KnowledgeBaseSummary>
+                )}
+                
                 {/* URL Input Section */}
                 <UrlInputSection>
                     <Label htmlFor="webpageUrl">Add Webpage by URL</Label>
@@ -565,8 +679,13 @@ export default function ConfigureChatbotPage() {
                 {docsError && <Alert variant="error">{docsError}</Alert>}
                 <DocumentUploader 
                     chatbotId={chatbot.chatbot_id} 
-                    onUploadSuccess={() => { 
-                        setSuccessMessage("Document uploaded. Refreshing list..."); 
+                    onUploadSuccess={(newDocument) => { 
+                        setSuccessMessage("Document uploaded successfully!"); 
+                        // Immediately add the new document to the list for better UX
+                        if (newDocument) {
+                            setDocuments(prev => [newDocument, ...prev]);
+                        }
+                        // Also refresh the full list to ensure consistency
                         fetchDocumentsData(chatbot.chatbot_id!); 
                     }} 
                 />

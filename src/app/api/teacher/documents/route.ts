@@ -5,6 +5,8 @@ import type { DocumentType, DocumentStatus } from '@/types/knowledge-base.types'
 import { createAdminClient } from '@/lib/supabase/admin';
 import { extractContentFromUrl } from '@/lib/scraping/content-extractor'; // MODIFIED: Import new utility
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to determine file type
 function getFileTypeFromFile(file: File): DocumentType | null {
     const fileName = file.name;

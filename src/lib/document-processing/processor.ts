@@ -3,7 +3,7 @@ import { extractTextFromFile } from './extractor';
 import { splitTextIntoChunks, estimateTokenCount } from './chunker';
 import { generateEmbeddings } from '@/lib/openai/embeddings';
 import { upsertVectors } from '@/lib/pinecone/utils';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { Document, DocumentChunk, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
 import { extractContentFromUrl } from '@/lib/scraping/content-extractor'; // MODIFIED: Import new utility
 
@@ -18,7 +18,7 @@ function createMockEmbedding(): number[] {
  */
 export async function processDocument(document: Document): Promise<void> {
   console.log(`[PROCESSOR] Starting document processing for doc ID: ${document.document_id}, name: ${document.file_name}, type: ${document.file_type}`);
-  const supabase = await createServerSupabaseClient();
+  const supabase = createAdminClient();
 
   try {
     // Update document status to processing

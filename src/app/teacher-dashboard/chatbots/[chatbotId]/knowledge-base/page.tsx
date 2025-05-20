@@ -130,6 +130,21 @@ export default function KnowledgeBasePage() {
         setLoading(false);
     }
   }, [chatbotId, fetchChatbotInfo, fetchDocuments]);
+  
+  // Set up polling for document updates to ensure we catch status changes
+  useEffect(() => {
+    if (!chatbotId || loading) return;
+    
+    // Set up a polling interval to refresh documents every 5 seconds
+    const pollingInterval = setInterval(() => {
+      if (documents.some(doc => doc.status === 'processing')) {
+        console.log('Polling for document updates...');
+        fetchDocuments();
+      }
+    }, 5000);
+    
+    return () => clearInterval(pollingInterval);
+  }, [chatbotId, documents, fetchDocuments, loading]);
 
   const handleProcessDocument = async (documentId: string) => {
     setDocsError(null);
@@ -229,8 +244,13 @@ export default function KnowledgeBasePage() {
           <p>Upload PDF, Word, or TXT files. These will be processed and made available for your chatbot to use when RAG is enabled.</p>
           <DocumentUploader 
             chatbotId={chatbotId} 
-            onUploadSuccess={() => {
-                setSuccessMessage("Document uploaded! Refreshing list...");
+            onUploadSuccess={(newDocument) => {
+                setSuccessMessage("Document uploaded successfully!");
+                // Immediately add the new document to the list
+                if (newDocument) {
+                    setDocuments(prev => [newDocument, ...prev]);
+                }
+                // Also refresh the full list for consistency
                 fetchDocuments();
             }}
           />

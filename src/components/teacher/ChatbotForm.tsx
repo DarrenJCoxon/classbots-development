@@ -1,8 +1,7 @@
 // src/components/teacher/ChatbotForm.tsx
 'use client';
 
-import { useState } from 'react';
-// useEffect import removed as it's not used
+import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { BotTypeEnum } from '@/types/database.types';
 import {
@@ -15,9 +14,11 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
-// Instead of SimpleDocumentUploader and SimpleWebScraper, use enhanced versions
+// Import all required components for document handling
 import EnhancedRagUploader from './EnhancedRagUploader';
 import EnhancedRagScraper from './EnhancedRagScraper';
+import DocumentList from './DocumentList';
+import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 // No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
 // Use the BotTypeEnum from database.types
@@ -225,6 +226,13 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof ChatbotFormData, string>>>({});
+  
+  // Document related state
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [processingDocId, setProcessingDocId] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // For forcing document list refresh
 
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof ChatbotFormData, string>> = {};
@@ -329,6 +337,110 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       setError(err instanceof Error ? err.message : 'Failed to create chatbot');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Function to fetch documents for the chatbot
+  const fetchDocuments = useCallback(async () => {
+    if (!editMode || !initialData?.chatbot_id) return;
+    
+    setDocsLoading(true);
+    setDocsError(null);
+    
+    try {
+      const response = await fetch(`/api/teacher/documents?chatbotId=${initialData.chatbot_id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
+        throw new Error(errorData.error || `Failed to fetch documents (status ${response.status})`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched documents:', data.length);
+      setDocuments(data);
+    } catch (err) {
+      console.error('Error fetching documents:', err);
+      setDocsError(err instanceof Error ? err.message : 'Could not load documents.');
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [editMode, initialData?.chatbot_id]);
+  
+  // Fetch documents when in edit mode and chatbot has RAG enabled
+  useEffect(() => {
+    if (editMode && initialData?.chatbot_id && formData.enable_rag && formData.bot_type === 'learning') {
+      fetchDocuments();
+    }
+  }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, fetchDocuments, refreshTrigger]);
+  
+  // Set up polling for document updates to ensure we catch status changes
+  useEffect(() => {
+    if (!editMode || !initialData?.chatbot_id || !formData.enable_rag || formData.bot_type !== 'learning') return;
+    
+    // Set up a polling interval to refresh documents every 5 seconds
+    // but only if there are documents that are processing
+    const pollingInterval = setInterval(() => {
+      if (documents.some(doc => doc.status === 'processing')) {
+        console.log('[ChatbotForm] Polling for document updates...');
+        fetchDocuments();
+      }
+    }, 5000);
+    
+    return () => clearInterval(pollingInterval);
+  }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, documents, fetchDocuments]);
+  
+  // Document operations handlers
+  const handleProcessDocument = async (documentId: string) => {
+    if (!editMode || !initialData?.chatbot_id) return;
+    
+    setDocsError(null);
+    setProcessingDocId(documentId);
+    
+    try {
+      const response = await fetch(`/api/teacher/chatbots/${initialData.chatbot_id}/vectorize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to start document processing');
+      }
+      
+      // Update the document status locally
+      setDocuments(prevDocs => 
+        prevDocs.map(doc => doc.document_id === documentId ? { ...doc, status: 'processing' } : doc)
+      );
+      
+      // Force a refresh
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      setDocsError(err instanceof Error ? err.message : 'Could not process document.');
+    } finally {
+      setProcessingDocId(null);
+    }
+  };
+  
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!editMode || !initialData?.chatbot_id) return;
+    
+    setDocsError(null);
+    
+    try {
+      const response = await fetch(`/api/teacher/documents?documentId=${documentId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete document');
+      }
+      
+      // Update documents list locally
+      setDocuments(prevDocs => prevDocs.filter(doc => doc.document_id !== documentId));
+    } catch (err) {
+      setDocsError(err instanceof Error ? err.message : 'Could not delete document.');
     }
   };
 
@@ -654,16 +766,52 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                         <>
                           <EnhancedRagUploader
                             chatbotId={initialData.chatbot_id}
-                            onUploadSuccess={() => {
-                              // Could add a success notification here if desired
+                            onUploadSuccess={(newDocument) => {
+                              // Add the new document to the list immediately
+                              if (newDocument) {
+                                setDocuments(prev => [newDocument, ...prev]);
+                              }
+                              // Also refresh the full list for consistency
+                              setRefreshTrigger(prev => prev + 1);
                             }}
                           />
                           <EnhancedRagScraper
                             chatbotId={initialData.chatbot_id}
-                            onScrapeSuccess={() => {
-                              // Could add a success notification here if desired
+                            onScrapeSuccess={(newDocument) => {
+                              // Add the new document to the list immediately
+                              if (newDocument) {
+                                setDocuments(prev => [newDocument, ...prev]);
+                              }
+                              // Also refresh the full list for consistency
+                              setRefreshTrigger(prev => prev + 1);
                             }}
                           />
+                          
+                          {/* Document List Section */}
+                          {docsError && <Alert variant="error" style={{ marginTop: '16px' }}>{docsError}</Alert>}
+                          
+                          <div style={{ marginTop: '24px' }}>
+                            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Knowledge Base Documents</h3>
+                            
+                            {docsLoading && documents.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '20px' }}>
+                                <p>Loading documents...</p>
+                              </div>
+                            ) : (
+                              <DocumentList
+                                documents={documents}
+                                onProcessDocument={handleProcessDocument}
+                                onDeleteDocument={handleDeleteDocument}
+                                onViewStatus={() => {}} // We won't implement detailed view in the modal
+                              />
+                            )}
+                            
+                            {!docsLoading && documents.length === 0 && (
+                              <Alert variant="info" style={{ marginTop: '12px' }}>
+                                No documents have been added yet. Upload documents or scrape webpages above to build your knowledge base.
+                              </Alert>
+                            )}
+                          </div>
                         </>
                       ) : (
                         <Alert variant="info" style={{ marginTop: '12px', marginBottom: '12px' }}>

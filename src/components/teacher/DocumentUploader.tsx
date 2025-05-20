@@ -70,9 +70,11 @@ const FileSize = styled.span`
   font-size: 0.875rem;
 `;
 
+import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
+
 interface DocumentUploaderProps {
   chatbotId: string;
-  onUploadSuccess: () => void; // Callback after successful upload
+  onUploadSuccess: (document?: KnowledgeDocument) => void; // Callback after successful upload
 }
 
 export default function DocumentUploader({ chatbotId, onUploadSuccess }: DocumentUploaderProps) {
@@ -156,7 +158,8 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
       if (fileInputRef.current) {
         fileInputRef.current.value = ""; // Reset file input
       }
-      onUploadSuccess(); // Call parent callback
+      // Pass the document data to the parent component for immediate display
+      onUploadSuccess(data.document); // Call parent callback with the new document
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred during upload.');
     } finally {
