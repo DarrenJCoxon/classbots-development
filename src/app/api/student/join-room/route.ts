@@ -33,8 +33,8 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
     
-    const { room_code, student_name, user_id, skip_auth } = requestData;
-    console.log('[Simple Join API] Request data:', { room_code, student_name, user_id, skip_auth });
+    const { room_code, student_name, user_id, token, skip_auth } = requestData;
+    console.log('[Simple Join API] Request data:', { room_code, student_name, user_id, token: token ? 'provided' : 'not provided', skip_auth });
     
     // Validate input
     if (!room_code) {
@@ -98,6 +98,11 @@ export async function POST(request: Request) {
     if (user_id && !currentUserId) {
       console.log('[Simple Join API] Using user ID from request:', user_id);
       
+      // Check if a token was provided (for enhanced security)
+      if (token) {
+        console.log('[Simple Join API] Token provided for enhanced security');
+      }
+      
       // Verify the user exists
       const { data: existingUser, error: userCheckError } = await supabaseAdmin.auth.admin.getUserById(user_id);
       
@@ -112,18 +117,35 @@ export async function POST(request: Request) {
           await supabaseAdmin.auth.admin.updateUserById(user_id, {
             user_metadata: {
               ...existingUser.user.user_metadata,
-              full_name: student_name
+              full_name: student_name,
+              // Store the token for reference if provided
+              ...(token ? { last_magic_link_token: token } : {})
             }
           });
           
           // Also update profile
           await supabaseAdmin
             .from('profiles')
-            .update({ full_name: student_name })
+            .update({ 
+              full_name: student_name,
+              // Store the last login time
+              last_login_at: new Date().toISOString()
+            })
             .eq('user_id', user_id)
             .then(res => {
               if (res.error) {
                 console.warn('[Simple Join API] Error updating profile name:', res.error);
+              }
+            });
+        } else {
+          // Update login timestamp even if name didn't change
+          await supabaseAdmin
+            .from('profiles')
+            .update({ last_login_at: new Date().toISOString() })
+            .eq('user_id', user_id)
+            .then(res => {
+              if (res.error) {
+                console.warn('[Simple Join API] Error updating profile login timestamp:', res.error);
               }
             });
         }

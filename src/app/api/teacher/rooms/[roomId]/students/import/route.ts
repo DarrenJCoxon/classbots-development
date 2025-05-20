@@ -262,7 +262,8 @@ export async function POST(request: NextRequest, { params }: any) {
         // Step 5: Generate magic link
         // Add uuidv4 to ensure uniqueness even if same student is added multiple times
         const uniqueToken = uuidv4();
-        const simpleLinkCode = `${room.room_code}_${userId}_${encodeURIComponent(fullName)}_${uniqueToken.substring(0, 8)}`;
+        // Put the unique token in a separate parameter instead of appending to the name
+        const simpleLinkCode = `${room.room_code}_${userId}_${encodeURIComponent(fullName)}_token-${uniqueToken.substring(0, 8)}`;
         
         // For production, ensure we're using skolr.app domain
         let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

@@ -45,17 +45,63 @@ const Logo = styled(Link)`
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => theme.spacing.xs}; /* Further reduced gap */
   padding: ${({ theme }) => theme.spacing.sm} 0;
+  
+  /* Create a proper container for logo images */
+  > * {
+    display: flex;
+    align-items: center;
+  }
   
   &:hover {
     color: ${({ theme }) => theme.colors.primaryDark};
+  }
+  
+  /* Adjust logo on mobile */
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    gap: 0;
+    padding: ${({ theme }) => theme.spacing.xs} 0;
   }
 `;
 
 const LogoImage = styled(Image)`
   height: auto;
   width: auto;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 55px;
+    height: 55px;
+  }
+  
+  @media (max-width: 380px) {
+    width: 50px;
+    height: 50px;
+  }
+`;
+
+const SiteTitleImage = styled(Image)`
+  height: auto;
+  width: auto;
+  max-height: 56px; /* Further increased from 50px */
+  object-fit: contain;
+  display: block;
+  position: relative;
+  /* Allow the image to maintain its natural aspect ratio */
+  flex-shrink: 0;
+  margin-left: -8px; /* Increased negative margin to bring closer to logo */
+  
+  /* Mobile responsiveness */
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    max-height: 45px; /* Slightly smaller on mobile */
+    margin-left: -5px; /* Less negative margin on mobile */
+  }
+  
+  /* Very small screens */
+  @media (max-width: 380px) {
+    max-height: 38px;
+    margin-left: -3px;
+  }
 `;
 
 const Nav = styled.nav`
@@ -210,12 +256,20 @@ export default function Header() {
           <Logo href="/">
             <LogoImage 
               src="/images/skolr-logo.png" 
-              alt="Skolr Logo" 
+              alt="Logo" 
               width={60} 
               height={60} 
               priority
             />
-            {APP_NAME}
+            <div style={{ display: 'flex', alignItems: 'center', height: '60px', marginLeft: '-4px' }}>
+              <SiteTitleImage 
+                src="/images/site-title.png" 
+                alt="Site Title" 
+                width={290} 
+                height={56} 
+                priority
+              />
+            </div>
           </Logo>
           
           <Nav>

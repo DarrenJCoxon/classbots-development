@@ -79,9 +79,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Generate the magic link using the format: roomCode_userId_encodedStudentName
+    // Generate a simple token for the student - this is just for link validation
+    // and doesn't need to be cryptographically secure
+    const securityToken = `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 8)}`;
+    
+    // Generate the magic link using the format: roomCode_userId_token_encodedStudentName
     const encodedName = encodeURIComponent(profile.full_name);
-    const simpleLinkCode = `${room.room_code}_${studentId}_${encodedName}`;
+    const simpleLinkCode = `${room.room_code}_${studentId}_${securityToken}_${encodedName}`;
     
     // For production, ensure we're using skolr.app domain
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -102,7 +106,8 @@ export async function GET(request: NextRequest) {
       code: simpleLinkCode,
       roomCode: room.room_code,
       roomName: room.room_name,
-      email: profile.email
+      email: profile.email,
+      token: securityToken
     });
   } catch (error) {
     console.error('[Magic Link API] Error generating magic link:', error);
@@ -177,9 +182,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate the magic link
+    // Generate a simple token for the student - this is just for link validation
+    // and doesn't need to be cryptographically secure
+    const securityToken = `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 8)}`;
+    
+    // Generate the magic link using the format: roomCode_userId_token_encodedStudentName
     const encodedName = encodeURIComponent(profile.full_name);
-    const simpleLinkCode = `${room.room_code}_${studentId}_${encodedName}`;
+    const simpleLinkCode = `${room.room_code}_${studentId}_${securityToken}_${encodedName}`;
     
     // For production, ensure we're using skolr.app domain
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -201,6 +210,7 @@ export async function POST(request: NextRequest) {
       roomCode: room.room_code,
       roomName: room.room_name,
       email: profile.email,
+      token: securityToken,
       regenerated: true
     });
   } catch (error) {

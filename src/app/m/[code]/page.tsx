@@ -87,12 +87,16 @@ export default function SimpleMagicLinkPage() {
     let extractedRoomCode: string;
     let extractedUserId: string | null = null;
     let extractedStudentName: string[];
+    let extractedToken: string | null = null;
     
-    if (parts.length >= 3) {
-      // New format: roomCode_userId_studentName
+    if (parts.length >= 4) {
+      // Newest format: roomCode_userId_token_studentName
+      [extractedRoomCode, extractedUserId, extractedToken, ...extractedStudentName] = parts;
+    } else if (parts.length >= 3) {
+      // Previous format: roomCode_userId_studentName
       [extractedRoomCode, extractedUserId, ...extractedStudentName] = parts;
     } else {
-      // Old format: roomCode_studentName
+      // Original format: roomCode_studentName
       [extractedRoomCode, ...extractedStudentName] = parts;
     }
     
@@ -104,28 +108,41 @@ export default function SimpleMagicLinkPage() {
     
     if (extractedUserId) {
       setUserId(extractedUserId);
-      // If we have a user ID, we can try to sign in as that user directly
-      tryExistingUser(extractedUserId, normalizedRoomCode, decodedName);
+      // If we have a user ID and token, use them both
+      if (extractedToken) {
+        console.log(`[Magic Link] Using new format with token: ${extractedToken.substring(0, 5)}...`);
+        tryExistingUser(extractedUserId, normalizedRoomCode, decodedName, extractedToken);
+      } else {
+        // Just userId without token
+        console.log('[Magic Link] Using existing user format without token');
+        tryExistingUser(extractedUserId, normalizedRoomCode, decodedName);
+      }
     } else {
       // Otherwise fall back to creating a new user
+      console.log('[Magic Link] Using original format without userId');
       joinRoom(normalizedRoomCode, decodedName);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
   
-  const tryExistingUser = async (userId: string, roomCode: string, name: string) => {
+  const tryExistingUser = async (userId: string, roomCode: string, name: string, token?: string) => {
     try {
-      console.log(`[Magic Link] Attempting to join with existing user: ${userId}, room: ${roomCode}, name: ${name}`);
+      console.log(`[Magic Link] Attempting to join with existing user: ${userId}, room: ${roomCode}, name: ${name}, ${token ? 'with token' : 'no token'}`);
       
       // Try to directly join an existing student to the room
       // Instead of redirecting via router.push, we'll POST a form to trigger a full page reload
       // This ensures our session cookies are properly processed
-      const requestBody = { 
+      const requestBody: Record<string, any> = { 
         room_code: roomCode,
         student_name: name,
         user_id: userId,
         skip_auth: true
       };
+      
+      // Add the token if available - this is used for the new magic link format
+      if (token) {
+        requestBody.token = token;
+      }
       
       console.log(`[Magic Link] Existing user request payload:`, requestBody);
       
