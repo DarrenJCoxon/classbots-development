@@ -77,6 +77,8 @@ function AuthContent() {
   const router = useRouter();
   const urlLoginType = searchParams?.get('login');
   const urlType = searchParams?.get('type');
+  const urlMessage = searchParams?.get('message');
+  const urlError = searchParams?.get('error');
   const [redirecting, setRedirecting] = useState(false);
   
   // Redirect student logins to the new student access page
@@ -125,6 +127,18 @@ function AuthContent() {
           </StyledAlert>
         ) : (
           <Suspense fallback={<LoadingFallback>Loading...</LoadingFallback>}>
+            {urlMessage === 'password_updated' && (
+              <StyledAlert variant="success">
+                Your password has been successfully updated! You can now log in with your new password.
+              </StyledAlert>
+            )}
+            
+            {urlError === 'reset_session_expired' && (
+              <StyledAlert variant="error">
+                Your password reset link has expired. Please request a new one below.
+              </StyledAlert>
+            )}
+            
             <TabContainer>
               <TabButtons>
                 <TabButton 

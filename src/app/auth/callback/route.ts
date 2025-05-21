@@ -7,6 +7,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const codeVerifier = searchParams.get('code_verifier');
+  const isPasswordReset = searchParams.get('reset') === 'true';
+  const type = searchParams.get('type'); // Supabase sends 'recovery' for password reset
 
   if (code) {
     const supabase = await createServerSupabaseClient();
@@ -54,6 +56,12 @@ export async function GET(request: Request) {
         .eq('user_id', user.id)
         .single();
 
+      // Handle password reset flow - check both our custom parameter and Supabase's type
+      if (isPasswordReset || type === 'recovery') {
+        console.log('[Auth Callback] Password reset flow detected, redirecting to reset page');
+        return NextResponse.redirect(new URL('/auth/reset-password', origin));
+      }
+      
       // Get redirect URL from query params or use role-based default
       const redirectToParam = searchParams.get('redirect');
       let redirectTarget = '';
