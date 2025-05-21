@@ -46,6 +46,12 @@ export async function GET(request: Request) {
       console.log(`[Auth Callback] User authenticated: ${user.id}`);
       console.log(`[Auth Callback] User metadata:`, user.user_metadata);
       
+      // Handle password reset flow FIRST - check both our custom parameter and Supabase's type
+      if (isPasswordReset || type === 'recovery') {
+        console.log('[Auth Callback] Password reset flow detected, redirecting to reset page');
+        return NextResponse.redirect(new URL('/auth/reset-password', origin));
+      }
+      
       // Wait for profile to be created by trigger
       // This delay might still be needed if your trigger isn't instant
       await new Promise(resolve => setTimeout(resolve, 500)); 
@@ -55,12 +61,6 @@ export async function GET(request: Request) {
         .select('role')
         .eq('user_id', user.id)
         .single();
-
-      // Handle password reset flow - check both our custom parameter and Supabase's type
-      if (isPasswordReset || type === 'recovery') {
-        console.log('[Auth Callback] Password reset flow detected, redirecting to reset page');
-        return NextResponse.redirect(new URL('/auth/reset-password', origin));
-      }
       
       // Get redirect URL from query params or use role-based default
       const redirectToParam = searchParams.get('redirect');
