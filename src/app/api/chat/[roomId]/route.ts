@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { generateEmbedding } from '@/lib/openai/embeddings';
 import { queryVectors } from '@/lib/pinecone/utils';
 import { checkMessageSafety, initialConcernCheck } from '@/lib/safety/monitoring';
+import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes } from '@/lib/utils/api-responses';
 import type { ChatMessage, Room } from '@/types/database.types';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
         const chatbotIdFilter = searchParams.get('chatbotId');
         const instanceIdFilter = searchParams.get('instanceId');
 
-        if (!roomId) return NextResponse.json({ error: 'Room ID is required' }, { status: 400 });
+        if (!roomId) return createErrorResponse('Room ID is required', 400, ErrorCodes.VALIDATION_ERROR);
 
         // Check for direct access headers from API
         const directAccessKey = request.headers.get('x-direct-access-admin-key');
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 
             if (userError || !userData) {
                 console.error(`[API Chat GET] Error verifying bypassed user ${bypassUserId}:`, userError);
-                return NextResponse.json({ error: 'Invalid bypass user ID' }, { status: 401 });
+                return createErrorResponse('Invalid bypass user ID', 401, ErrorCodes.UNAUTHORIZED);
             }
 
             user = { id: bypassUserId, role: userData.role };

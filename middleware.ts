@@ -4,9 +4,103 @@ import { updateSession } from '@/lib/supabase/middleware';
 import { createServerClient } from '@supabase/ssr';
 import { verifyUserMatchesUrlParam } from '@/lib/supabase/auth-helpers';
 
+// Rate limiting storage (in production, use Redis or similar)
+const rateLimitMap = new Map<string, { count: number; resetTime: number; blockUntil?: number }>();
+
+// Rate limiting configuration
+const RATE_LIMITS = {
+  api: { requests: 60, windowMs: 60 * 1000 }, // 60 requests per minute for API
+  general: { requests: 120, windowMs: 60 * 1000 }, // 120 requests per minute for pages
+  strict: { requests: 10, windowMs: 60 * 1000 }, // 10 requests per minute for sensitive endpoints
+};
+
+// Clean up expired entries periodically
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, data] of rateLimitMap.entries()) {
+      if (now > data.resetTime && (!data.blockUntil || now > data.blockUntil)) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000); // Clean every 5 minutes
+}
+
 export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const pathname = url.pathname;
+  
+  // RATE LIMITING - First line of defense
+  if (!pathname.startsWith('/_next') && !pathname.includes('favicon.ico')) {
+    const forwarded = request.headers.get('x-forwarded-for');
+    const realIp = request.headers.get('x-real-ip');
+    const ip = forwarded?.split(',')[0]?.trim() || realIp || '127.0.0.1';
+    
+    const key = `${ip}:${pathname.startsWith('/api') ? 'api' : 'general'}`;
+    
+    // Determine rate limit based on endpoint sensitivity
+    let limit = RATE_LIMITS.general;
+    if (pathname.startsWith('/api')) {
+      if (pathname.includes('/chat/') || 
+          pathname.includes('/auth/') || 
+          pathname.includes('/debug-')) {
+        limit = RATE_LIMITS.strict; // Sensitive endpoints
+      } else {
+        limit = RATE_LIMITS.api; // Regular API endpoints
+      }
+    }
+    
+    const now = Date.now();
+    let rateLimitData = rateLimitMap.get(key);
+    
+    if (!rateLimitData) {
+      rateLimitData = { count: 0, resetTime: now + limit.windowMs };
+      rateLimitMap.set(key, rateLimitData);
+    }
+    
+    // Reset counter if window has expired
+    if (now > rateLimitData.resetTime) {
+      rateLimitData.count = 0;
+      rateLimitData.resetTime = now + limit.windowMs;
+      if (rateLimitData.blockUntil) delete rateLimitData.blockUntil;
+    }
+    
+    // Check if currently blocked
+    if (rateLimitData.blockUntil && now < rateLimitData.blockUntil) {
+      console.warn(`[Rate Limit] Blocked request from ${ip} to ${pathname}`);
+      return new NextResponse('Rate limit exceeded - temporarily blocked', { 
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((rateLimitData.blockUntil - now) / 1000).toString(),
+          'X-RateLimit-Limit': limit.requests.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': Math.ceil(rateLimitData.blockUntil / 1000).toString(),
+        }
+      });
+    }
+    
+    // Check rate limit
+    if (rateLimitData.count >= limit.requests) {
+      // Block for 5 minutes after exceeding limit
+      rateLimitData.blockUntil = now + (5 * 60 * 1000);
+      console.warn(`[Rate Limit] EXCEEDED: ${ip} made ${rateLimitData.count} requests to ${pathname}, blocking for 5 minutes`);
+      
+      return new NextResponse('Rate limit exceeded', { 
+        status: 429,
+        headers: {
+          'Retry-After': '300', // 5 minutes
+          'X-RateLimit-Limit': limit.requests.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': Math.ceil(rateLimitData.blockUntil / 1000).toString(),
+        }
+      });
+    }
+    
+    // Increment counter
+    rateLimitData.count++;
+    
+    console.log(`[Rate Limit] ${ip} -> ${pathname}: ${rateLimitData.count}/${limit.requests}`);
+  }
   
   // Print full URL for debugging
   console.log(`[Middleware] Processing request: ${request.url}`);

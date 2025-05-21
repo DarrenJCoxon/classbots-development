@@ -320,7 +320,9 @@ export default function RoomPage() {
             });
             
             if (response.ok) {
-              const data = await response.json();
+              const result = await response.json();
+              // Handle new standardized API response format
+              const data = result.success ? result.data : result;
               hasAccess = data.isMember;
               console.log('[RoomPage] Access check via API:', hasAccess ? 'Granted' : 'Denied');
             }
@@ -349,7 +351,9 @@ export default function RoomPage() {
             throw new Error('Failed to fetch room data via API');
           }
           
-          const data = await response.json();
+          const result = await response.json();
+          // Handle new standardized API response format
+          const data = result.success ? result.data : result;
           setRoom(data.room);
           setChatbots(data.chatbots || []);
           return;

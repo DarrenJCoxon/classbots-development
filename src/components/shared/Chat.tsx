@@ -933,29 +933,65 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
     };
   }, [roomId, chatbot?.chatbot_id, userId, supabase, fetchMessages, fetchSafetyMessages]);
   
-  // Fallback: Periodically check for safety messages
-  // This ensures that even if the realtime broadcast fails, we'll still get the safety message
+  // Intelligent fallback: Only poll if real-time fails, with exponential backoff
+  // This dramatically reduces server load while maintaining reliability
   useEffect(() => {
     if (!roomId || !userId || isFetchingMessages) return;
     
-    // Set up a polling interval (every 5 seconds) as a fallback
-    const pollingInterval = setInterval(() => {
-      // Only fetch if we're not already fetching and have all the required data
-      if (!isFetchingRef.current && roomId && userId && chatbot?.chatbot_id) {
-        console.log('[Chat.tsx] Polling for safety messages as fallback');
+    let pollCount = 0;
+    let pollTimeout: NodeJS.Timeout | null = null;
+    let realtimeWorking = true;
+    
+    const scheduleNextPoll = () => {
+      if (pollTimeout) clearTimeout(pollTimeout);
+      
+      // Only poll if real-time seems to be failing
+      if (!realtimeWorking) {
+        // Exponential backoff: 30s, 60s, 120s, then every 120s
+        const delay = Math.min(30000 * Math.pow(2, pollCount), 120000);
+        pollCount++;
         
-        // Use the dedicated safety message fetch function instead of full fetchMessages
-        // This is more efficient as it specifically targets safety messages
-        fetchSafetyMessages().catch(error => {
-          console.error('[Chat.tsx] Error in safety message polling:', error);
-        });
+        pollTimeout = setTimeout(() => {
+          if (!isFetchingRef.current && roomId && userId && chatbot?.chatbot_id) {
+            console.log(`[Chat.tsx] Fallback safety poll #${pollCount} (delay: ${delay}ms)`);
+            
+            fetchSafetyMessages().catch(error => {
+              console.error('[Chat.tsx] Error in fallback safety polling:', error);
+              scheduleNextPoll(); // Schedule next attempt
+            });
+          }
+        }, delay);
       }
-    }, 5000);
+    };
+    
+    // Test if real-time is working by checking for any real-time activity
+    const testRealtimeTimeout = setTimeout(() => {
+      // If no real-time activity after 60 seconds, start fallback polling
+      console.log('[Chat.tsx] No real-time activity detected, enabling fallback polling');
+      realtimeWorking = false;
+      scheduleNextPoll();
+    }, 60000);
+    
+    // Reset real-time status when messages change (indicates real-time is working)
+    const messageChangeHandler = () => {
+      realtimeWorking = true;
+      pollCount = 0; // Reset backoff
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+        pollTimeout = null;
+      }
+    };
+    
+    // Listen for message changes to detect real-time activity
+    if (messages.length > 0) {
+      messageChangeHandler();
+    }
     
     return () => {
-      clearInterval(pollingInterval);
+      if (pollTimeout) clearTimeout(pollTimeout);
+      if (testRealtimeTimeout) clearTimeout(testRealtimeTimeout);
     };
-  }, [roomId, userId, chatbot?.chatbot_id, isFetchingMessages, fetchSafetyMessages]);
+  }, [roomId, userId, chatbot?.chatbot_id, isFetchingMessages, fetchSafetyMessages, messages.length]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -1181,6 +1217,38 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let assistantResponse = '';
+          let pendingUpdate = '';
+          let updateTimeout: NodeJS.Timeout | null = null;
+          
+          // Smooth update function that batches changes for better UX
+          const updateMessageSmooth = () => {
+            setMessages(prev => {
+              const updated = [...prev];
+              const index = updated.findIndex(m => m.message_id === tempAssistantId);
+              if (index !== -1) {
+                updated[index] = {
+                  ...updated[index],
+                  content: assistantResponse
+                };
+              }
+              return updated;
+            });
+            setTimeout(scrollToBottom, 10);
+          };
+          
+          // Schedule smooth updates every 100ms for responsive but not jerky updates
+          const scheduleUpdate = () => {
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+              updateMessageSmooth();
+              
+              // Continue scheduling if we're still receiving content
+              if (assistantResponse.length > pendingUpdate.length) {
+                pendingUpdate = assistantResponse;
+                scheduleUpdate();
+              }
+            }, 100); // 10 FPS - smooth balance between responsiveness and performance
+          };
           
           let streamError: Error | null = null;
           try {
@@ -1203,19 +1271,10 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
                   if (typeof piece === 'string') {
                     assistantResponse += piece;
                     
-                    // Update the placeholder message with the current content
-                    setMessages(prev => {
-                      const updated = [...prev];
-                      const index = updated.findIndex(m => m.message_id === tempAssistantId);
-                      if (index !== -1) {
-                        updated[index] = {
-                          ...updated[index],
-                          content: assistantResponse
-                        };
-                      }
-                      return updated;
-                    });
-                    setTimeout(scrollToBottom, 10);
+                    // Start smooth updates if not already running
+                    if (!updateTimeout) {
+                      scheduleUpdate();
+                    }
                   }
                 } catch (e) {
                   console.warn('[Chat.tsx] Stream parse error:', e);
@@ -1266,14 +1325,20 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
               setError("Connection interrupted. Please try sending your message again.");
             }
           } finally {
-            // If we get here without errors and with content, remove the streaming flag
-            if (!streamError && assistantResponse.length > 0) {
+            // Clean up the smooth update timer
+            if (updateTimeout) {
+              clearTimeout(updateTimeout);
+            }
+            
+            // Final update to ensure we show the complete response
+            if (assistantResponse.length > 0) {
               setMessages(prev => {
                 const updated = [...prev];
                 const index = updated.findIndex(m => m.message_id === tempAssistantId);
                 if (index !== -1) {
                   updated[index] = {
                     ...updated[index],
+                    content: assistantResponse,
                     metadata: { ...updated[index].metadata, isStreaming: false }
                   };
                 }

@@ -123,9 +123,11 @@ function JoinPageContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ room_code: formattedCode }),
         });
-        const data = await response.json();
+        const result = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to join room. You might already be a member or the room is full.');
+          // Handle error from standardized response format
+          const errorMessage = result.error || result.message || 'Failed to join room. You might already be a member or the room is full.';
+          throw new Error(errorMessage);
         }
         // Redirect to student dashboard
         console.log('[Join Page] Student joined successfully, redirecting to /student/dashboard');

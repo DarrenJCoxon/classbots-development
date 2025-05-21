@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isValidRoomCode } from '@/lib/utils/room-codes';
+import { validateRoomByCode } from '@/lib/utils/room-validation';
+import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes } from '@/lib/utils/api-responses';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,41 +12,31 @@ export async function GET(request: NextRequest) {
     const roomCode = searchParams.get('code');
 
     if (!roomCode) {
-      return NextResponse.json({ error: 'Room code is required' }, { status: 400 });
+      return createErrorResponse('Room code is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
     const formattedCode = roomCode.toUpperCase();
 
     // Validate the room code format
     if (!isValidRoomCode(formattedCode)) {
-      return NextResponse.json({ 
-        error: 'Invalid room code format. Codes should be 6 characters (letters and numbers).' 
-      }, { status: 400 });
+      return createErrorResponse(
+        'Invalid room code format. Codes should be 6 characters (letters and numbers).', 
+        400, 
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
 
     // Use admin client to ensure we can access the data regardless of auth state
     const supabaseAdmin = createAdminClient();
 
-    // Verify the room exists
+    // Verify the room exists and is active
     console.log('[API GET /verify-room-code] Looking up room code:', formattedCode);
-    const { data: room, error: roomError } = await supabaseAdmin
-      .from('rooms')
-      .select('room_id, room_name, is_active')
-      .eq('room_code', formattedCode)
-      .single();
-
-    if (roomError) {
-      console.error('[API GET /verify-room-code] Error fetching room:', roomError);
-      if (roomError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Room not found' }, { status: 404 });
-      }
-      return NextResponse.json({ error: 'Database error: ' + roomError.message }, { status: 500 });
+    const roomValidation = await validateRoomByCode(formattedCode);
+    if (roomValidation.error) {
+      return handleApiError(roomValidation.error);
     }
 
-    if (!room) {
-      console.warn('[API GET /verify-room-code] No room found for code:', formattedCode);
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
-    }
+    const room = roomValidation.room!;
 
     // Get chatbots for this room
     const { data: roomChatbots, error: chatbotError } = await supabaseAdmin
@@ -53,7 +45,7 @@ export async function GET(request: NextRequest) {
       .eq('room_id', room.room_id);
 
     // Return the room info and available chatbots
-    return NextResponse.json({
+    return createSuccessResponse({
       room: {
         room_id: room.room_id,
         room_name: room.room_name,
@@ -64,9 +56,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[API GET /verify-room-code] Unexpected error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'An unknown error occurred' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

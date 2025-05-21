@@ -109,7 +109,9 @@ export default function SimpleRoomJoinPage(props: any) {
         }
       }
       
-      const data = await response.json();
+      const result = await response.json();
+      // Handle new standardized API response format
+      const data = result.success ? result.data : result;
       
       // Show success message briefly
       setStatus('success');

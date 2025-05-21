@@ -10,7 +10,7 @@ import { Container, Button } from '@/styles/StyledComponents';
 import SignInDropdown from '@/components/auth/SignInDropdown';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
-import { usePathname } from 'next/navigation'; // Import usePathname for active link styling
+import { usePathname, useSearchParams } from 'next/navigation'; // Import for routing and params
 
 const HeaderWrapper = styled.header`
   background: ${({ theme }) => theme.colors.background};
@@ -164,11 +164,73 @@ const HeaderButton = styled(Button)`
   }
 `;
 
+const DashboardIcon = styled(Link)`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.primary};
+  color: white;
+  text-decoration: none;
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryDark};
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+    font-size: 0.8rem;
+    gap: 4px;
+    
+    span {
+      font-size: 0.7rem;
+    }
+  }
+`;
+
+const ProfileButton = styled(Link)`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.backgroundCard};
+  color: ${({ theme }) => theme.colors.text};
+  text-decoration: none;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.backgroundDark};
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primary};
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+    font-size: 0.8rem;
+    gap: 4px;
+    
+    span {
+      font-size: 0.7rem;
+    }
+  }
+`;
+
 export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const supabase = createClient(); // Supabase client initialized here
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // --- START OF CODE TO ADD/VERIFY ---
   useEffect(() => {
@@ -249,6 +311,43 @@ export default function Header() {
     return pathname === href;
   };
 
+  // Check if we're on a student page with direct access
+  const isStudentDirectAccess = () => {
+    const uid = searchParams.get('uid');
+    const accessSignature = searchParams.get('access_signature');
+    const direct = searchParams.get('direct');
+    const studentId = typeof window !== 'undefined' ? localStorage.getItem('student_direct_access_id') : null;
+    
+    return (
+      (pathname.startsWith('/student/') || pathname.startsWith('/room/') || pathname.startsWith('/chat/')) &&
+      (uid || accessSignature || direct || studentId) &&
+      pathname !== '/student-login' &&
+      pathname !== '/student-access'
+    );
+  };
+
+  // Build dashboard URL with preserved parameters
+  const buildDashboardUrl = () => {
+    const dashboardUrl = new URL('/student/dashboard', window.location.origin);
+    
+    // Preserve important student access parameters
+    const uid = searchParams.get('uid');
+    const userId = searchParams.get('user_id');
+    const accessSignature = searchParams.get('access_signature');
+    const timestamp = searchParams.get('ts');
+    const direct = searchParams.get('direct');
+    const pinVerified = searchParams.get('pin_verified');
+    
+    if (uid) dashboardUrl.searchParams.set('uid', uid);
+    if (userId) dashboardUrl.searchParams.set('user_id', userId);
+    if (accessSignature) dashboardUrl.searchParams.set('access_signature', accessSignature);
+    if (timestamp) dashboardUrl.searchParams.set('ts', timestamp);
+    if (direct) dashboardUrl.searchParams.set('direct', direct);
+    if (pinVerified) dashboardUrl.searchParams.set('pin_verified', pinVerified);
+    
+    return dashboardUrl.pathname + dashboardUrl.search;
+  };
+
   return (
     <HeaderWrapper>
       <Container>
@@ -286,14 +385,27 @@ export default function Header() {
                   </NavLink>
                 )}
               </>
-            ) : null}
+            ) : isStudentDirectAccess() && (
+              <DashboardIcon href={buildDashboardUrl()}>
+                <span>📊</span>
+                <span>Dashboard</span>
+              </DashboardIcon>
+            )}
           </Nav>
           
           <UserSection>
             {user ? (
-              <HeaderButton variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </HeaderButton>
+              <>
+                {userRole === 'teacher' && (
+                  <ProfileButton href="/teacher-dashboard/profile">
+                    <span>👤</span>
+                    <span>Profile</span>
+                  </ProfileButton>
+                )}
+                <HeaderButton variant="outline" onClick={handleSignOut}>
+                  Sign Out
+                </HeaderButton>
+              </>
             ) : (
               pathname !== '/auth' && pathname !== '/student-login' && pathname !== '/student-access' && (
                 <SignInDropdown />

@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     
     if (!userId) {
       console.error('[Direct Dashboard API] No user ID provided');
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
     }
     
     // SECURITY ENHANCEMENT: Check if the authenticated user matches the requested userId
@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
           if (!isTeacher) {
             console.error(`[Direct Dashboard API] Unauthorized access: User ${user.id} trying to access user ${userId}`);
             return NextResponse.json({ 
+              success: false,
               error: 'Unauthorized access attempt',
               message: 'You do not have permission to access another user\'s data',
               code: 'UNAUTHORIZED_ACCESS'
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
     } catch (authError) {
       console.error('[Direct Dashboard API] Error checking authorization:', authError);
       // Continuing without auth check could be dangerous, so return an error
-      return NextResponse.json({ error: 'Authentication error' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Authentication error' }, { status: 500 });
     }
     
     // Check cache first
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
       
     if (profileError) {
       console.error('[Direct Dashboard API] Error loading profile:', profileError);
-      return NextResponse.json({ error: 'Could not load student profile' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Could not load student profile' }, { status: 500 });
     }
     
     console.log('[Direct Dashboard API] Profile loaded:', {
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
       
     if (membershipError) {
       console.error('[Direct Dashboard API] Error loading room memberships:', membershipError);
-      return NextResponse.json({ error: 'Could not load classroom memberships' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Could not load classroom memberships' }, { status: 500 });
     }
     
     console.log('[Direct Dashboard API] Found memberships:', memberships?.length || 0);
@@ -167,10 +168,13 @@ export async function GET(request: NextRequest) {
       // If no assessments either, return early
       if (!assessmentsData || assessmentsData.length === 0) {
         return NextResponse.json({
-          profile,
-          rooms: [],
-          isAnonymous,
-          recentAssessments: []
+          success: true,
+          data: {
+            profile,
+            rooms: [],
+            isAnonymous,
+            recentAssessments: []
+          }
         });
       }
       
@@ -196,7 +200,7 @@ export async function GET(request: NextRequest) {
       
     if (roomsError) {
       console.error('[Direct Dashboard API] Error loading rooms:', roomsError);
-      return NextResponse.json({ error: 'Could not load classroom details' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Could not load classroom details' }, { status: 500 });
     }
     
     console.log('[Direct Dashboard API] Found active rooms:', roomsData?.length || 0);
@@ -323,38 +327,6 @@ export async function GET(request: NextRequest) {
           teacher_override_notes: asmnt.teacher_override_notes
         });
       }
-    } else if (process.env.NODE_ENV !== 'production') {
-      // If no real assessments found and we're in development, create test data
-      console.log('[Direct Dashboard API] No real assessments found. Creating test assessment data');
-      
-      recentAssessments = [
-        {
-          assessment_id: 'test-assessment-123',
-          room_id: 'test-room-123',
-          room_name: 'Test Classroom 1',
-          chatbot_id: 'test-chatbot-123',
-          chatbot_name: 'Shakespeare Bot',
-          ai_grade_raw: 'B+',
-          ai_feedback_student: 'Good understanding of the themes in Romeo and Juliet. Your analysis of the characters could be more detailed.',
-          assessed_at: new Date().toISOString(),
-          status: 'ai_completed',
-          teacher_override_grade: null,
-          teacher_override_notes: null
-        },
-        {
-          assessment_id: 'test-assessment-456',
-          room_id: 'test-room-456',
-          room_name: 'Test Classroom 2',
-          chatbot_id: 'test-chatbot-456',
-          chatbot_name: 'History Bot',
-          ai_grade_raw: 'A-',
-          ai_feedback_student: 'Excellent work on your WWII timeline. Consider adding more details about the Pacific theater.',
-          assessed_at: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-          status: 'teacher_reviewed',
-          teacher_override_grade: 'A',
-          teacher_override_notes: 'Great improvement! Your analysis shows deep understanding.'
-        }
-      ];
     }
     
     console.log('[Direct Dashboard API] Returning assessments count:', recentAssessments.length);
@@ -373,11 +345,14 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     });
     
-    return NextResponse.json(responseData);
+    return NextResponse.json({
+      success: true,
+      data: responseData
+    });
   } catch (error) {
     console.error('[Direct Dashboard API] Unhandled error:', error);
     return NextResponse.json(
-      { error: 'Failed to load dashboard data' },
+      { success: false, error: 'Failed to load dashboard data' },
       { status: 500 }
     );
   }

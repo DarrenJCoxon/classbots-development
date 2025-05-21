@@ -159,11 +159,11 @@ export default function StudentLayoutWrapper({
     <StudentLayout>
       {/* Add StudentProfileCheck to automatically repair profiles if needed */}
       <StudentProfileCheck />
-      <MainContent>
-        <Container>
+      <Container>
+        <MainContent>
           {children}
-        </Container>
-      </MainContent>
+        </MainContent>
+      </Container>
       <Footer />
     </StudentLayout>
   );

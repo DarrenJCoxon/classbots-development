@@ -164,7 +164,9 @@ export default function ChatPage() {
             throw new Error(errorData.error || 'Failed to verify room access');
           }
           
-          const membershipData = await response.json();
+          const membershipResult = await response.json();
+          // Handle new standardized API response format
+          const membershipData = membershipResult.success ? membershipResult.data : membershipResult;
           
           if (!membershipData.isMember) {
             throw new Error('You do not have access to this room');
@@ -196,7 +198,9 @@ export default function ChatPage() {
             throw new Error(`Failed to fetch chat data: ${errorData.error || chatResponse.status}`);
           }
           
-          const data = await chatResponse.json();
+          const chatResult = await chatResponse.json();
+          // Handle new standardized API response format
+          const data = chatResult.success ? chatResult.data : chatResult;
           
           setRoom(data.room);
           setChatbot(data.chatbot);

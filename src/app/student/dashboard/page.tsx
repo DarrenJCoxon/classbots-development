@@ -287,8 +287,19 @@ export default function StudentDashboardPage() {
         throw new Error(errorData.error || errorData.message || 'Failed to load dashboard');
       }
       
-      const data = await response.json();
-      console.log('Dashboard data loaded:', data);
+      const response_data = await response.json();
+      console.log('Dashboard data loaded:', response_data);
+      
+      // Handle standardized response format
+      let data;
+      if (response_data.success && response_data.data) {
+        data = response_data.data;
+      } else if (response_data.profile || response_data.rooms || response_data.recentAssessments) {
+        // Fallback for old format
+        data = response_data;
+      } else {
+        throw new Error(response_data.error || 'Invalid response format');
+      }
       
       // Set student profile
       if (data.profile) {
@@ -316,39 +327,7 @@ export default function StudentDashboardPage() {
         console.log(`Loaded ${data.recentAssessments.length} assessments:`, data.recentAssessments);
       } else {
         console.log('No assessments found in response');
-        // Create test assessment data when in development
-        if (process.env.NODE_ENV !== 'production' && !data.recentAssessments) {
-          console.log('Creating test assessment data for development');
-          const testAssessments = [
-            {
-              assessment_id: 'test-1',
-              room_id: 'room-1',
-              room_name: 'English Class',
-              chatbot_id: 'bot-1',
-              chatbot_name: 'Shakespeare Bot',
-              ai_grade_raw: 'B+',
-              ai_feedback_student: 'Good understanding of themes in Romeo and Juliet. Work on analyzing character motivations more deeply.',
-              assessed_at: new Date().toISOString(),
-              status: 'ai_completed' as AssessmentStatusEnum
-            },
-            {
-              assessment_id: 'test-2',
-              room_id: 'room-2',
-              room_name: 'Science Class',
-              chatbot_id: 'bot-2',
-              chatbot_name: 'Biology Assistant',
-              ai_grade_raw: 'A-',
-              ai_feedback_student: 'Excellent explanation of cell structure and function. Include more examples next time.',
-              assessed_at: new Date(Date.now() - 86400000).toISOString(),
-              status: 'teacher_reviewed' as AssessmentStatusEnum,
-              teacher_override_grade: 'A',
-              teacher_override_notes: 'Great work on this assignment!'
-            }
-          ];
-          setAssessments(testAssessments);
-        } else {
-          setAssessments([]);
-        }
+        setAssessments([]);
       }
     } catch (err) {
       console.error('Error loading dashboard:', err);

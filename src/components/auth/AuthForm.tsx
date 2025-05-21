@@ -104,6 +104,21 @@ export default function AuthForm({ type }: AuthFormProps) {
         
         if (signUpError) {
           console.error('Signup error details:', signUpError);
+          
+          // Handle common signup errors with user-friendly messages
+          if (signUpError.message.includes('User already registered')) {
+            throw new Error('An account with this email address already exists. Please try logging in instead, or use the password reset option if you\'ve forgotten your password.');
+          } else if (signUpError.message.includes('Invalid email')) {
+            throw new Error('Please enter a valid email address.');
+          } else if (signUpError.message.includes('Password should be at least')) {
+            throw new Error('Password must be at least 6 characters long.');
+          } else if (signUpError.message.includes('rate limit')) {
+            throw new Error('Too many signup attempts. Please wait a few minutes before trying again.');
+          } else if (signUpError.message.includes('email sending')) {
+            throw new Error('Unable to send confirmation email. Please check your email address and try again, or contact support if the problem persists.');
+          }
+          
+          // Default to original error for unknown cases
           throw signUpError;
         }
         
@@ -116,6 +131,20 @@ export default function AuthForm({ type }: AuthFormProps) {
         });
         
         if (signInError) {
+          console.error('Sign in error details:', signInError);
+          
+          // Handle common login errors with user-friendly messages
+          if (signInError.message.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password. Please check your credentials and try again.');
+          } else if (signInError.message.includes('Email not confirmed')) {
+            throw new Error('Please check your email and click the confirmation link before logging in. Check your spam folder if you don\'t see it.');
+          } else if (signInError.message.includes('Too many requests')) {
+            throw new Error('Too many login attempts. Please wait a few minutes before trying again.');
+          } else if (signInError.message.includes('rate limit')) {
+            throw new Error('Too many login attempts. Please wait a few minutes before trying again.');
+          }
+          
+          // Default to original error for unknown cases
           throw signInError;
         }
         

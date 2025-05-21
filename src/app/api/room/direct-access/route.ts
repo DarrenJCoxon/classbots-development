@@ -1,6 +1,7 @@
 // src/app/api/room/direct-access/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes } from '@/lib/utils/api-responses';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,9 +12,10 @@ export async function GET(request: NextRequest) {
 
     // Validate required parameters
     if (!roomId || !studentId) {
-      return NextResponse.json(
-        { error: 'Missing required parameters: roomId and studentId are required' },
-        { status: 400 }
+      return createErrorResponse(
+        'Missing required parameters: roomId and studentId are required',
+        400,
+        ErrorCodes.VALIDATION_ERROR
       );
     }
 

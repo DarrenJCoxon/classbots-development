@@ -1,6 +1,8 @@
 // src/app/api/student/verify-membership/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { validateRoomAccess } from '@/lib/utils/room-validation';
+import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes } from '@/lib/utils/api-responses';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,9 +13,11 @@ export async function GET(request: NextRequest) {
 
     // Validate required parameters
     if (!roomId || !userId) {
-      return NextResponse.json({ 
-        error: 'Missing required parameters: roomId and userId are required' 
-      }, { status: 400 });
+      return createErrorResponse(
+        'Missing required parameters: roomId and userId are required', 
+        400, 
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
 
     // Use admin client to check membership reliably
@@ -24,23 +28,13 @@ export async function GET(request: NextRequest) {
     
     if (userError || !userCheck.user) {
       console.error('[API GET /verify-membership] User not found:', userId, userError);
-      return NextResponse.json({ error: 'User not found', isMember: false }, { status: 404 });
+      return createErrorResponse('User not found', 404, ErrorCodes.STUDENT_NOT_FOUND);
     }
 
-    // Verify room exists
-    const { data: room, error: roomError } = await supabaseAdmin
-      .from('rooms')
-      .select('room_id, is_active')
-      .eq('room_id', roomId)
-      .single();
-
-    if (roomError || !room) {
-      console.error('[API GET /verify-membership] Room not found:', roomId, roomError);
-      return NextResponse.json({ error: 'Room not found', isMember: false }, { status: 404 });
-    }
-
-    if (!room.is_active) {
-      return NextResponse.json({ error: 'Room is inactive', isMember: false }, { status: 403 });
+    // Verify room exists and is active
+    const roomValidation = await validateRoomAccess(roomId);
+    if (roomValidation.error) {
+      return handleApiError(roomValidation.error);
     }
 
     // Check if user is a member of the room
@@ -53,10 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (membershipError) {
       console.error('[API GET /verify-membership] Error checking membership:', membershipError);
-      return NextResponse.json({ 
-        error: 'Error checking membership', 
-        isMember: false 
-      }, { status: 500 });
+      return createErrorResponse('Error checking membership', 500, ErrorCodes.DATABASE_ERROR);
     }
 
     const isMember = !!membership;
@@ -73,32 +64,23 @@ export async function GET(request: NextRequest) {
 
       if (insertError) {
         console.error('[API GET /verify-membership] Error adding membership:', insertError);
-        return NextResponse.json({ 
-          error: 'Failed to add user to room', 
-          isMember: false 
-        }, { status: 500 });
+        return createErrorResponse('Failed to add user to room', 500, ErrorCodes.DATABASE_ERROR);
       }
 
       // Successfully added
-      return NextResponse.json({ 
+      return createSuccessResponse({ 
         isMember: true, 
         message: 'User successfully added to room' 
       });
     }
 
     // Already a member
-    return NextResponse.json({ 
+    return createSuccessResponse({ 
       isMember: true, 
       message: 'User is already a member of this room' 
     });
   } catch (error) {
     console.error('[API GET /verify-membership] Unexpected error:', error);
-    return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : 'An unknown error occurred',
-        isMember: false 
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
