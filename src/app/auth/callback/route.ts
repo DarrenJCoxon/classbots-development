@@ -7,8 +7,6 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const codeVerifier = searchParams.get('code_verifier');
-  const isPasswordReset = searchParams.get('reset') === 'true';
-  const type = searchParams.get('type'); // Supabase sends 'recovery' for password reset
 
   if (code) {
     const supabase = await createServerSupabaseClient();
@@ -46,11 +44,8 @@ export async function GET(request: Request) {
       console.log(`[Auth Callback] User authenticated: ${user.id}`);
       console.log(`[Auth Callback] User metadata:`, user.user_metadata);
       
-      // Handle password reset flow FIRST - check both our custom parameter and Supabase's type
-      if (isPasswordReset || type === 'recovery') {
-        console.log('[Auth Callback] Password reset flow detected, redirecting to reset page');
-        return NextResponse.redirect(new URL('/auth/reset-password', origin));
-      }
+      // We don't need to handle password reset here anymore since it's handled by
+      // redirectTo in resetPasswordForEmail which takes users straight to update-password
       
       // Wait for profile to be created by trigger
       // This delay might still be needed if your trigger isn't instant

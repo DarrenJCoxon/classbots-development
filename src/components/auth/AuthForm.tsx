@@ -68,33 +68,6 @@ export default function AuthForm({ type }: AuthFormProps) {
     checkUser();
   }, [checkUser]);
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      setError('Please enter your email address first');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`
-      });
-      
-      if (error) {
-        console.error('Password reset error:', error);
-        throw error;
-      }
-      
-      alert('Password reset email sent! Please check your email (including spam folder) for the reset link.');
-    } catch (error) {
-      console.error('Password reset error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to send password reset email');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,7 +273,26 @@ export default function AuthForm({ type }: AuthFormProps) {
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
             <button
               type="button"
-              onClick={() => handleForgotPassword()}
+              onClick={async () => {
+                if (!email.trim()) {
+                  setError('Please enter your email address first');
+                  return;
+                }
+                
+                try {
+                  setLoading(true);
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/auth/update-password`,
+                  });
+                  
+                  if (error) throw error;
+                  alert('Password reset email sent! Please check your email and spam folder.');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to send reset email');
+                } finally {
+                  setLoading(false);
+                }
+              }}
               style={{
                 background: 'none',
                 border: 'none',
