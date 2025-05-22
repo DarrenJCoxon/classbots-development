@@ -4,11 +4,16 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = 'https://skolr.app'; // Use production URL consistently
   const code = searchParams.get('code');
   const codeVerifier = searchParams.get('code_verifier');
 
   if (code) {
+    console.log('[Auth Callback] Processing code:', code.substring(0, 10) + '...');
+    console.log('[Auth Callback] Full URL:', request.url);
+    console.log('[Auth Callback] Search params:', Object.fromEntries(searchParams.entries()));
+    
     const supabase = await createServerSupabaseClient();
     let authResult;
     
@@ -34,7 +39,8 @@ export async function GET(request: Request) {
     
     if (error) {
       console.error('Error exchanging code for session:', error);
-      return NextResponse.redirect(new URL('/auth', origin));
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      return NextResponse.redirect(new URL('/auth?error=auth_callback_failed', origin));
     }
     
     // Get user data to determine redirect

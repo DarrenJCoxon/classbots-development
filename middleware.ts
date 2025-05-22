@@ -42,11 +42,10 @@ export async function middleware(request: NextRequest) {
     let limit = RATE_LIMITS.general;
     if (pathname.startsWith('/api')) {
       if (pathname.includes('/chat/') || 
-          pathname.includes('/auth/') || 
           pathname.includes('/debug-')) {
         limit = RATE_LIMITS.strict; // Sensitive endpoints
       } else {
-        limit = RATE_LIMITS.api; // Regular API endpoints
+        limit = RATE_LIMITS.api; // Regular API endpoints (includes auth)
       }
     }
     

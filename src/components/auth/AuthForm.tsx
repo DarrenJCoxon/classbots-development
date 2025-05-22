@@ -94,11 +94,14 @@ export default function AuthForm({ type }: AuthFormProps) {
         // Always redirect to teacher dashboard for teacher signups
         const teacherRedirect = '/teacher-dashboard';
         
+        const redirectUrl = `https://skolr.app/auth/callback?redirect=${encodeURIComponent(teacherRedirect)}`;
+        console.log('Signup redirect URL:', redirectUrl);
+        
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(teacherRedirect)}`,
+            // Remove emailRedirectTo to use site_url from Supabase config instead
             data: signupData
           },
         });
@@ -282,7 +285,7 @@ export default function AuthForm({ type }: AuthFormProps) {
                 try {
                   setLoading(true);
                   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                    redirectTo: `${window.location.origin}/auth/update-password`,
+                    redirectTo: `https://skolr.app/auth/update-password`,
                   });
                   
                   if (error) throw error;
