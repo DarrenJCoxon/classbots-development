@@ -146,6 +146,35 @@ export async function GET(request: Request) {
     }
   }
 
+  // Check if this is a password reset flow (no code but has token and type parameters)
+  const token = searchParams.get('token');
+  const type = searchParams.get('type');
+  
+  if (token && type === 'recovery') {
+    console.log('[Auth Callback] Password reset flow detected, processing token');
+    
+    try {
+      const supabase = await createServerSupabaseClient();
+      
+      // Process the password reset token to establish session
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash: token,
+        type: 'recovery'
+      });
+      
+      if (error) {
+        console.error('[Auth Callback] Error verifying reset token:', error);
+        return NextResponse.redirect(new URL('/auth?error=invalid_reset_token', origin));
+      }
+      
+      console.log('[Auth Callback] Reset token verified, redirecting to update-password');
+      return NextResponse.redirect(new URL('/auth/update-password', origin));
+    } catch (err) {
+      console.error('[Auth Callback] Exception processing reset token:', err);
+      return NextResponse.redirect(new URL('/auth?error=reset_token_error', origin));
+    }
+  }
+  
   console.log('[Auth Callback] No code found in request. Redirecting to /.');
   // Default redirect if no code or other issues
   return NextResponse.redirect(new URL('/', origin));
