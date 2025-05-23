@@ -77,6 +77,12 @@ export async function GET(request: NextRequest) {
 
     if (documentsError) {
       console.error('[API /documents GET] Error fetching documents from DB:', documentsError);
+      console.error('[API /documents GET] Error details:', {
+        message: documentsError.message,
+        code: documentsError.code,
+        details: documentsError.details,
+        hint: documentsError.hint
+      });
       return NextResponse.json({ error: 'Failed to fetch documents', details: documentsError.message }, { status: 500 });
     }
 

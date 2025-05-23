@@ -62,8 +62,12 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
 
     // Apply sorting
     // Example: sortBy = "name_asc" or "created_at_desc"
-    const [sortField, sortOrder] = sortBy.split('_');
-    if (sortField && sortOrder && ['name', 'created_at', 'updated_at', 'bot_type'].includes(sortField)) {
+    // Need to handle fields with underscores properly
+    const sortParts = sortBy.split('_');
+    const sortOrder = sortParts[sortParts.length - 1]; // Last part is the order (asc/desc)
+    const sortField = sortParts.slice(0, -1).join('_'); // Everything else is the field name
+    
+    if (sortField && sortOrder && ['name', 'created_at', 'updated_at', 'bot_type'].includes(sortField) && ['asc', 'desc'].includes(sortOrder)) {
       query = query.order(sortField as keyof DatabaseChatbot, { ascending: sortOrder === 'asc' });
     } else {
       // Default sort if sortBy parameter is invalid or not provided fully
@@ -76,6 +80,12 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
 
       if (fetchError) {
         console.error('Error fetching chatbots:', fetchError);
+        console.error('Chatbots fetch error details:', {
+          message: fetchError.message,
+          code: fetchError.code,
+          details: fetchError.details,
+          hint: fetchError.hint
+        });
         throw fetchError;
       }
 
