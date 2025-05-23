@@ -68,13 +68,11 @@ export async function GET(request: NextRequest) {
     console.log(`[API /documents GET] Authorization successful for user ${user.id} on chatbot ${chatbotId}`);
 
     // Get all documents for this chatbot using admin client
-    // Exclude Skolr Read only documents from knowledge base view
-    console.log(`[API /documents GET] Fetching knowledge base documents for chatbot: ${chatbotId}`);
+    console.log(`[API /documents GET] Fetching documents for chatbot: ${chatbotId}`);
     const { data: documents, error: documentsError } = await adminSupabase
       .from('documents')
       .select('*')
       .eq('chatbot_id', chatbotId)
-      .or('is_skolr_read_only.is.null,is_skolr_read_only.eq.false')
       .order('created_at', { ascending: false });
 
     if (documentsError) {
