@@ -111,7 +111,9 @@ function HeaderNavigationContent({ user, userRole, pathname }: HeaderNavigationP
 
   // Build dashboard URL with preserved parameters
   const buildDashboardUrl = () => {
-    const dashboardUrl = new URL('/student/dashboard', window.location.origin);
+    // Use relative URL to avoid window reference during SSR
+    const basePath = '/student/dashboard';
+    const params = new URLSearchParams();
     
     // Preserve important student access parameters
     const uid = searchParams.get('uid');
@@ -121,14 +123,15 @@ function HeaderNavigationContent({ user, userRole, pathname }: HeaderNavigationP
     const direct = searchParams.get('direct');
     const pinVerified = searchParams.get('pin_verified');
     
-    if (uid) dashboardUrl.searchParams.set('uid', uid);
-    if (userId) dashboardUrl.searchParams.set('user_id', userId);
-    if (accessSignature) dashboardUrl.searchParams.set('access_signature', accessSignature);
-    if (timestamp) dashboardUrl.searchParams.set('ts', timestamp);
-    if (direct) dashboardUrl.searchParams.set('direct', direct);
-    if (pinVerified) dashboardUrl.searchParams.set('pin_verified', pinVerified);
+    if (uid) params.set('uid', uid);
+    if (userId) params.set('user_id', userId);
+    if (accessSignature) params.set('access_signature', accessSignature);
+    if (timestamp) params.set('ts', timestamp);
+    if (direct) params.set('direct', direct);
+    if (pinVerified) params.set('pin_verified', pinVerified);
     
-    return dashboardUrl.pathname + dashboardUrl.search;
+    const queryString = params.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
   };
 
   return (

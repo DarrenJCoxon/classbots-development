@@ -164,6 +164,42 @@ export interface StudentAssessment extends BaseTable {
     assessed_at: string;
 }
 
+// SkolrRead related interfaces
+export interface SkolrReadSession extends BaseTable {
+    session_id: string;
+    room_id: string;
+    chatbot_id: string;
+    teacher_id: string;
+    title: string;
+    description?: string | null;
+    main_document_id?: string | null;
+    status: 'draft' | 'active' | 'archived';
+    // Document info stored directly in session
+    document_name?: string | null;
+    document_path?: string | null;
+    document_type?: string | null;
+    document_size?: number | null;
+    document_url?: string | null;
+}
+
+export interface StudentReadingSession extends BaseTable {
+    id: string;
+    skolrread_session_id: string;
+    student_id: string;
+    current_page: number;
+    reading_progress: number;
+    last_accessed: string;
+}
+
+export interface ReadingChatMessage extends BaseTable {
+    message_id: string;
+    skolrread_session_id: string;
+    student_id: string;
+    message_text: string;
+    is_ai_response: boolean;
+    page_context?: number | null;
+}
+
 
 // --- Database Schema Type ---
 export interface Database {
@@ -178,6 +214,9 @@ export interface Database {
   document_chunks: DocumentChunk;
   flagged_messages: FlaggedMessage;
   student_assessments: StudentAssessment;
+  skolrread_sessions: SkolrReadSession;
+  student_reading_sessions: StudentReadingSession;
+  reading_chat_messages: ReadingChatMessage;
 }
 
 // --- API Payload Types ---

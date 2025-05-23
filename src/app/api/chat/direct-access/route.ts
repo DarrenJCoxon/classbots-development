@@ -224,7 +224,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get body content
-    const { content, chatbot_id, model, instance_id } = await request.json();
+    const { content, chatbot_id, model, instance_id, country_code } = await request.json();
+    
+    console.log('[API POST /chat/direct-access] Request data:', {
+      content: content?.substring(0, 50),
+      chatbot_id,
+      country_code,
+      hasCountryCode: !!country_code,
+      countryCodeType: typeof country_code
+    });
     
     if (!content || !chatbot_id) {
       return NextResponse.json({ error: 'Missing content or chatbot_id in request body' }, { status: 400 });
@@ -334,6 +342,7 @@ export async function POST(request: NextRequest) {
     const forwardedUrl = new URL(`/api/chat/${roomId}`, baseUrl).toString();
     
     console.log(`[API POST /chat/direct-access] Forwarding request to ${forwardedUrl}`);
+    console.log(`[API POST /chat/direct-access] Forwarding country_code: "${country_code || 'null'}"`);
     
     // Add special headers for direct access
     // These headers let the main chat API know to use the admin client
@@ -352,9 +361,31 @@ export async function POST(request: NextRequest) {
         chatbot_id,
         model,
         message_id: savedUserMessage.message_id,
-        instance_id: studentChatbotInstanceId
+        instance_id: studentChatbotInstanceId,
+        country_code: country_code || null,  // Pass through country code for safety messages
+        debug_forward_source: 'direct-access'  // Debug flag to track forwarding
       })
     });
+    
+    // Check if it's a safety intervention response
+    const contentType = response.headers.get('content-type');
+    if (response.ok && contentType?.includes('application/json')) {
+      try {
+        const responseData = await response.json();
+        console.log(`[API POST /chat/direct-access] Received JSON response:`, responseData);
+        
+        // If it's a safety intervention, pass it through
+        if (responseData.type === "safety_intervention_triggered") {
+          console.log(`[API POST /chat/direct-access] Safety intervention detected, passing through`);
+          return NextResponse.json(responseData, { status: 200 });
+        }
+        
+        // Otherwise return as normal JSON
+        return NextResponse.json(responseData, { status: response.status });
+      } catch (parseError) {
+        console.error(`[API POST /chat/direct-access] Error parsing JSON response:`, parseError);
+      }
+    }
     
     // Log error for debugging if request fails
     if (!response.ok) {
@@ -370,7 +401,7 @@ export async function POST(request: NextRequest) {
       }, { status: response.status });
     }
 
-    // Return the streaming response
+    // Return the streaming response for normal chat responses
     return new Response(response.body, {
       headers: {
         'Content-Type': 'text/event-stream',

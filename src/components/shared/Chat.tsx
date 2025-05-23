@@ -171,6 +171,26 @@ interface ChatProps {
 }
 
 export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatProps) {
+  // Auto-detect country code if not provided
+  const detectedCountryCode = countryCode || (() => {
+    if (typeof navigator !== 'undefined') {
+      const locale = navigator.language || navigator.languages?.[0];
+      if (locale) {
+        const countryFromLocale = locale.split('-')[1]?.toUpperCase();
+        console.log(`[Chat] Auto-detected country from browser locale: ${locale} -> ${countryFromLocale}`);
+        return countryFromLocale;
+      }
+    }
+    console.log(`[Chat] No country detection available, using DEFAULT`);
+    return null;
+  })();
+  
+  console.log(`[Chat] Final country code:`, {
+    provided: countryCode,
+    detected: detectedCountryCode,
+    final: detectedCountryCode || 'DEFAULT'
+  });
+  
   // studentId and directMode params removed as they're not used
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Keep for ChatInput
@@ -274,8 +294,11 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
   
   // Fetch messages with support for direct URL access and homepage fallback
   const fetchMessages = useCallback(async () => {
+    console.log('[Chat] fetchMessages called', { chatbotId: chatbot?.chatbot_id, userId, roomId, isFetching: isFetchingRef.current });
+    
     // Skip if we're already fetching or if required props are missing
     if (!chatbot?.chatbot_id || !userId || !roomId || isFetchingRef.current) {
+      console.log('[Chat] Skipping fetch - missing params or already fetching');
       setIsFetchingMessages(false); 
       return;
     }
@@ -286,9 +309,6 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
       console.log('[Chat] Skipping fetch, too soon since last fetch');
       return;
     }
-    
-    // Track the message IDs before fetching to detect changes
-    const existingIds = new Set(messages.map(msg => msg.message_id));
     
     // Update tracking variables
     lastFetchTimeRef.current = now;
@@ -441,90 +461,111 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
         return;
       }
       
-      // De-duplicate messages by message_id
-      const uniqueMessages = new Map<string, ChatMessage>();
+      console.log(`[Chat.tsx] Fetch complete - ${data.length} raw messages received`);
       
-      // First add all existing optimistic messages (that haven't been replaced yet)
-      const existingOptimisticMessages = messages.filter(msg => 
-        msg.metadata?.isOptimistic === true && 
-        !data.some(m => m.metadata?.optimisticContent === msg.metadata?.optimisticContent)
-      );
+      // Use setMessages with callback to get current state and deduplicate
+      setMessages(currentMessages => {
+        // De-duplicate messages by message_id
+        const uniqueMessages = new Map<string, ChatMessage>();
       
-      // Also preserve safety placeholders if no real safety messages are present
-      const safetyPlaceholders = messages.filter(msg => 
-        msg.metadata?.isSafetyPlaceholder === true &&
-        !data.some(m => m.metadata?.isSystemSafetyResponse === true && !m.metadata?.isSafetyPlaceholder)
-      );
+        // First add all existing optimistic messages (that haven't been replaced yet)
+        const existingOptimisticMessages = currentMessages.filter(msg => 
+          msg.metadata?.isOptimistic === true && 
+          !data.some(m => m.metadata?.optimisticContent === msg.metadata?.optimisticContent)
+        );
       
-      // Add existing optimistic messages to the map
-      existingOptimisticMessages.forEach(msg => {
-        uniqueMessages.set(msg.message_id, msg);
-      });
+        // Also preserve safety placeholders if no real safety messages are present
+        const safetyPlaceholders = currentMessages.filter(msg => 
+          msg.metadata?.isSafetyPlaceholder === true &&
+          !data.some(m => m.metadata?.isSystemSafetyResponse === true && !m.metadata?.isSafetyPlaceholder)
+        );
       
-      // Add safety placeholders to the map
-      safetyPlaceholders.forEach(msg => {
-        uniqueMessages.set(msg.message_id, msg);
-      });
+        // Add existing optimistic messages to the map
+        existingOptimisticMessages.forEach(msg => {
+          uniqueMessages.set(msg.message_id, msg);
+        });
+        
+        // Add safety placeholders to the map
+        safetyPlaceholders.forEach(msg => {
+          uniqueMessages.set(msg.message_id, msg);
+        });
       
-      // Process incoming messages
-      data.forEach(msg => {
-        // Filter out duplicates - for user messages, also check content
-        if (msg.role === 'user') {
-          // Look for any optimistic messages with the same content
-          const existingOptimisticIndex = Array.from(uniqueMessages.values()).findIndex(existingMsg => 
-            existingMsg.metadata?.isOptimistic && 
-            existingMsg.metadata?.optimisticContent === msg.content &&
-            existingMsg.user_id === msg.user_id
-          );
+        // Process incoming messages
+        data.forEach(msg => {
+          console.log(`[Chat] Processing message: ${msg.message_id} (${msg.role}) - ${msg.content?.substring(0, 30)}...`);
           
-          if (existingOptimisticIndex !== -1) {
-            // Replace optimistic message
-            const existingKeys = Array.from(uniqueMessages.keys());
-            if (existingOptimisticIndex < existingKeys.length) {
-              uniqueMessages.delete(existingKeys[existingOptimisticIndex]);
+          // Check if message already exists
+          if (uniqueMessages.has(msg.message_id)) {
+            console.log(`[Chat] Message ${msg.message_id} already exists, skipping`);
+            return;
+          }
+          
+          // Filter out duplicates - for user messages, also check content
+          if (msg.role === 'user') {
+            // Look for any optimistic messages with the same content
+            const existingOptimisticIndex = Array.from(uniqueMessages.values()).findIndex(existingMsg => 
+              existingMsg.metadata?.isOptimistic && 
+              existingMsg.metadata?.optimisticContent === msg.content &&
+              existingMsg.user_id === msg.user_id
+            );
+            
+            if (existingOptimisticIndex !== -1) {
+              console.log(`[Chat] Replacing optimistic message with real message ${msg.message_id}`);
+              // Replace optimistic message
+              const existingKeys = Array.from(uniqueMessages.keys());
+              if (existingOptimisticIndex < existingKeys.length) {
+                uniqueMessages.delete(existingKeys[existingOptimisticIndex]);
+              }
+            }
+            
+            // Also check for duplicate user messages with same content and user
+            const duplicateUserMessage = Array.from(uniqueMessages.values()).find(existingMsg => 
+              existingMsg.role === 'user' && 
+              existingMsg.content === msg.content &&
+              existingMsg.user_id === msg.user_id &&
+              existingMsg.message_id !== msg.message_id
+            );
+            
+            if (duplicateUserMessage) {
+              console.log(`[Chat] Found duplicate user message, keeping newer one: ${msg.message_id}`);
+              uniqueMessages.delete(duplicateUserMessage.message_id);
             }
           }
-        }
-        
-        // Special handling for safety messages to avoid duplication
-        if (msg.role === 'system' && msg.metadata?.isSystemSafetyResponse) {
-          // Check if we already have a safety message for this concern
-          const existingSafetyMessage = Array.from(uniqueMessages.values()).find(existingMsg => 
-            existingMsg.role === 'system' && 
-            existingMsg.metadata?.isSystemSafetyResponse && 
-            existingMsg.metadata?.originalConcernType === msg.metadata?.originalConcernType &&
-            existingMsg.message_id !== msg.message_id &&
-            // Only consider messages created within 5 minutes of each other
-            Math.abs(new Date(existingMsg.created_at).getTime() - new Date(msg.created_at).getTime()) < 5 * 60 * 1000
-          );
           
-          if (existingSafetyMessage) {
-            console.log(`[Chat.tsx] Found duplicate safety message, keeping only the latest one`);
-            // Remove the existing safety message and add the new one
-            uniqueMessages.delete(existingSafetyMessage.message_id);
+          // Special handling for safety messages to avoid duplication
+          if (msg.role === 'system' && msg.metadata?.isSystemSafetyResponse) {
+            // Check if we already have a safety message for this concern
+            const existingSafetyMessage = Array.from(uniqueMessages.values()).find(existingMsg => 
+              existingMsg.role === 'system' && 
+              existingMsg.metadata?.isSystemSafetyResponse && 
+              existingMsg.metadata?.originalConcernType === msg.metadata?.originalConcernType &&
+              existingMsg.message_id !== msg.message_id &&
+              // Only consider messages created within 5 minutes of each other
+              Math.abs(new Date(existingMsg.created_at).getTime() - new Date(msg.created_at).getTime()) < 5 * 60 * 1000
+            );
+            
+            if (existingSafetyMessage) {
+              console.log(`[Chat.tsx] Found duplicate safety message, keeping only the latest one`);
+              // Remove the existing safety message and add the new one
+              uniqueMessages.delete(existingSafetyMessage.message_id);
+            }
           }
-        }
+          
+          // Add this message (will overwrite any existing message with same ID)
+          uniqueMessages.set(msg.message_id, msg);
+        });
+      
+        // Convert map back to array and sort
+        const sortedUniqueMessages = Array.from(uniqueMessages.values())
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         
-        // Add this message
-        uniqueMessages.set(msg.message_id, msg);
+        console.log(`[Chat.tsx] After deduplication: ${sortedUniqueMessages.length} unique messages`);
+        console.log(`[Chat.tsx] Message IDs:`, sortedUniqueMessages.map(m => `${m.message_id}(${m.role})`));
+        
+        return sortedUniqueMessages;
       });
       
-      // Convert map back to array and sort
-      const sortedUniqueMessages = Array.from(uniqueMessages.values())
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      
-      console.log(`[Chat.tsx] Fetch complete - ${data.length} raw messages, ${sortedUniqueMessages.length} unique messages`);
-      
-      // Check if there are any changes from the original message set
-      const hasNewMessages = sortedUniqueMessages.some(msg => !existingIds.has(msg.message_id));
-      
-      if (hasNewMessages) {
-        console.log(`[Chat.tsx] Updating messages with ${sortedUniqueMessages.length} messages (new messages found)`);
-        setMessages(sortedUniqueMessages);
-        setTimeout(scrollToBottom, 150);
-      } else {
-        console.log(`[Chat.tsx] No new messages found, skipping update`);
-      }
+      setTimeout(scrollToBottom, 150);
       
       // Safety messages will be fetched separately via polling
       // Don't call fetchSafetyMessages directly to avoid circular dependencies
@@ -593,14 +634,14 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
         console.error(`[Chat.tsx] Error in safety message API call:`, safetyApiError);
       }
       
-      // If we reach here, we need to fall back to regular fetch
-      console.log(`[Chat.tsx] Falling back to regular message fetch to get safety messages`);
-      fetchMessages(); // Don't await to avoid blocking
+      // If we reach here, safety message API didn't return data
+      console.log(`[Chat.tsx] Safety message API didn't return data, will try again on next poll`);
+      // Don't call fetchMessages to avoid loops - polling will retry
       
     } catch (error) {
       console.error(`[Chat.tsx] Error in fetchSafetyMessages:`, error);
     }
-  }, [userId, roomId, scrollToBottom, fetchMessages]);
+  }, [userId, roomId, scrollToBottom]);
   
   // Add welcome message to empty chat
   useEffect(() => {
@@ -685,26 +726,6 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
     }
   }, [isFetchingMessages, messages.length, chatbot?.welcome_message, chatbot?.chatbot_id, roomId, userId, scrollToBottom]);
 
-  useEffect(() => {
-    if (userId && chatbot?.chatbot_id && roomId) {
-      fetchMessages();
-    }
-  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
-  
-  // Add a scroll handler that doesn't trigger re-renders or API calls
-  useEffect(() => {
-    // Only run this when messages array changes and has content
-    if (messages.length === 0) return;
-    
-    // Use a ref to track if we've scrolled for this set of messages
-    const messageIds = messages.map(m => m.message_id).join(',');
-    const scrollTimeoutId = setTimeout(() => {
-      scrollToBottom();
-    }, 50);
-    
-    return () => clearTimeout(scrollTimeoutId);
-  }, [messages.length, scrollToBottom]); // Only depend on message count, not the entire messages array
-
   // Helper function to handle realtime message inserts
   const handleRealtimeMessage = useCallback((newMessage: ChatMessage) => {
     setMessages((prevMessages) => {
@@ -775,7 +796,65 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
     });
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
+
+  useEffect(() => {
+    if (userId && chatbot?.chatbot_id && roomId) {
+      console.log('[Chat] Initial fetchMessages call from useEffect');
+      fetchMessages();
+    }
+  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
   
+  // Also subscribe to regular chat message inserts for real-time chat
+  useEffect(() => {
+    if (!roomId || !userId || !chatbot?.chatbot_id) return;
+    
+    console.log('[Chat.tsx RT] Setting up realtime subscription for chat messages');
+    
+    const channel = supabase
+      .channel(`chat-messages-${userId}-${roomId}-${chatbot.chatbot_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `room_id=eq.${roomId} AND (metadata->>chatbotId)=eq.${chatbot.chatbot_id}`
+        },
+        (payload) => {
+          console.log('[Chat.tsx RT] New chat message detected:', payload);
+          
+          const newMessage = payload.new as ChatMessage;
+          
+          // Only add if it's for this user or it's an assistant response
+          if (newMessage.user_id === userId || newMessage.role === 'assistant') {
+            handleRealtimeMessage(newMessage);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Chat.tsx RT] Chat subscription status:', status);
+      });
+    
+    return () => {
+      console.log('[Chat.tsx RT] Cleaning up chat message subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, userId, chatbot?.chatbot_id, supabase, handleRealtimeMessage]);
+  
+  // Add a scroll handler that doesn't trigger re-renders or API calls
+  useEffect(() => {
+    // Only run this when messages array changes and has content
+    if (messages.length === 0) return;
+    
+    // Use a ref to track if we've scrolled for this set of messages
+    const messageIds = messages.map(m => m.message_id).join(',');
+    const scrollTimeoutId = setTimeout(() => {
+      scrollToBottom();
+    }, 50);
+    
+    return () => clearTimeout(scrollTimeoutId);
+  }, [messages.length, scrollToBottom]); // Only depend on message count, not the entire messages array
+
   // Helper function to handle realtime message updates
   const handleRealtimeUpdate = useCallback((updatedMessage: ChatMessage) => {
     setMessages((prevMessages) => {
@@ -797,201 +876,86 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
     setTimeout(scrollToBottom, 100);
   }, [scrollToBottom]);
 
-  // --- REALTIME LISTENER FOR MESSAGES AND SAFETY NOTIFICATIONS ---
+  // --- REALTIME SUBSCRIPTION FOR SAFETY MESSAGES ---
+  // Temporarily disabled due to CHANNEL_ERROR - using API polling instead
+  // useEffect(() => {
+  //   console.log('[Chat.tsx RT] Realtime subscription disabled - using API polling');
+  // }, []);
+  
+  // Manual check for safety messages every 10 seconds for debugging
   useEffect(() => {
-    const effectChatbotId = chatbot?.chatbot_id; // Use optional chaining for safety
-    const effectUserId = userId;
-
-    if (!roomId || !effectChatbotId || !effectUserId || !supabase) {
-        console.log('[Chat.tsx RT] Aborting subscription - missing params.', 
-            { roomId, effectChatbotId, effectUserId });
-        return;
-    }
-
-    // Set up realtime listeners for both inserts and safety notifications
-    console.log(`[Chat.tsx RT] Setting up realtime listeners for room ${roomId}, user ${effectUserId}`);
+    if (!roomId || !userId) return;
     
-    // Listen for safety message notifications on a safety-specific channel
-    // This handles realtime safety alerts from the system for this student
-    const safetyChannel = supabase.channel(`safety-alert-${effectUserId}`);
-    
-    safetyChannel
-      .on('broadcast', { event: 'safety-message' }, async (payload) => {
-        console.log('[Chat.tsx RT] <<< SAFETY MESSAGE BROADCAST RECEIVED >>>:', payload);
-        
-        // Verify this is a safety message relevant to this student and room
-        console.log(`[Chat.tsx RT] Verifying safety message payload:`, {
-          payloadRoomId: payload.payload.room_id,
-          roomId,
-          payloadUserId: payload.payload.user_id,
-          effectUserId,
-          payloadChatbotId: payload.payload.chatbot_id,
-          effectChatbotId,
-          countryCode: payload.payload.country_code
+    const checkSafetyMessages = async () => {
+      try {
+        console.log('[Chat.tsx DEBUG] Manually checking for safety messages...');
+        const response = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store'
         });
         
-        if (payload.payload.room_id === roomId && 
-            payload.payload.user_id === effectUserId &&
-            (!effectChatbotId || payload.payload.chatbot_id === effectChatbotId)) {
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Chat.tsx DEBUG] Safety message API response:', data);
           
-          try {
-            // Fetch the safety message using the API
-            console.log(`[Chat.tsx RT] Fetching safety message ID: ${payload.payload.message_id}`);
-            const response = await fetch(`/api/student/safety-message?messageId=${payload.payload.message_id}&userId=${effectUserId}`, {
-              method: 'GET',
-              credentials: 'include',
-              cache: 'no-store' // Ensure we don't get cached responses
+          if (data.found && data.message) {
+            console.log('[Chat.tsx DEBUG] Safety message details:', {
+              messageId: data.message.message_id,
+              content: data.message.content?.substring(0, 200),
+              metadata: data.message.metadata,
+              countryCode: data.message.metadata?.countryCode,
+              effectiveCountryCode: data.message.metadata?.effectiveCountryCode,
+              helplines: data.message.metadata?.helplines
             });
+          }
+          
+          if (data.found && data.message) {
+            console.log('[Chat.tsx DEBUG] 🚨 FOUND SAFETY MESSAGE VIA API:', data.message.message_id);
             
-            if (!response.ok) {
-              console.error(`[Chat.tsx RT] Error fetching safety message: HTTP ${response.status}`);
-              // If we can't get the specific message, try to refresh all messages
-              console.log(`[Chat.tsx RT] Attempting to reload all messages to get safety message`);
-              await fetchMessages();
-              return;
-            }
-            
-            const safetyMessageData = await response.json();
-            const safetyMessage = safetyMessageData.message;
-            
-            if (!safetyMessage) {
-              console.error('[Chat.tsx RT] Safety message not found in API response');
-              await fetchMessages();
-              return;
-            }
-            
-            console.log(`[Chat.tsx RT] Successfully fetched safety message:`, {
-              messageId: safetyMessage.message_id,
-              countryCode: safetyMessage.metadata?.countryCode,
-              helplines: safetyMessage.metadata?.helplines,
-              content: safetyMessage.content.substring(0, 50) + '...'
-            });
-            
-            // Directly update state to add the safety message
-            setMessages((prevMessages) => {
-              // Step 1: Remove any safety placeholders
+            // Add the safety message to the UI
+            setMessages(prevMessages => {
+              // Check if message already exists
+              if (prevMessages.some(msg => msg.message_id === data.message.message_id)) {
+                console.log('[Chat.tsx DEBUG] Safety message already exists in UI, skipping');
+                return prevMessages;
+              }
+              
+              console.log('[Chat.tsx DEBUG] Adding safety message to UI:', data.message.message_id);
+              
+              // Remove any safety placeholders
               const withoutPlaceholders = prevMessages.filter(msg => 
                 !msg.metadata?.isSafetyPlaceholder
               );
               
-              // Step 2: Update user messages with pendingSafetyResponse=false
-              const updatedMessages = withoutPlaceholders.map(msg => {
-                if (msg.role === 'user' && msg.metadata?.pendingSafetyResponse) {
-                  return {
-                    ...msg,
-                    metadata: {
-                      ...msg.metadata,
-                      pendingSafetyResponse: false
-                    }
-                  };
-                }
-                return msg;
-              });
-              
-              // Step 3: Check if safety message already exists (prevent duplication)
-              const safetyMessageExists = updatedMessages.some(msg => 
-                msg.message_id === safetyMessage.message_id
-              );
-              
-              if (safetyMessageExists) {
-                console.log(`[Chat.tsx RT] Safety message ${safetyMessage.message_id} already exists in state`);
-                return updatedMessages;
-              }
-              
-              console.log(`[Chat.tsx RT] Adding safety message ${safetyMessage.message_id} to UI`);
-              // Step 4: Add the safety message
-              const newMessages = [...updatedMessages, safetyMessage];
-              
-              // Step 5: Sort by timestamp
-              return newMessages.sort((a, b) => 
+              // Add the new safety message and sort
+              const updatedMessages = [...withoutPlaceholders, data.message];
+              return updatedMessages.sort((a, b) => 
                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
               );
             });
             
-            // Scroll to bottom after updating
             setTimeout(scrollToBottom, 100);
-          } catch (err) {
-            console.error('[Chat.tsx RT] Error processing safety message:', err);
-            // If there's an error, try to refresh all messages as a fallback
-            try {
-              console.log('[Chat.tsx RT] Attempting to refresh all messages after error');
-              await fetchMessages();
-            } catch (refreshError) {
-              console.error('[Chat.tsx RT] Error refreshing messages:', refreshError);
-            }
+          } else {
+            console.log('[Chat.tsx DEBUG] No safety messages found via API');
           }
+        } else {
+          console.log('[Chat.tsx DEBUG] Safety message API error:', response.status);
         }
-      })
-      .subscribe((status) => {
-        console.log(`[Chat.tsx RT] Safety channel subscription status:`, status);
-      });
-    
-    // Return cleanup function to remove channels
-    return () => {
-      supabase.removeChannel(safetyChannel);
-      console.log('[Chat.tsx RT] Cleaned up realtime channels');
+      } catch (error) {
+        console.error('[Chat.tsx DEBUG] Error checking safety messages:', error);
+      }
     };
-  }, [roomId, chatbot?.chatbot_id, userId, supabase, fetchMessages, fetchSafetyMessages]);
+    
+    // Check immediately and then every 5 seconds
+    checkSafetyMessages();
+    const interval = setInterval(checkSafetyMessages, 5000);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [roomId, userId]);
   
-  // Intelligent fallback: Only poll if real-time fails, with exponential backoff
-  // This dramatically reduces server load while maintaining reliability
-  useEffect(() => {
-    if (!roomId || !userId || isFetchingMessages) return;
-    
-    let pollCount = 0;
-    let pollTimeout: NodeJS.Timeout | null = null;
-    let realtimeWorking = true;
-    
-    const scheduleNextPoll = () => {
-      if (pollTimeout) clearTimeout(pollTimeout);
-      
-      // Only poll if real-time seems to be failing
-      if (!realtimeWorking) {
-        // Exponential backoff: 30s, 60s, 120s, then every 120s
-        const delay = Math.min(30000 * Math.pow(2, pollCount), 120000);
-        pollCount++;
-        
-        pollTimeout = setTimeout(() => {
-          if (!isFetchingRef.current && roomId && userId && chatbot?.chatbot_id) {
-            console.log(`[Chat.tsx] Fallback safety poll #${pollCount} (delay: ${delay}ms)`);
-            
-            fetchSafetyMessages().catch(error => {
-              console.error('[Chat.tsx] Error in fallback safety polling:', error);
-              scheduleNextPoll(); // Schedule next attempt
-            });
-          }
-        }, delay);
-      }
-    };
-    
-    // Test if real-time is working by checking for any real-time activity
-    const testRealtimeTimeout = setTimeout(() => {
-      // If no real-time activity after 60 seconds, start fallback polling
-      console.log('[Chat.tsx] No real-time activity detected, enabling fallback polling');
-      realtimeWorking = false;
-      scheduleNextPoll();
-    }, 60000);
-    
-    // Reset real-time status when messages change (indicates real-time is working)
-    const messageChangeHandler = () => {
-      realtimeWorking = true;
-      pollCount = 0; // Reset backoff
-      if (pollTimeout) {
-        clearTimeout(pollTimeout);
-        pollTimeout = null;
-      }
-    };
-    
-    // Listen for message changes to detect real-time activity
-    if (messages.length > 0) {
-      messageChangeHandler();
-    }
-    
-    return () => {
-      if (pollTimeout) clearTimeout(pollTimeout);
-      if (testRealtimeTimeout) clearTimeout(testRealtimeTimeout);
-    };
-  }, [roomId, userId, chatbot?.chatbot_id, isFetchingMessages, fetchSafetyMessages, messages.length]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
@@ -1052,10 +1016,19 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
         }
         
         // Add country code for safety message localization if provided
+        console.log(`[Chat.tsx] Country code prop value:`, countryCode);
         if (countryCode) {
           console.log(`[Chat.tsx] Adding country code to headers: ${countryCode}`);
           headers['x-country-code'] = countryCode;
+        } else {
+          console.log(`[Chat.tsx] No country code provided - safety messages will use DEFAULT`);
         }
+        
+        console.log(`[Chat.tsx] Request payload:`, {
+          content: content.trim().substring(0, 50),
+          chatbot_id: chatbot.chatbot_id,
+          country_code: detectedCountryCode || null
+        });
         
         // Create a reader to process the streamed response
         const response = await fetch(url, {
@@ -1066,7 +1039,7 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
             chatbot_id: chatbot.chatbot_id, 
             model: chatbot.model,
             instance_id: instanceId,
-            country_code: countryCode || null  // Include country code in body if available
+            country_code: detectedCountryCode || null  // Include country code in body if available
           }),
           credentials: 'include'
         });

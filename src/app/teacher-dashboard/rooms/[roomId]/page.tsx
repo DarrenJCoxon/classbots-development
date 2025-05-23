@@ -374,6 +374,34 @@ export default function TeacherRoomDetailPage() {
 
         <Section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SectionTitle>📖 SkolrRead Sessions</SectionTitle>
+            <Button
+              variant="primary"
+              size="small"
+              as={Link}
+              href={`/teacher-dashboard/rooms/${roomId}/skolrread`}
+            >
+              Manage SkolrRead
+            </Button>
+          </div>
+          <Card style={{ padding: '1.5rem', textAlign: 'center', color: '#666' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📚</div>
+            <h3 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>Interactive Reading Experience</h3>
+            <p style={{ margin: '0 0 1rem 0' }}>
+              Create engaging reading sessions where students can read documents and chat with AI about the content.
+            </p>
+            <Button
+              as={Link}
+              href={`/teacher-dashboard/rooms/${roomId}/skolrread`}
+              variant="outline"
+            >
+              Get Started with SkolrRead
+            </Button>
+          </Card>
+        </Section>
+
+        <Section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <SectionTitle>Enrolled Students ({students.length})</SectionTitle>
             <div style={{ display: 'flex', gap: '10px' }}>
               <Button

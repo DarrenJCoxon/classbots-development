@@ -68,11 +68,13 @@ export async function GET(request: NextRequest) {
     console.log(`[API /documents GET] Authorization successful for user ${user.id} on chatbot ${chatbotId}`);
 
     // Get all documents for this chatbot using admin client
-    console.log(`[API /documents GET] Fetching documents for chatbot: ${chatbotId}`);
+    // Exclude Skolr Read only documents from knowledge base view
+    console.log(`[API /documents GET] Fetching knowledge base documents for chatbot: ${chatbotId}`);
     const { data: documents, error: documentsError } = await adminSupabase
       .from('documents')
       .select('*')
       .eq('chatbot_id', chatbotId)
+      .or('is_skolr_read_only.is.null,is_skolr_read_only.eq.false')
       .order('created_at', { ascending: false });
 
     if (documentsError) {
@@ -202,13 +204,38 @@ export async function POST(request: NextRequest) {
         // Use admin client for storage operations to bypass RLS
         const { error: uploadError } = await adminSupabase.storage
           .from('documents')
-          .upload(filePath, buffer, { contentType: file.type, upsert: false });
+          .upload(filePath, buffer, { 
+            contentType: file.type, 
+            upsert: false,
+            cacheControl: '3600',
+            // Ensure file is accessible
+            duplex: 'half'
+          });
 
         if (uploadError) {
           console.error("[API /documents POST] Storage upload error:", uploadError);
+          console.error("Upload error details:", {
+            message: uploadError.message,
+            error: uploadError
+          });
+          
+          // Check if it's a bucket error
+          if (uploadError.message?.includes('bucket')) {
+            return NextResponse.json({ 
+              error: 'Storage bucket configuration error. Please ensure the "documents" bucket exists in Supabase.' 
+            }, { status: 500 });
+          }
+          
           return NextResponse.json({ error: `Failed to upload file to storage: ${uploadError.message}` }, { status: 500 });
         }
         console.log(`[API /documents POST] File uploaded to storage successfully.`);
+        
+        // Verify the file was uploaded by trying to get its public URL
+        const { data: publicUrlData } = adminSupabase.storage
+          .from('documents')
+          .getPublicUrl(filePath);
+          
+        console.log(`[API /documents POST] Public URL check:`, publicUrlData?.publicUrl);
 
         // Use admin client for database operations
         const { data: dbDocument, error: documentInsertError } = await adminSupabase

@@ -30,6 +30,20 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const pathname = url.pathname;
   
+  // Check for large headers (431 error prevention)
+  const cookieHeader = request.headers.get('cookie');
+  if (cookieHeader && cookieHeader.length > 4096) {
+    console.warn(`[Middleware] Large cookie header detected: ${cookieHeader.length} bytes`);
+    
+    // For API routes, return error immediately
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json(
+        { error: 'Request headers too large. Please clear cookies.' },
+        { status: 431 }
+      );
+    }
+  }
+  
   // RATE LIMITING - First line of defense
   if (!pathname.startsWith('/_next') && !pathname.includes('favicon.ico')) {
     const forwarded = request.headers.get('x-forwarded-for');

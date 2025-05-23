@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   },
-  // Transpile styled-components
+  // Transpile styled-components and react-pdf
   transpilePackages: ['styled-components'],
   // Disable React strict mode for now to troubleshoot issues
   reactStrictMode: false,
@@ -25,6 +25,56 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['styled-components'],
     webpackBuildWorker: true, // Use worker for webpack builds
+  },
+  // Configure webpack for react-pdf
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false,
+    };
+
+    // Configure PDF.js worker handling
+    config.module.rules.push({
+      test: /pdf\.worker\.(min\.)?js/,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/worker/[hash][ext][query]',
+      },
+    });
+
+    return config;
+  },
+  
+  // Add headers for better PDF handling
+  async headers() {
+    return [
+      {
+        source: '/pdf-worker/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/javascript',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/api/pdf-proxy',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET',
+          },
+        ],
+      },
+    ];
   },
 };
 

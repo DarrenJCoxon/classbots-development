@@ -1216,6 +1216,9 @@ export async function checkMessageSafety(
                         
                         console.log(`[Safety Check] Broadcasting safety message with payload:`, broadcastPayload);
                         
+                        // Small delay to ensure client has time to subscribe
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
                         try {
                             // First attempt - use the configured broadcast method
                             await channel.send({
@@ -1229,18 +1232,6 @@ export async function checkMessageSafety(
                             // Don't remove the channel immediately - keep it alive a bit longer
                             setTimeout(async () => {
                                 try {
-                                    // Send a second broadcast after a short delay for redundancy
-                                    console.log(`[Safety Check] Sending secondary broadcast for message ${safetyMessageData.message_id}`);
-                                    await channel.send({
-                                        type: 'broadcast',
-                                        event: 'safety-message',
-                                        payload: {
-                                            ...broadcastPayload,
-                                            isSecondaryBroadcast: true,
-                                            secondaryTimestamp: new Date().toISOString(),
-                                        }
-                                    });
-                                    
                                     // Also try using a database insert trigger approach to work around potential broadcast issues
                                     console.log(`[Safety Check] Creating notification record in safety_notifications table`);
                                     const { data: notificationData, error: notificationError } = await adminClient

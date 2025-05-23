@@ -194,17 +194,22 @@ export async function GET(request: NextRequest) {
 
 // --- POST Handler ---
 export async function POST(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const segments = pathname.split('/');
+  const roomId = segments.length > 0 ? segments[segments.length - 1] : null;
+  
+  // Declare variables at function scope for error handling
+  let user: any;
+  let chatbot_id: string | undefined;
+  let requestCountryCode: string | undefined;
+  let userProfile: any;
+  
   try {
-    const pathname = request.nextUrl.pathname;
-    const segments = pathname.split('/');
-    const roomId = segments.length > 0 ? segments[segments.length - 1] : null;
     if (!roomId) return NextResponse.json({ error: 'Room ID is required' }, { status: 400 });
 
     // Check for direct access headers from API
     const directAccessKey = request.headers.get('x-direct-access-admin-key');
     const bypassUserId = request.headers.get('x-bypass-auth-user-id');
-    let user;
-    
     // Always use admin client to bypass RLS policies
     const supabaseAdmin = createAdminClient();
     
@@ -219,6 +224,22 @@ export async function POST(request: NextRequest) {
       user = authUser;
     }
 
+    // Get request body first to have access to requestCountryCode
+    let content, chatbot_id, instance_id, requestedModel, requestCountryCode, debug_forward_source, provided_message_id;
+    try {
+      const body = await request.json();
+      content = body.content;
+      chatbot_id = body.chatbot_id;
+      instance_id = body.instance_id;
+      requestedModel = body.model;
+      requestCountryCode = body.country_code;
+      debug_forward_source = body.debug_forward_source;
+      provided_message_id = body.message_id; // Check if message_id was provided (from direct-access)
+    } catch (jsonError) {
+      console.error('[API Chat POST] Error parsing request body:', jsonError);
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+
     // Get user profile with admin client to bypass RLS - include country_code
     const { data: userProfile, error: profileError } = await supabaseAdmin
         .from('profiles')
@@ -227,13 +248,23 @@ export async function POST(request: NextRequest) {
         .single();
     if (profileError || !userProfile) { return NextResponse.json({ error: 'User profile not found' }, { status: 403 }); }
     
-    // For debugging country code issues
-    console.log(`[API Chat POST] User profile country code for ${user.id}: "${userProfile.country_code || 'null'}"`);
+    // Determine effective country code: request body takes precedence over profile
+    const effectiveCountryCode = requestCountryCode || userProfile.country_code || null;
+    console.log(`[API Chat POST] Country code resolution for ${user.id}:`, {
+      fromRequest: requestCountryCode || 'null',
+      fromProfile: userProfile.country_code || 'null', 
+      effective: effectiveCountryCode || 'null'
+    });
 
     const isStudent = userProfile.role === 'student';
     const isTeacher = userProfile.role === 'teacher';
-
-    const { content, chatbot_id, instance_id, model: requestedModel } = await request.json();
+    
+    console.log(`[API Chat POST] Received request:`, {
+      content: content?.substring(0, 30),
+      requestCountryCode,
+      debug_forward_source,
+      hasCountryCode: !!requestCountryCode
+    });
     const trimmedContent = content?.trim();
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
@@ -412,33 +443,56 @@ export async function POST(request: NextRequest) {
     console.log(`[API Chat POST] User role: ${isStudent ? 'student' : 'teacher'}`);
     console.log(`[API Chat POST] Chatbot ID: ${chatbot_id}`);
 
-    const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string }, instance_id?: string } = {
-      room_id: roomId, 
-      user_id: user.id, 
-      role: 'user' as const, 
-      content: trimmedContent, 
-      metadata: { chatbotId: chatbot_id }
-    };
+    let currentMessageId: string;
+    let userMessageCreatedAt: string;
     
-    // Add the instance_id for students
-    if (isStudent && studentChatbotInstanceId) {
-      userMessageToStore.instance_id = studentChatbotInstanceId;
-    }
-    
-    // Use admin client to store message
-    const { data: savedUserMessageData, error: userMessageError } = await supabaseAdmin
+    // Check if message was already saved (by direct-access route)
+    if (provided_message_id && debug_forward_source === 'direct-access') {
+      console.log(`[API Chat POST] Message already saved by direct-access with ID: ${provided_message_id}`);
+      currentMessageId = provided_message_id;
+      
+      // Fetch the created_at timestamp for the existing message
+      const { data: existingMessage, error: fetchError } = await supabaseAdmin
         .from('chat_messages')
-        .insert(userMessageToStore)
-        .select('message_id, created_at')
+        .select('created_at')
+        .eq('message_id', provided_message_id)
         .single();
-    
-    if (userMessageError || !savedUserMessageData || !savedUserMessageData.message_id) { 
-        console.error('Error storing user message or message_id missing:', userMessageError, savedUserMessageData); 
-        return NextResponse.json({ error: 'Failed to store message or retrieve its ID' }, { status: 500 }); 
+        
+      if (fetchError || !existingMessage) {
+        console.error('[API Chat POST] Error fetching existing message:', fetchError);
+        return NextResponse.json({ error: 'Failed to fetch existing message' }, { status: 500 });
+      }
+      
+      userMessageCreatedAt = existingMessage.created_at;
+    } else {
+      const userMessageToStore: Omit<ChatMessage, 'message_id' | 'created_at' | 'updated_at'> & { metadata: { chatbotId: string }, instance_id?: string } = {
+        room_id: roomId, 
+        user_id: user.id, 
+        role: 'user' as const, 
+        content: trimmedContent, 
+        metadata: { chatbotId: chatbot_id }
+      };
+      
+      // Add the instance_id for students
+      if (isStudent && studentChatbotInstanceId) {
+        userMessageToStore.instance_id = studentChatbotInstanceId;
+      }
+      
+      // Use admin client to store message
+      const { data: savedUserMessageData, error: userMessageError } = await supabaseAdmin
+          .from('chat_messages')
+          .insert(userMessageToStore)
+          .select('message_id, created_at')
+          .single();
+      
+      if (userMessageError || !savedUserMessageData || !savedUserMessageData.message_id) { 
+          console.error('Error storing user message or message_id missing:', userMessageError, savedUserMessageData); 
+          return NextResponse.json({ error: 'Failed to store message or retrieve its ID' }, { status: 500 }); 
+      }
+      
+      currentMessageId = savedUserMessageData.message_id; 
+      userMessageCreatedAt = savedUserMessageData.created_at;
     }
-    
-    const currentMessageId: string = savedUserMessageData.message_id; 
-    const userMessageCreatedAt = savedUserMessageData.created_at;
 
     // --- SAFETY CHECK (FOR MAIN MODEL USE) ---
     // Run initial safety keyword check
@@ -462,8 +516,11 @@ export async function POST(request: NextRequest) {
             .single();
             
         if (roomData) {
-            // Get teacherCountryCode for proper helpline selection
-            let countryCode = teacherCountryCode || 'DEFAULT';
+            // Determine country code for safety helplines
+            // Priority: 1) Request body, 2) User profile, 3) Teacher profile, 4) DEFAULT
+            let countryCode = effectiveCountryCode || teacherCountryCode || 'DEFAULT';
+            
+            console.log(`[API Chat POST] Safety check using country code: "${countryCode}" (effective: ${effectiveCountryCode}, teacher: ${teacherCountryCode})`);
             
             // Process the message for safety concerns
             try {
@@ -475,14 +532,17 @@ export async function POST(request: NextRequest) {
                     roomData,
                     countryCode
                 );
-                console.log(`[API Chat POST] Safety check processing complete for message ${currentMessageId}`);
+                
+                console.log(`[API Chat POST] Safety check invoked with country code: "${countryCode}"`);
+                console.log(`[API Chat POST] Safety check processing complete for message ${currentMessageId} with country code "${countryCode}"`);
                 
                 // Return special response to client to indicate safety intervention
                 // This triggers the safety placeholder in the UI while waiting for the safety message
                 return NextResponse.json(
                   { 
                     type: "safety_intervention_triggered", 
-                    message: "Safety intervention triggered. A safety message will be displayed." 
+                    message: "Safety intervention triggered. A safety message will be displayed.",
+                    country_code: countryCode
                   }, 
                   { status: 200 }
                 );
@@ -964,6 +1024,19 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
 
   } catch (error) {
       console.error('Error in POST /api/chat/[roomId]:', error);
+      console.error('Error stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Log additional context for debugging
+      console.error('Error context:', {
+        roomId,
+        userId: user?.id,
+        chatbotId: chatbot_id,
+        hasProfile: !!userProfile,
+        countryCode: requestCountryCode,
+        errorType: error?.constructor?.name,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to process message' }, { status: 500 });
   }
 }
