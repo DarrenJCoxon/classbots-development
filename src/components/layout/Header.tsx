@@ -6,8 +6,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Your client import
-import { Container, Button } from '@/styles/StyledComponents';
+import { Container } from '@/styles/StyledComponents';
 import HeaderNavigation from '@/components/layout/HeaderNavigation';
+import { ModernButton } from '@/components/shared/ModernButton';
+import SignInDropdown from '@/components/auth/SignInDropdown';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
 import { usePathname } from 'next/navigation';
@@ -115,7 +117,7 @@ const UserSection = styled.div`
   }
 `;
 
-const HeaderButton = styled(Button)`
+const HeaderButton = styled(ModernButton)`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
     font-size: 0.9rem;
@@ -255,10 +257,14 @@ export default function Header() {
           />
           
           <UserSection>
-            {user && userRole !== 'teacher' && (
-              <HeaderButton variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </HeaderButton>
+            {!user ? (
+              <SignInDropdown />
+            ) : (
+              userRole !== 'teacher' && (
+                <HeaderButton variant="ghost" onClick={handleSignOut}>
+                  Sign Out
+                </HeaderButton>
+              )
             )}
           </UserSection>
         </HeaderContent>
