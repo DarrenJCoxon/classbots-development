@@ -6,36 +6,44 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient as createStandardSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
-import { Container } from '@/styles/StyledComponents';
-import Footer from '@/components/layout/Footer';
-import TeacherNav from '@/components/teacher/TeacherNav';
 import TeacherProfileCheck from '@/components/auth/teacherProfileCheck';
+import { ModernNav } from '@/components/teacher/ModernNav';
+import { FullPageLoader } from '@/components/shared/AnimatedLoader';
 
 const DashboardLayoutContainer = styled.div`
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  overflow-x: hidden;
 `;
 
 const MainContent = styled.main`
-  flex: 1;
-  padding: ${({ theme }) => theme.spacing.xl} 0; 
+  min-height: 100vh;
+  position: relative;
+  margin-left: 80px; /* Just the sidebar width */
+  padding: 32px 0 40px 0; /* Reduced top padding from 60px to 32px */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    margin-left: 80px;
+    padding: 24px 0 32px 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin-left: 0;
+    padding: 20px 0 24px 0;
+  }
 `;
 
-const LoadingOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: ${({ theme }) => theme.colors.background};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: ${({ theme }) => theme.colors.textLight};
-  z-index: 1000;
+const ContentContainer = styled.div`
+  max-width: 1200px; /* Same as header Container */
+  margin: 0 auto;
+  padding: 0 ${({ theme }) => theme.spacing.lg}; /* 24px - same as header */
+  width: 100%;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0 ${({ theme }) => theme.spacing.md}; /* 16px - same as header */
+  }
 `;
 
 type AuthStatus = 'loading' | 'authorized' | 'unauthorized';
@@ -113,11 +121,7 @@ export default function TeacherDashboardLayout({
   console.log('[TDL] Render. AuthStatus:', authStatus);
 
   if (authStatus === 'loading') {
-    return (
-      <LoadingOverlay>
-        <div>Loading Teacher Dashboard (Auth)...</div>
-      </LoadingOverlay>
-    );
+    return <FullPageLoader message="Loading Teacher Dashboard..." variant="dots" />;
   }
 
   if (authStatus === 'unauthorized') {
@@ -132,13 +136,15 @@ export default function TeacherDashboardLayout({
       {/* Add the profile check component that will automatically repair
           teacher profiles if needed */}
       <TeacherProfileCheck />
-      <Container>
-        <TeacherNav />
-        <MainContent>
-            {children}
-        </MainContent>
-      </Container>
-      <Footer />
+      
+      {/* Modern navigation sidebar */}
+      <ModernNav />
+      
+      <MainContent>
+        <ContentContainer>
+          {children}
+        </ContentContainer>
+      </MainContent>
     </DashboardLayoutContainer>
   );
 }

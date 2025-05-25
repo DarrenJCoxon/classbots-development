@@ -3,43 +3,112 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { useRouter } from 'next/navigation'; // For linking to detail page
-import {
-    Container, Card, Button, Alert, Badge,
-    Select as StyledSelect
-} from '@/styles/StyledComponents';
+import { Card, Alert, Badge } from '@/styles/StyledComponents';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 // Import types from your database.types.ts
 import type { AssessmentListSummary, PaginatedAssessmentsResponse, AssessmentStatusEnum } from '@/types/database.types';
 
 // Styled Components for this page
-const PageWrapper = styled(Container)` // Use Container as base
-  padding-top: ${({ theme }) => theme.spacing.xl};
-  padding-bottom: ${({ theme }) => theme.spacing.xl};
+const PageWrapper = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
-const PageHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing.md};
+const Container = styled.div`
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  position: relative;
+  z-index: 1;
 `;
 
+const Header = styled.div`
+  margin-bottom: 40px;
+`;
 
-
-const PageTitle = styled.h1`
-  font-size: 1.8rem;
-  color: ${({ theme }) => theme.colors.text};
+const Title = styled.h1`
   margin: 0;
+  font-size: 36px;
+  font-weight: 800;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.secondary}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const FilterControls = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   display: flex;
   gap: ${({ theme }) => theme.spacing.md};
   align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  
+  label {
+    font-weight: 500;
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+const StyledSelect = styled.select`
+  padding: 10px 16px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  font-family: ${({ theme }) => theme.fonts.body};
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: rgba(152, 93, 215, 0.4);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px rgba(152, 93, 215, 0.1);
+  }
+`;
+
+const ModernCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 `;
 
 const TableContainer = styled.div`
@@ -92,9 +161,27 @@ const PaginationControls = styled.div`
   margin-top: ${({ theme }) => theme.spacing.xl};
 `;
 
-const EmptyStateCard = styled(Card)`
+const EmptyStateCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 60px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   text-align: center;
-  padding: ${({ theme }) => theme.spacing.xxl};
+  
+  h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
+    margin-bottom: 12px;
+  }
+  
+  p {
+    color: ${({ theme }) => theme.colors.textLight};
+    font-size: 16px;
+  }
 `;
 
 // Helper to get display text for status
@@ -185,20 +272,22 @@ export default function AssessmentsListPage() {
   if (loading && assessments.length === 0) { // Show full page loader only on initial load
     return (
       <PageWrapper>
-        <Card style={{ textAlign: 'center', padding: '40px' }}>
-          <LoadingSpinner size="large" />
-          <p>Loading assessments...</p>
-        </Card>
+        <Container>
+          <EmptyStateCard>
+            <LoadingSpinner size="large" />
+            <p style={{ marginTop: '16px' }}>Loading assessments...</p>
+          </EmptyStateCard>
+        </Container>
       </PageWrapper>
     );
   }
 
   return (
     <PageWrapper>
-      <PageHeader>
-        <PageTitle>Student Assessments</PageTitle>
-        {/* Add a button to create new assessment type or similar if needed in future */}
-      </PageHeader>
+      <Container>
+        <Header>
+          <Title>Student Assessments</Title>
+        </Header>
 
       <FilterControls>
         <label htmlFor="statusFilter">Filter by Status:</label>
@@ -221,7 +310,7 @@ export default function AssessmentsListPage() {
           <p>There are no assessments matching your current filters, or no assessments have been processed yet.</p>
         </EmptyStateCard>
       ) : assessments.length > 0 ? (
-        <Card> {/* Wrap table in a card for consistent styling */}
+        <ModernCard>
           <TableContainer>
             <Table>
               <thead>
@@ -251,39 +340,43 @@ export default function AssessmentsListPage() {
                     </td>
                     <td>{new Date(asmnt.assessed_at).toLocaleDateString()}</td>
                     <td className="actions">
-                      <Button size="small" onClick={() => handleViewDetails(asmnt.assessment_id)}>
+                      <ModernButton 
+                        size="small" 
+                        onClick={() => handleViewDetails(asmnt.assessment_id)}
+                      >
                         Review Details
-                      </Button>
+                      </ModernButton>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
           </TableContainer>
-        </Card>
+        </ModernCard>
       ) : null}
 
       {pagination.totalPages > 1 && (
         <PaginationControls>
-          <Button
+          <ModernButton
             onClick={() => handlePageChange(pagination.currentPage - 1)}
             disabled={pagination.currentPage === 0 || loading}
-            variant="outline"
+            variant="ghost"
           >
             Previous
-          </Button>
+          </ModernButton>
           <span>
             Page {pagination.currentPage + 1} of {pagination.totalPages}
           </span>
-          <Button
+          <ModernButton
             onClick={() => handlePageChange(pagination.currentPage + 1)}
             disabled={pagination.currentPage >= pagination.totalPages - 1 || loading}
-            variant="outline"
+            variant="ghost"
           >
             Next
-          </Button>
+          </ModernButton>
         </PaginationControls>
       )}
+      </Container>
     </PageWrapper>
   );
 }

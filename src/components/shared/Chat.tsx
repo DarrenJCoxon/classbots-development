@@ -4,7 +4,8 @@ import React from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Alert, Button } from '@/styles/StyledComponents';
+import { Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton, IconButton } from '@/components/shared/ModernButton';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import ChatInput from '@/components/shared/ChatInput';
@@ -106,33 +107,12 @@ const LoadingIndicator = styled.div`
   color: ${({ theme }) => theme.colors.textLight};
 `;
 
-const ClearChatButton = styled.button`
+const ClearChatButtonWrapper = styled.div`
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  background: none;
-  border: none;
-  color: ${({ theme }) => theme.colors.textMuted};
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: ${({ theme }) => theme.colors.backgroundDark};
-    color: ${({ theme }) => theme.colors.textLight};
-  }
-  
-  svg {
-    width: 18px;
-    height: 18px;
-  }
 `;
-const SubmitAssessmentButton = styled(Button)`
+const SubmitAssessmentButtonWrapper = styled.div`
   margin-top: 1rem;
   width: 100%;
 `;
@@ -1191,10 +1171,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
           const decoder = new TextDecoder();
           let assistantResponse = '';
           let pendingUpdate = '';
-          let updateTimeout: NodeJS.Timeout | null = null;
           
-          // Smooth update function that batches changes for better UX
-          const updateMessageSmooth = () => {
+          // Immediate update function for real-time streaming
+          const updateMessage = () => {
             setMessages(prev => {
               const updated = [...prev];
               const index = updated.findIndex(m => m.message_id === tempAssistantId);
@@ -1206,21 +1185,26 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
               }
               return updated;
             });
-            setTimeout(scrollToBottom, 10);
           };
           
-          // Schedule smooth updates every 100ms for responsive but not jerky updates
+          // Use requestAnimationFrame for smoother updates
+          let animationFrameId: number | null = null;
           const scheduleUpdate = () => {
-            if (updateTimeout) clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(() => {
-              updateMessageSmooth();
+            if (animationFrameId) return;
+            
+            animationFrameId = requestAnimationFrame(() => {
+              updateMessage();
+              animationFrameId = null;
               
-              // Continue scheduling if we're still receiving content
-              if (assistantResponse.length > pendingUpdate.length) {
-                pendingUpdate = assistantResponse;
-                scheduleUpdate();
+              // Auto-scroll but not too aggressively
+              if (messagesListRef.current) {
+                const { scrollTop, scrollHeight, clientHeight } = messagesListRef.current;
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+                if (isNearBottom) {
+                  messagesListRef.current.scrollTop = scrollHeight;
+                }
               }
-            }, 100); // 10 FPS - smooth balance between responsiveness and performance
+            });
           };
           
           let streamError: Error | null = null;
@@ -1244,10 +1228,8 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
                   if (typeof piece === 'string') {
                     assistantResponse += piece;
                     
-                    // Start smooth updates if not already running
-                    if (!updateTimeout) {
-                      scheduleUpdate();
-                    }
+                    // Update immediately for every chunk
+                    scheduleUpdate();
                   }
                 } catch (e) {
                   console.warn('[Chat.tsx] Stream parse error:', e);
@@ -1298,9 +1280,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
               setError("Connection interrupted. Please try sending your message again.");
             }
           } finally {
-            // Clean up the smooth update timer
-            if (updateTimeout) {
-              clearTimeout(updateTimeout);
+            // Clean up the animation frame
+            if (animationFrameId) {
+              cancelAnimationFrame(animationFrameId);
             }
             
             // Final update to ensure we show the complete response
@@ -1317,6 +1299,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
                 }
                 return updated;
               });
+              
+              // Final scroll to bottom after streaming completes
+              setTimeout(scrollToBottom, 50);
             }
           }
         }
@@ -1417,18 +1402,20 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
     <ChatContainer>
       {/* Add the clear chat button */}
       {messages.length > 0 && (
-        <ClearChatButton 
-          onClick={handleClearChat} 
-          title="Clear chat"
-          aria-label="Clear chat"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </ClearChatButton>
+        <ClearChatButtonWrapper>
+          <IconButton 
+            onClick={handleClearChat} 
+            title="Clear chat"
+            aria-label="Clear chat"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </IconButton>
+        </ClearChatButtonWrapper>
       )}
       
-      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <Button onClick={() => fetchMessages()} size="small">Retry</Button> </ErrorContainer> )}
+      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <ModernButton onClick={() => fetchMessages()} size="small" variant="ghost">Retry</ModernButton> </ErrorContainer> )}
       <MessagesList ref={messagesListRef}>
         {isFetchingMessages && messages.length === 0 ? ( 
           <LoadingIndicator><LoadingSpinner /> Loading...</LoadingIndicator> 
@@ -1495,13 +1482,16 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
       <StyledChatInputContainer>
         <ChatInput onSend={handleSendMessage} isLoading={isLoading} error={error} onClearError={() => setError(null)} />
         {chatbot.bot_type === 'assessment' && (
-          <SubmitAssessmentButton 
-            onClick={handleSubmitAssessment} 
-            disabled={isLoading || isSubmittingAssessment}
-            variant="primary"
-          >
-            {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit Assessment'}
-          </SubmitAssessmentButton>
+          <SubmitAssessmentButtonWrapper>
+            <ModernButton 
+              onClick={handleSubmitAssessment} 
+              disabled={isLoading || isSubmittingAssessment}
+              variant="primary"
+              fullWidth
+            >
+              {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit Assessment'}
+            </ModernButton>
+          </SubmitAssessmentButtonWrapper>
         )}
       </StyledChatInputContainer>
     </ChatContainer>

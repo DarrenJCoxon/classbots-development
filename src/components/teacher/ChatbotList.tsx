@@ -3,7 +3,10 @@
 
 import Link from 'next/link';
 import styled from 'styled-components';
-import { Card, Button, Badge } from '@/styles/StyledComponents';
+import { Card, Badge } from '@/styles/StyledComponents';
+import { GlassCard } from '@/components/shared/GlassCard';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { ChatbotCard } from './ChatbotCard';
 import type { Chatbot } from '@/types/database.types';
 
 // Card View Styled Components (Existing)
@@ -14,12 +17,25 @@ const ListGrid = styled.div`
   margin-top: ${({ theme }) => theme.spacing.lg};
 `;
 
-const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
+const StyledChatbotCard = styled(GlassCard)<{ $cardAccentColor?: string }>`
   position: relative;
   display: flex;
   flex-direction: column;
-  ${({ $cardAccentColor }) => 
-    $cardAccentColor && `border-top: 4px solid ${$cardAccentColor};`}
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: ${({ theme }) => `linear-gradient(90deg, 
+      ${theme.colors.purple} 0%, 
+      ${theme.colors.primary} 50%, 
+      ${theme.colors.blue} 100%)`};
+    opacity: 0.8;
+  }
 
   a > h3 { 
     color: ${({ theme }) => theme.colors.text};
@@ -28,6 +44,8 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
     text-decoration: none;
     display: block; 
     transition: color ${({ theme }) => theme.transitions.fast};
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
 
     &:hover {
       color: ${({ theme }) => theme.colors.primary};
@@ -78,9 +96,13 @@ const StyledChatbotCard = styled(Card)<{ $cardAccentColor?: string }>`
 const TableContainer = styled.div`
   width: 100%;
   overflow-x: auto;
-  margin-top: ${({ theme }) => theme.spacing.lg};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  margin-top: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 `;
 
 const Table = styled.table`
@@ -96,11 +118,12 @@ const Table = styled.table`
   }
 
   th {
-    background-color: ${({ theme }) => theme.colors.backgroundCard};
-    color: ${({ theme }) => theme.colors.textLight};
-    font-weight: 600;
+    background: rgba(152, 93, 215, 0.05);
+    color: ${({ theme }) => theme.colors.text};
+    font-weight: 700;
     font-size: 0.875rem;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
     white-space: nowrap;
   }
 
@@ -126,6 +149,49 @@ const ActionButtonsContainer = styled.div`
   align-items: center;
 `;
 
+const ModernBadge = styled.span<{ $variant?: 'default' | 'warning' | 'success' }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'warning':
+        return 'linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%)';
+      case 'success':
+        return 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)';
+      default:
+        return 'linear-gradient(135deg, rgba(152, 93, 215, 0.1) 0%, rgba(76, 190, 243, 0.1) 100%)';
+    }
+  }};
+  color: ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'warning':
+        return theme.colors.secondary;
+      case 'success':
+        return theme.colors.green;
+      default:
+        return theme.colors.primary;
+    }
+  }};
+  border: 1px solid ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'warning':
+        return 'rgba(251, 191, 36, 0.3)';
+      case 'success':
+        return 'rgba(16, 185, 129, 0.3)';
+      default:
+        return 'rgba(152, 93, 215, 0.2)';
+    }
+  }};
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+`;
+
 const ActionButtonsContainerCard = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing.md};
@@ -134,7 +200,7 @@ const ActionButtonsContainerCard = styled.div`
   flex-wrap: wrap;
 `;
 
-const ActionButton = styled(Button)`
+const ActionButton = styled(ModernButton)`
   flex: 1;
   min-width: 0;
   display: flex;
@@ -142,6 +208,7 @@ const ActionButton = styled(Button)`
   justify-content: center;
   gap: ${({ theme }) => theme.spacing.xs};
   white-space: nowrap;
+  text-decoration: none;
   
   svg {
     font-size: 0.85rem;
@@ -178,7 +245,7 @@ export interface ChatbotListProps {
 export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: ChatbotListProps) {
 
   if (chatbots.length === 0) {
-    return <Card><p>No chatbots found.</p></Card>;
+    return <Card><p>No skolrbots found.</p></Card>;
   }
 
   const formatDate = (dateString: string | undefined) => {
@@ -210,36 +277,45 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
                   </Link>
                 </td>
                 <td>
-                  <Badge variant={chatbot.bot_type === 'assessment' ? 'warning' : 'default'}>
+                  <ModernBadge $variant={chatbot.bot_type === 'assessment' ? 'warning' : 'default'}>
                     {chatbot.bot_type ? chatbot.bot_type.charAt(0).toUpperCase() + chatbot.bot_type.slice(1) : 'N/A'}
-                  </Badge>
+                  </ModernBadge>
                 </td>
                 <td className="description-cell" title={chatbot.description || undefined}>
                   {chatbot.description || '-'}
                 </td>
                 <td>{getModelDisplayName(chatbot.model)}</td>
                 <td>
-                  <Badge variant={chatbot.enable_rag ? 'success' : 'default'}>
+                  <ModernBadge $variant={chatbot.enable_rag ? 'success' : 'default'}>
                     {chatbot.enable_rag ? 'Enabled' : 'Disabled'}
-                  </Badge>
+                  </ModernBadge>
                 </td>
                 <td>{formatDate(chatbot.updated_at || chatbot.created_at)}</td>
                 <td>
                   <ActionButtonsContainer>
-                    <Button
+                    <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}>
+                      <ModernButton
+                        size="small"
+                        variant="primary"
+                        as="span"
+                      >
+                        Test
+                      </ModernButton>
+                    </Link>
+                    <ModernButton
                       size="small"
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => onEdit(chatbot.chatbot_id)}
                     >
                       Edit
-                    </Button>
-                    <Button
+                    </ModernButton>
+                    <ModernButton
                       size="small"
-                      variant="magenta"
+                      variant="danger"
                       onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
                     >
                       Delete
-                    </Button>
+                    </ModernButton>
                   </ActionButtonsContainer>
                 </td>
               </tr>
@@ -252,39 +328,14 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
 
   return (
     <ListGrid>
-      {chatbots.map((chatbot) => {
-        return (
-          <StyledChatbotCard 
-              key={chatbot.chatbot_id}
-          >
-            <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`} title={`Test chat with ${chatbot.name}`}>
-              <h3>{chatbot.name}</h3>
-            </Link>
-            <p className="description">{chatbot.description || 'No description provided.'}</p>
-            <div className="model-info">
-              Model: {getModelDisplayName(chatbot.model)}
-            </div>
-            <ActionButtonsContainerCard>
-              <ActionButton
-                size="small"
-                variant="outline" 
-                onClick={() => onEdit(chatbot.chatbot_id)}
-                title="Edit chatbot settings"
-              >
-                Edit
-              </ActionButton>
-              <ActionButton
-                size="small"
-                variant="magenta"
-                onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
-                title="Delete this chatbot"
-              >
-                Delete
-              </ActionButton>
-            </ActionButtonsContainerCard>
-          </StyledChatbotCard>
-        );
-      })}
+      {chatbots.map((chatbot) => (
+        <ChatbotCard
+          key={chatbot.chatbot_id}
+          chatbot={chatbot}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ))}
     </ListGrid>
   );
 }

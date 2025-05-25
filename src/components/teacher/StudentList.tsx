@@ -167,6 +167,7 @@ interface Student {
   pinLoading?: boolean;
   showPin?: boolean;
   archiving?: boolean;
+  deleting?: boolean;
 }
 
 interface StudentListProps {
@@ -187,6 +188,15 @@ const ArchiveButton = styled(Button)`
   
   &:hover {
     background-color: ${({ theme }) => theme.colors.secondaryDark};
+  }
+`;
+
+const DeleteButton = styled(Button)`
+  background-color: ${({ theme }) => theme.colors.danger};
+  color: white;
+  
+  &:hover {
+    background-color: ${({ theme }) => theme.colors.danger};
   }
 `;
 
@@ -223,6 +233,8 @@ export default function StudentList({ roomId }: StudentListProps) {
   const [error, setError] = useState<string | null>(null);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [studentToArchive, setStudentToArchive] = useState<Student | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const router = useRouter();
   const linkInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -290,6 +302,16 @@ export default function StudentList({ roomId }: StudentListProps) {
     setStudentToArchive(null);
   };
   
+  const openDeleteModal = (student: Student) => {
+    setStudentToDelete(student);
+    setDeleteModalOpen(true);
+  };
+  
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setStudentToDelete(null);
+  };
+  
   const archiveStudent = async (studentId: string) => {
     // Mark student as archiving
     setStudents(current => 
@@ -329,6 +351,48 @@ export default function StudentList({ roomId }: StudentListProps) {
         )
       );
       closeArchiveModal();
+    }
+  };
+  
+  const deleteStudent = async (studentId: string) => {
+    // Mark student as deleting
+    setStudents(current => 
+      current.map(s => 
+        s.user_id === studentId ? { ...s, deleting: true } : s
+      )
+    );
+    
+    try {
+      const response = await fetch(`/api/teacher/students`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId,
+          roomId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to delete student (${response.status})`);
+      }
+      
+      // Remove the student from the list
+      setStudents(current => current.filter(s => s.user_id !== studentId));
+      closeDeleteModal();
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete student');
+      
+      // Reset deleting state
+      setStudents(current => 
+        current.map(s => 
+          s.user_id === studentId ? { ...s, deleting: false } : s
+        )
+      );
+      closeDeleteModal();
     }
   };
   
@@ -518,7 +582,6 @@ export default function StudentList({ roomId }: StudentListProps) {
         <thead>
           <tr>
             <TableHeader>Name</TableHeader>
-            <TableHeader>Email</TableHeader>
             <TableHeader>Joined</TableHeader>
             <TableHeader>Login Credentials</TableHeader>
             <TableHeader>Actions</TableHeader>
@@ -528,7 +591,6 @@ export default function StudentList({ roomId }: StudentListProps) {
           {students.map((student) => (
             <tr key={student.user_id}>
               <TableCell>{student.name}</TableCell>
-              <TableCell>{student.email}</TableCell>
               <TableCell>{formatDate(student.joined_at)}</TableCell>
               <TableCell>
                 {student.pinLoading ? (
@@ -598,6 +660,19 @@ export default function StudentList({ roomId }: StudentListProps) {
                       Archive
                     </ArchiveButton>
                   )}
+                  {student.deleting ? (
+                    <Button size="small" disabled>
+                      <LoadingSpinner size="small" /> Deleting...
+                    </Button>
+                  ) : (
+                    <DeleteButton
+                      size="small"
+                      onClick={() => openDeleteModal(student)}
+                      variant="secondary"
+                    >
+                      Delete
+                    </DeleteButton>
+                  )}
                 </div>
               </TableCell>
             </tr>
@@ -612,8 +687,6 @@ export default function StudentList({ roomId }: StudentListProps) {
               <StudentName>{student.name}</StudentName>
             </MobileHeader>
             <MobileDetails>
-              <span className="label">Email:</span>
-              <span className="value">{student.email}</span>
               <span className="label">Joined:</span>
               <span className="value">{formatDate(student.joined_at)}</span>
               {student.showPin && student.pin_code && (
@@ -681,6 +754,19 @@ export default function StudentList({ roomId }: StudentListProps) {
                   Archive
                 </ArchiveButton>
               )}
+              {student.deleting ? (
+                <Button size="small" disabled>
+                  <LoadingSpinner size="small" /> Deleting...
+                </Button>
+              ) : (
+                <DeleteButton
+                  size="small"
+                  onClick={() => openDeleteModal(student)}
+                  variant="secondary"
+                >
+                  Delete
+                </DeleteButton>
+              )}
             </MobileActions>
           </MobileCard>
         ))}
@@ -701,6 +787,26 @@ export default function StudentList({ roomId }: StudentListProps) {
               >
                 Archive Student
               </ArchiveButton>
+            </ModalActions>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+      {deleteModalOpen && studentToDelete && (
+        <ConfirmationModal>
+          <ModalContent>
+            <h3>Delete Student</h3>
+            <p>Are you sure you want to permanently delete <strong>{studentToDelete.name}</strong>?</p>
+            <p style={{ color: 'red', fontWeight: 'bold' }}>⚠️ This action cannot be undone. The student's account and all associated data will be permanently deleted.</p>
+            <ModalActions>
+              <Button variant="outline" onClick={closeDeleteModal}>
+                Cancel
+              </Button>
+              <DeleteButton 
+                onClick={() => deleteStudent(studentToDelete.user_id)}
+                variant="secondary"
+              >
+                Delete Permanently
+              </DeleteButton>
             </ModalActions>
           </ModalContent>
         </ConfirmationModal>

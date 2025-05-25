@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Container, Card, Button, Alert } from '@/styles/StyledComponents';
+import { Container, Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { createClient } from '@/lib/supabase/client';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Chat from '@/components/shared/Chat';
@@ -15,9 +16,23 @@ const PageWrapper = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
-  color: ${({ theme }) => theme.colors.primary};
+  font-size: 36px;
+  font-weight: 800;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.blue}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 28px;
+  }
 `;
 
 const ChatContainer = styled(Card)`
@@ -63,6 +78,19 @@ const LoadingContainer = styled.div`
   gap: 2rem;
 `;
 
+interface Room {
+  room_id: string;
+  room_name: string;
+  room_code: string;
+}
+
+interface Student {
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
+
 export default function DirectRoomAccess() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -71,20 +99,6 @@ export default function DirectRoomAccess() {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  interface Room {
-    room_id: string;
-    room_name: string;
-    room_code: string;
-  }
-  
-  interface Student {
-    user_id: string;
-    full_name: string;
-    email: string;
-    role: string;
-  }
-  
-  // Use the imported types
   
   const [room, setRoom] = useState<Room | null>(null);
   const [student, setStudent] = useState<Student | null>(null);
@@ -225,9 +239,9 @@ export default function DirectRoomAccess() {
           <Card>
             <Title>Error</Title>
             <Alert variant="error">{error || 'Could not access this room'}</Alert>
-            <Button onClick={handleBackToRooms} style={{ marginTop: '1rem' }}>
+            <ModernButton onClick={handleBackToRooms} variant="ghost" style={{ marginTop: '1rem' }}>
               Back to Room List
-            </Button>
+            </ModernButton>
           </Card>
         </Container>
       </PageWrapper>
@@ -246,9 +260,9 @@ export default function DirectRoomAccess() {
           </div>
           
           <div>
-            <Button variant="outline" onClick={handleBackToRooms}>
+            <ModernButton variant="ghost" onClick={handleBackToRooms}>
               Back to Room List
-            </Button>
+            </ModernButton>
           </div>
         </HeaderBar>
         

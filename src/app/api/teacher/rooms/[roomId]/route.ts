@@ -70,7 +70,7 @@ export async function DELETE(request: Request, context: RouteParams) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    // Delete the room (this will cascade to related tables via foreign key constraints)
+    // Delete the room (this should cascade to related tables via foreign key constraints)
     const { error: deleteError } = await supabase
       .from('rooms')
       .delete()
@@ -78,14 +78,16 @@ export async function DELETE(request: Request, context: RouteParams) {
       .eq('teacher_id', user.id);
 
     if (deleteError) {
+      console.error('Supabase delete error:', deleteError);
       throw deleteError;
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting room:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete room';
     return NextResponse.json(
-      { error: 'Failed to delete room' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

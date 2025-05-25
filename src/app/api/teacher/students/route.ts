@@ -141,3 +141,76 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { studentId, roomId } = body;
+
+    if (!studentId || !roomId) {
+      return NextResponse.json({ error: 'Student ID and Room ID are required' }, { status: 400 });
+    }
+
+    const supabase = await createServerSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Verify teacher owns the room
+    const { data: room, error: roomError } = await supabase
+      .from('rooms')
+      .select('room_id')
+      .eq('room_id', roomId)
+      .eq('teacher_id', user.id)
+      .single();
+
+    if (roomError || !room) {
+      return NextResponse.json({ error: 'Room not found or unauthorized' }, { status: 404 });
+    }
+
+    // Use admin client for deletion operations
+    const adminSupabase = createAdminClient();
+
+    // Delete from room_memberships
+    const { error: membershipError } = await adminSupabase
+      .from('room_memberships')
+      .delete()
+      .eq('room_id', roomId)
+      .eq('student_id', studentId);
+
+    if (membershipError) {
+      console.error('[API DELETE /teacher/students] Failed to delete room membership:', membershipError);
+      return NextResponse.json({ error: 'Failed to remove student from room' }, { status: 500 });
+    }
+
+    // Delete the student's profile
+    const { error: profileError } = await adminSupabase
+      .from('student_profiles')
+      .delete()
+      .eq('user_id', studentId);
+
+    if (profileError) {
+      console.error('[API DELETE /teacher/students] Failed to delete student profile:', profileError);
+      // Continue anyway, as the membership is already deleted
+    }
+
+    // Delete the auth user
+    const { error: authDeleteError } = await adminSupabase.auth.admin.deleteUser(studentId);
+
+    if (authDeleteError) {
+      console.error('[API DELETE /teacher/students] Failed to delete auth user:', authDeleteError);
+      // Return success anyway as the student is removed from the room
+    }
+
+    return NextResponse.json({ success: true, message: 'Student deleted successfully' });
+
+  } catch (error) {
+    console.error('[API DELETE /teacher/students] Error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete student' },
+      { status: 500 }
+    );
+  }
+}

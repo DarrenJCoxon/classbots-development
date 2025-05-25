@@ -3,6 +3,7 @@ import { Metadata, Viewport } from 'next';
 import Providers from './providers';
 import Header from '@/components/layout/Header';
 import { APP_NAME, APP_DESCRIPTION } from '@/lib/utils/constants';
+import { inter, orbitron, oxanium } from './fonts';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={`${inter.variable} ${orbitron.variable} ${oxanium.variable}`}>
+      <body className={inter.className}>
         <Providers>
           <Header />
           {children}

@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
         user_id: string;
         full_name: string;
         email: string;
+        username?: string;
         joined_at: string;
         is_archived?: boolean;
     }
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest) {
       const adminSupabase = createAdminClient();
       const { data: profilesData, error: profilesError } = await adminSupabase
         .from('profiles')
-        .select('user_id, full_name, email')
+        .select('user_id, full_name, email, username')
         .in('user_id', studentIds);
 
       if (profilesError) {
@@ -123,6 +124,7 @@ export async function GET(request: NextRequest) {
           user_id: membership.student_id,
           full_name: profile?.full_name || 'Student', // Fallback name
           email: profile?.email || 'No email',       // Fallback email
+          username: profile?.username || undefined,    // Include username
           joined_at: membership.joined_at,
           is_archived: membership.is_archived || false
         };

@@ -3,30 +3,36 @@
 
 import { useState, useRef, ChangeEvent } from 'react';
 import styled from 'styled-components';
-import { Button, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 
 // Styled components for the uploader
 const UploaderContainer = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
-  background-color: ${({ theme }) => theme.colors.backgroundCard};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  padding: ${({ theme }) => theme.spacing.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
 `;
 
 const UploadArea = styled.div`
-  border: 2px dashed ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  padding: ${({ theme }) => theme.spacing.lg};
+  border: 2px dashed rgba(152, 93, 215, 0.3);
+  border-radius: 20px;
+  padding: ${({ theme }) => theme.spacing.xl};
   text-align: center;
-  transition: all ${({ theme }) => theme.transitions.fast};
+  transition: all 0.3s ease;
   cursor: pointer;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
   
   &:hover {
     border-color: ${({ theme }) => theme.colors.primary};
-    background-color: ${({ theme }) => `${theme.colors.primary}05`};
+    background: rgba(152, 93, 215, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
   }
 `;
 
@@ -37,18 +43,31 @@ const FileInput = styled.input`
 const UploadText = styled.p`
   margin-bottom: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.text};
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  font-size: 1.1rem;
 `;
 
 const FileTypeInfo = styled.p`
   color: ${({ theme }) => theme.colors.textMuted};
   font-size: 0.875rem;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const SectionTitle = styled.h3`
-  font-size: 1.1rem;
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
-  color: ${({ theme }) => theme.colors.text};
+  font-size: 20px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 `;
 
 const SelectedFileContainer = styled.div`
@@ -57,8 +76,10 @@ const SelectedFileContainer = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.md};
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  background: rgba(152, 93, 215, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
 `;
 
 const FileName = styled.span`
@@ -66,33 +87,88 @@ const FileName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const FileSize = styled.span`
-  color: ${({ theme }) => theme.colors.textMuted};
+  color: ${({ theme }) => theme.colors.primary};
   font-size: 0.875rem;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const ProgressBar = styled.div`
   width: 100%;
   height: 12px;
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.small};
+  background: rgba(152, 93, 215, 0.1);
+  border-radius: 20px;
   margin-top: ${({ theme }) => theme.spacing.md};
   overflow: hidden;
+  border: 1px solid rgba(152, 93, 215, 0.1);
 `;
 
 const Progress = styled.div<{ $progress: number }>`
   height: 100%;
   width: ${props => props.$progress}%;
-  background-color: ${({ theme }) => theme.colors.primary};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
   transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(152, 93, 215, 0.3);
 `;
 
 const StatusText = styled.div`
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   margin-top: ${({ theme }) => theme.spacing.sm};
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.body};
+  font-weight: 600;
+`;
+
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' }>`
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: 12px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
+  animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(34, 197, 94, 0.1);
+          color: ${theme.colors.green};
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(239, 68, 68, 0.1);
+          color: ${theme.colors.red};
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 `;
 
 interface EnhancedRagUploaderProps {
@@ -103,7 +179,6 @@ interface EnhancedRagUploaderProps {
 export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: EnhancedRagUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -197,26 +272,13 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
       // Store documentId for vectorization
       const documentIdForProcessing = uploadedDocumentId;
       setProgress(50);
-      setStatus('Document uploaded. Starting processing...');
-      setSuccessMessage('Document uploaded successfully! Processing...');
+      setStatus('Document uploaded successfully!');
+      setSuccessMessage('Document uploaded! Processing will start automatically.');
       
-      // Process the uploaded document
-      setProcessing(true);
-      console.log(`Processing document ID: ${uploadedDocumentId} for chatbot: ${chatbotId}`);
-      const processResponse = await fetch(`/api/teacher/chatbots/${chatbotId}/vectorize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: documentIdForProcessing }),
-      });
-      
-      if (!processResponse.ok) {
-        const data = await processResponse.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to process document');
-      }
+      // No need to manually process - auto-processing is enabled
+      console.log(`Document ${uploadedDocumentId} uploaded. Auto-processing will handle it.`);
       
       setProgress(100);
-      setStatus('Document processed successfully!');
-      setSuccessMessage('Document uploaded and processing started. It will be available for RAG soon.');
       
       // Clear the file input
       if (fileInputRef.current) {
@@ -234,7 +296,6 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
       setStatus('Error occurred');
     } finally {
       setUploading(false);
-      setProcessing(false);
     }
   };
 
@@ -242,8 +303,8 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
     <UploaderContainer>
       <SectionTitle>Upload Documents for Knowledge Base</SectionTitle>
       
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
-      {successMessage && <Alert variant="success" style={{ marginBottom: '16px' }}>{successMessage}</Alert>}
+      {error && <ModernAlert $variant="error">{error}</ModernAlert>}
+      {successMessage && <ModernAlert $variant="success">{successMessage}</ModernAlert>}
       
       <UploadArea onClick={() => fileInputRef.current?.click()}>
         <FileInput
@@ -254,9 +315,9 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
         />
         <UploadText>Click or drag file to upload</UploadText>
         <FileTypeInfo>Supported: PDF, DOC, DOCX, TXT (Max 10MB)</FileTypeInfo>
-        <Button 
+        <ModernButton 
           size="small" 
-          variant="outline" 
+          variant="ghost" 
           type="button" 
           onClick={(e) => { 
             e.stopPropagation(); 
@@ -264,7 +325,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
           }}
         >
           Browse Files
-        </Button>
+        </ModernButton>
       </UploadArea>
       
       {file && (
@@ -272,25 +333,26 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
           <SelectedFileContainer>
             <FileName title={file.name}>{file.name}</FileName>
             <FileSize>{formatFileSize(file.size)}</FileSize>
-            <Button
+            <ModernButton
               size="small"
-              variant="outline"
+              variant="ghost"
               onClick={() => setFile(null)}
-              disabled={uploading || processing}
+              disabled={uploading}
             >
               Remove
-            </Button>
+            </ModernButton>
           </SelectedFileContainer>
           
-          <Button
+          <ModernButton
             onClick={handleUpload}
-            disabled={uploading || processing}
-            style={{ marginTop: '16px', width: '100%' }}
+            disabled={uploading}
+            fullWidth
+            style={{ marginTop: '16px' }}
           >
-            {uploading || processing ? 'Processing...' : `Upload & Process ${file.name}`}
-          </Button>
+            {uploading ? 'Uploading...' : `Upload ${file.name}`}
+          </ModernButton>
           
-          {(uploading || processing) && (
+          {uploading && (
             <>
               <ProgressBar>
                 <Progress $progress={progress} />

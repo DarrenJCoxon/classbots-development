@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
     }
 
     // Apply botType filter
-    if (botType && (botType === 'learning' || botType === 'assessment')) {
+    if (botType && (botType === 'learning' || botType === 'assessment' || botType === 'reading_room')) {
       query = query.eq('bot_type', botType);
     }
 
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       model: body.model || 'openai/gpt-4.1-nano',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
-      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
+      enable_rag: (body.bot_type === 'learning' || body.bot_type === 'reading_room') ? (body.enable_rag || false) : false,
       bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
       welcome_message: body.welcome_message || null, 

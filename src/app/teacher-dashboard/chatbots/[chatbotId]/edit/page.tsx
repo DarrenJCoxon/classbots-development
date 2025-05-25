@@ -5,19 +5,39 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import {
-    Container, Card, Button, FormGroup, Label, Input, TextArea, Alert,
+    Container, Card, FormGroup, Label, Input, TextArea, Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
 import { createClient } from '@/lib/supabase/client';
+import { ModernButton } from '@/components/shared/ModernButton';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
+import ReadingDocumentUploader from '@/components/teacher/ReadingDocumentUploader';
 import type { Chatbot, Document as KnowledgeDocument, BotTypeEnum as BotType, CreateChatbotPayload } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.xl} 0;
   min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
 const HeaderControls = styled.div`
@@ -27,13 +47,29 @@ const HeaderControls = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
-const BackButton = styled(Button)`
-  margin-right: ${({ theme }) => theme.spacing.lg};
+const ContentContainer = styled(Container)`
+  position: relative;
+  z-index: 1;
 `;
 
 const MainTitle = styled.h1`
-    font-size: 1.8rem;
-    color: ${({ theme }) => theme.colors.text};
+  font-size: 36px;
+  font-weight: 800;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 28px;
+  }
 `;
 
 const CheckboxGroup = styled.div`
@@ -99,7 +135,16 @@ const SummaryLabel = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-const LoadingCard = styled(Card)`
+const StyledCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
+`;
+
+const LoadingCard = styled(StyledCard)`
     text-align: center;
     padding: ${({ theme }) => theme.spacing.xl};
     display: flex;
@@ -159,15 +204,6 @@ const UrlInputForm = styled.form`
 
 const UrlInput = styled(Input)`
   flex-grow: 1;
-`;
-
-const AddUrlButton = styled(Button)`
-  white-space: nowrap; // Prevent button text from wrapping
-  min-width: 120px; // Ensure button has a decent minimum width
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 100%;
-  }
 `;
 
 
@@ -506,25 +542,25 @@ export default function ConfigureChatbotPage() {
 
 
   if (pageLoading) {
-    return ( <PageWrapper><Container><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></Container></PageWrapper> );
+    return ( <PageWrapper><ContentContainer><LoadingCard><LoadingSpinner size="large" /><p>{`Loading configuration page...`}</p></LoadingCard></ContentContainer></PageWrapper> );
   }
   if (!isCreateMode && !chatbot.chatbot_id && !pageLoading) {
-     return ( <PageWrapper><Container><Alert variant="error">{formError || `Chatbot data could not be initialized. Please go back and try again.`}</Alert></Container></PageWrapper> );
+     return ( <PageWrapper><ContentContainer><Alert variant="error">{formError || `Chatbot data could not be initialized. Please go back and try again.`}</Alert></ContentContainer></PageWrapper> );
   }
 
   const displayBotType = chatbot.bot_type || 'learning';
 
   return (
     <PageWrapper>
-      <Container>
+      <ContentContainer>
         <HeaderControls>
           <MainTitle>{isCreateMode ? `Create New Chatbot` : `Edit Chatbot: ${chatbot.name}`}</MainTitle>
-          <BackButton variant="outline" onClick={() => router.push('/teacher-dashboard/chatbots')}>
+          <ModernButton variant="ghost" onClick={() => router.push('/teacher-dashboard/chatbots')}>
             {`<`} Back to Chatbots
-          </BackButton>
+          </ModernButton>
         </HeaderControls>
 
-        <Card>
+        <StyledCard>
           {formError && <Alert variant="error" style={{ marginBottom: '16px'}}>{formError}</Alert>}
           {successMessage && <Alert variant="success" style={{ marginBottom: '16px'}}>{successMessage}</Alert>}
 
@@ -543,8 +579,13 @@ export default function ConfigureChatbotPage() {
               <StyledSelect id="bot_type" name="bot_type" value={displayBotType} onChange={handleChange}>
                 <option value="learning">Learning Bot</option>
                 <option value="assessment">Assessment Bot</option>
+                <option value="reading_room">Reading Room Bot</option>
               </StyledSelect>
-              <HelpText>{`'Learning' bots are for general interaction. 'Assessment' bots can evaluate student responses based on criteria you define.`}</HelpText>
+              <HelpText>
+                {displayBotType === 'reading_room' 
+                  ? `Reading Room bots help students read documents. Upload a PDF for students to read alongside AI assistance.`
+                  : `'Learning' bots are for general interaction. 'Assessment' bots can evaluate student responses based on criteria you define.`
+                }</HelpText>
             </FormGroup>
             {displayBotType === 'assessment' && (
               <AssessmentCriteriaSection>
@@ -604,16 +645,42 @@ export default function ConfigureChatbotPage() {
                 <HelpText>If enabled, this learning bot can use documents you upload below. (Save first to enable uploads if creating a new bot).</HelpText>
                 </FormGroup>
             )}
-            <Button type="submit" disabled={saving || pageLoading} style={{ width: `100%`, marginTop: `16px` }}>
+            {/* Hide RAG settings for reading_room bots - they don't need this UI element */}
+            <ModernButton type="submit" variant="primary" disabled={saving || pageLoading} style={{ width: `100%`, marginTop: `16px` }}>
               {saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create & Configure Chatbot' : 'Save Changes')}
-            </Button>
+            </ModernButton>
           </form>
 
-          {/* MODIFIED: Knowledge Base Section */}
+          {/* Reading Document Section - for Reading Room bots only */}
+          {!isCreateMode && displayBotType === 'reading_room' && chatbot.chatbot_id && (
+            <>
+              <Divider />
+              <SectionTitle>📖 Reading Document (Required)</SectionTitle>
+              <Alert variant="info" style={{ marginBottom: '16px' }}>
+                <strong>This is the main PDF that students will read.</strong> It appears on the left side of their screen.
+              </Alert>
+              
+              <StyledCard style={{ 
+                border: '2px solid #3b82f6', 
+                background: 'rgba(240, 249, 255, 0.9)',
+                padding: '1.5rem'
+              }}>
+                <ReadingDocumentUploader
+                  chatbotId={chatbot.chatbot_id}
+                  onUploadSuccess={() => {
+                    setSuccessMessage('Reading document updated successfully!');
+                    setTimeout(() => setSuccessMessage(null), 5000);
+                  }}
+                />
+              </StyledCard>
+            </>
+          )}
+
+          {/* Knowledge Base Section */}
           {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
                 <Divider />
-                <SectionTitle>Knowledge Base Documents (for RAG)</SectionTitle>
+                <SectionTitle>Knowledge Base Documents</SectionTitle>
                 
                 {/* Knowledge Base Summary */}
                 {!docsLoading && documents.length > 0 && (
@@ -664,9 +731,9 @@ export default function ConfigureChatbotPage() {
                             placeholder="https://example.com/your-article-here"
                             disabled={isAddingUrl}
                         />
-                        <AddUrlButton type="submit" variant="outline" disabled={isAddingUrl || !webpageUrl.trim()}>
+                        <ModernButton type="submit" variant="secondary" disabled={isAddingUrl || !webpageUrl.trim()} style={{ minWidth: '120px' }}>
                             {isAddingUrl ? 'Adding...' : 'Add URL'}
-                        </AddUrlButton>
+                        </ModernButton>
                     </UrlInputForm>
                     {urlError && <Alert variant="error" style={{ marginTop: '8px' }}>{urlError}</Alert>}
                     <HelpText style={{marginTop: '8px'}}>
@@ -711,11 +778,17 @@ export default function ConfigureChatbotPage() {
                 )}
             </>
           )}
+          
+          {/* Reference Materials Section removed for Reading Room bots - not needed */}
+          
           {isCreateMode && displayBotType === 'learning' && (
-            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable RAG document uploads and URL additions.</HelpText>
+            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable knowledge base document uploads.</HelpText>
           )}
-        </Card>
-      </Container>
+          {isCreateMode && displayBotType === 'reading_room' && (
+            <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to upload the reading document and any reference materials.</HelpText>
+          )}
+        </StyledCard>
+      </ContentContainer>
     </PageWrapper>
   );
 }

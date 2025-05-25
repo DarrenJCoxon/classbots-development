@@ -3,50 +3,144 @@
 
 import { useState } from 'react';
 import styled from 'styled-components';
-import { Button, Alert, Input, FormGroup, Label } from '@/styles/StyledComponents';
+import { Input, FormGroup, Label } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 
 // Styled components for the web scraper
 const ScraperContainer = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
-  background-color: ${({ theme }) => theme.colors.backgroundCard};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  padding: ${({ theme }) => theme.spacing.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
 `;
 
 const SectionTitle = styled.h3`
-  font-size: 1.1rem;
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
-  color: ${({ theme }) => theme.colors.text};
+  font-size: 20px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 `;
 
 const FileTypeInfo = styled.p`
   color: ${({ theme }) => theme.colors.textMuted};
   font-size: 0.875rem;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const ProgressBar = styled.div`
   width: 100%;
   height: 12px;
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.small};
+  background: rgba(152, 93, 215, 0.1);
+  border-radius: 20px;
   margin-top: ${({ theme }) => theme.spacing.md};
   overflow: hidden;
+  border: 1px solid rgba(152, 93, 215, 0.1);
 `;
 
 const Progress = styled.div<{ $progress: number }>`
   height: 100%;
   width: ${props => props.$progress}%;
-  background-color: ${({ theme }) => theme.colors.primary};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
   transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(152, 93, 215, 0.3);
 `;
 
 const StatusText = styled.div`
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   margin-top: ${({ theme }) => theme.spacing.sm};
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.body};
+  font-weight: 600;
+`;
+
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' }>`
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: 12px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
+  animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(34, 197, 94, 0.1);
+          color: ${theme.colors.green};
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(239, 68, 68, 0.1);
+          color: ${theme.colors.red};
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const StyledFormGroup = styled(FormGroup)`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const StyledLabel = styled(Label)`
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.875rem;
+  margin-bottom: ${({ theme }) => theme.spacing.xs};
+`;
+
+const StyledInput = styled(Input)`
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  font-family: ${({ theme }) => theme.fonts.body};
+  
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 2px rgba(152, 93, 215, 0.1);
+  }
+  
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
 `;
 
 interface EnhancedRagScraperProps {
@@ -169,12 +263,12 @@ export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: Enhan
     <ScraperContainer>
       <SectionTitle>Web Scraper for Knowledge Base</SectionTitle>
       
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
-      {successMessage && <Alert variant="success" style={{ marginBottom: '16px' }}>{successMessage}</Alert>}
+      {error && <ModernAlert $variant="error">{error}</ModernAlert>}
+      {successMessage && <ModernAlert $variant="success">{successMessage}</ModernAlert>}
       
-      <FormGroup>
-        <Label htmlFor="webpage-url">Webpage URL</Label>
-        <Input
+      <StyledFormGroup>
+        <StyledLabel htmlFor="webpage-url">Webpage URL</StyledLabel>
+        <StyledInput
           id="webpage-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -185,16 +279,16 @@ export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: Enhan
         <FileTypeInfo>
           Enter a URL to scrape content from a webpage directly into your knowledge base.
         </FileTypeInfo>
-      </FormGroup>
+      </StyledFormGroup>
       
-      <Button 
+      <ModernButton 
         variant="primary" 
         disabled={!url.trim() || !url.startsWith('http') || scraping || processing}
-        style={{ marginTop: '8px', width: '100%' }}
+        fullWidth
         onClick={handleScrape}
       >
         {scraping || processing ? 'Processing...' : 'Extract & Process Content'}
-      </Button>
+      </ModernButton>
       
       {(scraping || processing) && (
         <>

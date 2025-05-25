@@ -136,25 +136,7 @@ function HeaderNavigationContent({ user, userRole, pathname }: HeaderNavigationP
 
   return (
     <Nav>
-      {user && userRole ? (
-        <>
-          {userRole === 'teacher' && (
-            <NavLink href="/teacher-dashboard" $isActive={isLinkActive('/teacher-dashboard')}>
-              Dashboard
-            </NavLink>
-          )}
-          {userRole === 'student' && (
-            <NavLink href="/student/dashboard" $isActive={isLinkActive('/student/dashboard')}>
-              Dashboard 
-            </NavLink>
-          )}
-        </>
-      ) : isStudentDirectAccess() && (
-        <DashboardIcon href={buildDashboardUrl()}>
-          <span>📊</span>
-          <span>Dashboard</span>
-        </DashboardIcon>
-      )}
+      {/* Dashboard links removed - using slide-out nav instead */}
     </Nav>
   );
 }

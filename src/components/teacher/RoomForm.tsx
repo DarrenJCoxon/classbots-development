@@ -225,10 +225,10 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
           </FormGroup>
 
           <FormGroup>
-            <Label>Select Chatbots</Label>
+            <Label>Select Skolrbots</Label>
             {chatbots.length === 0 ? (
               <Alert variant="warning">
-                You need to create a chatbot before you can create a room.
+                You need to create a skolrbot before you can create a room.
               </Alert>
             ) : (
               <ChatbotList>

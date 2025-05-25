@@ -5,18 +5,44 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Alert } from '@/styles/StyledComponents';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import Chat from '@/components/shared/Chat';
 import type { Chatbot } from '@/types/database.types';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import ReadingDocumentViewer from '@/components/shared/ReadingDocumentViewer';
+import { ModernStudentNav } from '@/components/student/ModernStudentNav';
 
 const PageWrapper = styled.div`
-  padding: ${({ theme }) => theme.spacing.lg} 0;
   min-height: 100vh;
+  display: flex;
 `;
 
-const Header = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+const MainContent = styled.div`
+  flex: 1;
+  padding: ${({ theme }) => theme.spacing.lg} 0;
+  margin-left: 80px;
+  transition: margin-left 0.3s ease;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    margin-left: 0;
+  }
+`;
+
+// Custom container with reduced padding for reading room
+const Container = styled.div<{ $isReadingRoom?: boolean }>`
+  width: 100%;
+  max-width: ${({ $isReadingRoom }) => $isReadingRoom ? '100%' : '1200px'};
+  margin: 0 auto;
+  padding: 0 ${({ $isReadingRoom }) => $isReadingRoom ? '4px' : '24px'};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0 ${({ theme }) => theme.spacing.sm};
+  }
+`;
+
+const Header = styled.div<{ $isReadingRoom?: boolean }>`
+  margin-bottom: ${({ theme, $isReadingRoom }) => $isReadingRoom ? theme.spacing.sm : theme.spacing.lg};
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -24,31 +50,33 @@ const Header = styled.div`
 
 const RoomInfo = styled.div`
   h1 {
-    color: ${({ theme }) => theme.colors.text};
+    font-size: 32px;
+    font-weight: 800;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 1px;
     margin-bottom: ${({ theme }) => theme.spacing.sm};
-    font-size: 1.75rem;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.blue}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 24px;
+    }
   }
 
   p {
     color: ${({ theme }) => theme.colors.textLight};
+    font-size: 16px;
   }
 `;
 
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
-  background: ${({ theme }) => theme.colors.backgroundCard};
-  color: ${({ theme }) => theme.colors.text};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.backgroundDark};
-  }
+const BackButtonWrapper = styled.div`
+  display: inline-block;
 `;
 
 const LoadingContainer = styled.div`
@@ -58,6 +86,33 @@ const LoadingContainer = styled.div`
   align-items: center;
   min-height: 50vh;
   gap: ${({ theme }) => theme.spacing.md};
+`;
+
+const SplitScreenContainer = styled.div`
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 8px;
+  height: calc(100vh - 180px);
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+`;
+
+const DocumentSection = styled.div`
+  background: ${({ theme }) => theme.colors.backgroundCard};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  padding: ${({ theme }) => theme.spacing.sm};
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ChatSection = styled.div`
+  background: ${({ theme }) => theme.colors.backgroundCard};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  overflow: hidden;
 `;
 
 interface RoomQueryResult {
@@ -79,6 +134,7 @@ export default function ChatPage() {
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStudent, setIsStudent] = useState(false);
 
   const params = useParams();
   const searchParams = useSearchParams();
@@ -204,6 +260,7 @@ export default function ChatPage() {
           
           setRoom(data.room);
           setChatbot(data.chatbot);
+          setIsStudent(true); // Direct access is for students
           initialFetchDoneRef.current = true;
           setLoading(false);
           return;
@@ -225,6 +282,9 @@ export default function ChatPage() {
         initialFetchDoneRef.current = false;
         throw new Error('User profile not found');
       }
+      
+      // Set isStudent state
+      setIsStudent(profile.role === 'student');
 
       const { data: roomData, error: roomError } = await supabase.from('rooms')
         .select(`
@@ -336,30 +396,83 @@ export default function ChatPage() {
   };
 
   if (loading && !initialFetchDoneRef.current) {
-    return <PageWrapper><Container><LoadingContainer><LoadingSpinner size="large" /><p>Loading chat environment...</p></LoadingContainer></Container></PageWrapper>;
+    return (
+      <PageWrapper>
+        {isStudent && <ModernStudentNav />}
+        <MainContent>
+          <Container>
+            <LoadingContainer>
+              <LoadingSpinner size="large" />
+              <p>Loading chat environment...</p>
+            </LoadingContainer>
+          </Container>
+        </MainContent>
+      </PageWrapper>
+    );
   }
   if (error) {
-    return <PageWrapper><Container><Alert variant="error">{error}</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back'}</BackButton></Container></PageWrapper>;
+    return (
+      <PageWrapper>
+        {isStudent && <ModernStudentNav />}
+        <MainContent>
+          <Container>
+            <Alert variant="error">{error}</Alert>
+            <ModernButton onClick={handleBack} variant="ghost" style={{ marginTop: '16px' }}>{'< Back'}</ModernButton>
+          </Container>
+        </MainContent>
+      </PageWrapper>
+    );
   }
   if (!room || !chatbot) {
-    return <PageWrapper><Container><Alert variant="info">Chatbot or room information is unavailable. Ensure Chatbot ID is in URL.</Alert><BackButton onClick={handleBack} style={{ marginTop: '16px' }}>{'< Back'}</BackButton></Container></PageWrapper>;
+    return (
+      <PageWrapper>
+        {isStudent && <ModernStudentNav />}
+        <MainContent>
+          <Container>
+            <Alert variant="info">Chatbot or room information is unavailable. Ensure Chatbot ID is in URL.</Alert>
+            <ModernButton onClick={handleBack} variant="ghost" style={{ marginTop: '16px' }}>{'< Back'}</ModernButton>
+          </Container>
+        </MainContent>
+      </PageWrapper>
+    );
   }
 
   return (
     <PageWrapper>
-      <Container>
-        <Header>
-          <RoomInfo>
-            <h1>{room.room_name}</h1>
-            <p>Chatting with: <strong>{chatbot.name}</strong></p>
-            {chatbot.bot_type === 'assessment' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>This is an Assessment Bot.</p>}
-          </RoomInfo>
-          <BackButton onClick={handleBack}>
-            {'< Back'}
-          </BackButton>
-        </Header>
-        {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
-      </Container>
+      {isStudent && <ModernStudentNav />}
+      <MainContent>
+        <Container $isReadingRoom={chatbot.bot_type === 'reading_room'}>
+          <Header $isReadingRoom={chatbot.bot_type === 'reading_room'}>
+            <RoomInfo>
+              <h1>{room.room_name}</h1>
+              <p>Chatting with: <strong>{chatbot.name}</strong></p>
+              {chatbot.bot_type === 'assessment' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>This is an Assessment Bot.</p>}
+              {chatbot.bot_type === 'reading_room' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>📖 Reading Room - Document & AI Assistant</p>}
+            </RoomInfo>
+            <BackButtonWrapper>
+              <ModernButton onClick={handleBack} variant="ghost" size="small">
+                {'< Back'}
+              </ModernButton>
+            </BackButtonWrapper>
+          </Header>
+          
+          {chatbot.bot_type === 'reading_room' ? (
+            <SplitScreenContainer>
+              <DocumentSection>
+                <ReadingDocumentViewer 
+                  chatbotId={chatbot.chatbot_id} 
+                  userId={uidFromUrl || undefined}
+                />
+              </DocumentSection>
+              <ChatSection>
+                {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
+              </ChatSection>
+            </SplitScreenContainer>
+          ) : (
+            roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />
+          )}
+        </Container>
+      </MainContent>
     </PageWrapper>
   );
 }

@@ -132,61 +132,72 @@ export async function POST(request: NextRequest, { params }: any) {
     const failedImports = [];
     const schoolId = room.school_id;
     
+    console.log('[CSV Import API] Processing records:', records);
+    console.log('[CSV Import API] First record keys:', records[0] ? Object.keys(records[0]) : 'No records');
+    
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
+      console.log(`[CSV Import API] Processing record ${i}:`, record);
       
       // Extract student data using flexible header matching
-      const fullNameKeys = Object.keys(record).filter(
-        k => k.toLowerCase().includes('full name') || 
-             k.toLowerCase().includes('fullname') || 
-             k.toLowerCase().includes('student name') ||
-             k.toLowerCase() === 'name'
+      const firstNameKeys = Object.keys(record).filter(
+        k => k.toLowerCase().includes('first name') || 
+             k.toLowerCase().includes('firstname') || 
+             k.toLowerCase() === 'first'
       );
       
-      const emailKeys = Object.keys(record).filter(
-        k => k.toLowerCase().includes('email') ||
-             k.toLowerCase().includes('e-mail')
+      const surnameKeys = Object.keys(record).filter(
+        k => k.toLowerCase().includes('surname') ||
+             k.toLowerCase().includes('last name') ||
+             k.toLowerCase().includes('lastname') ||
+             k.toLowerCase() === 'last'
       );
       
-      const fullName = fullNameKeys.length > 0 ? record[fullNameKeys[0]]?.trim() || '' : '';
-      const email = emailKeys.length > 0 ? record[emailKeys[0]]?.trim() || null : null;
+      const firstName = firstNameKeys.length > 0 ? record[firstNameKeys[0]]?.trim() || '' : '';
+      const surname = surnameKeys.length > 0 ? record[surnameKeys[0]]?.trim() || '' : '';
       
-      if (!fullName.trim()) {
-        console.log(`[CSV Import API] Skipping row ${i+1}: Missing name`);
+      console.log(`[CSV Import API] Row ${i} - First Name: "${firstName}", Surname: "${surname}"`);
+      
+      if (!firstName.trim() || !surname.trim()) {
+        console.log(`[CSV Import API] Skipping row ${i+1}: Missing first name or surname`);
         failedImports.push({
           index: i,
-          student: { fullName: '', email },
-          error: 'Missing required full name'
+          student: { fullName: `${firstName} ${surname}`.trim(), email: null },
+          error: 'Missing required first name or surname'
         });
         continue;
       }
+      
+      const fullName = `${firstName} ${surname}`;
+      const email = null; // No longer collecting emails from CSV
       
       try {
         console.log(`[CSV Import API] Processing student: ${fullName}`);
         
         // Define a student object to keep track of data
         let userId: string | undefined;
-        const username = generateUsername(fullName);
-        const pinCode = Math.floor(1000 + Math.random() * 9000).toString();
+        const baseUsername = `${firstName.toLowerCase()}.${surname.toLowerCase()}`.replace(/[^a-z.]/g, '');
         
-        // Step 1: Check if student with this email already exists
-        if (email) {
-          const { data: existingProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('user_id')
-            .eq('email', email)
-            .maybeSingle();
-            
-          if (existingProfile) {
-            userId = existingProfile.user_id;
-            console.log(`[CSV Import API] Found existing user with email ${email}, user_id: ${userId}`);
-          }
+        // Check if username already exists and add random numbers if needed
+        let username = baseUsername;
+        const { data: existingUsernames } = await supabaseAdmin
+          .from('student_profiles')
+          .select('username')
+          .ilike('username', `${baseUsername}%`);
+        
+        if (existingUsernames && existingUsernames.length > 0) {
+          // Username exists, add 3 random numbers
+          const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
+          username = `${baseUsername}${randomSuffix}`;
+          console.log(`[CSV Import API] Username ${baseUsername} already exists, using ${username}`);
         }
         
-        // Step 2: If no user found, create a new user
+        const pinCode = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        // Step 1: Create a new user (no email check since we're not collecting emails)
         if (!userId) {
-          // Generate temp email if none provided
-          const userEmail = email || `temp-${crypto.randomBytes(8).toString('hex')}@example.com`;
+          // Generate temp email (no longer collecting emails from CSV)
+          const userEmail = `temp-${crypto.randomBytes(8).toString('hex')}@example.com`;
           
           try {
             console.log(`[CSV Import API] Creating new user for ${fullName}`);
@@ -212,26 +223,30 @@ export async function POST(request: NextRequest, { params }: any) {
           }
         }
         
-        // Step 3: Ensure profile exists with PIN and username
+        // Step 3: Insert directly into student_profiles with first_name and surname
         try {
-          console.log(`[CSV Import API] Updating profile for ${fullName}`);
-          await supabaseAdmin.from('profiles').upsert({
+          console.log(`[CSV Import API] Creating student profile for ${fullName} with userId: ${userId}`);
+          if (!userId) {
+            throw new Error('User ID is missing after user creation');
+          }
+          await supabaseAdmin.from('student_profiles').upsert({
             user_id: userId,
             full_name: fullName,
-            email: email || '',
-            role: 'student',
+            first_name: firstName,
+            surname: surname,
             school_id: schoolId,
             username: username,
             pin_code: pinCode,
             last_pin_change: new Date().toISOString(),
             pin_change_by: user.id,
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }, {
             onConflict: 'user_id'
           });
         } catch (profileError) {
-          console.error(`[CSV Import API] Error updating profile:`, profileError);
-          // Continue anyway - this is not critical
+          console.error(`[CSV Import API] Error creating student profile:`, profileError);
+          throw profileError;
         }
         
         // Step 4: Add student to room (if not already a member)
@@ -245,12 +260,18 @@ export async function POST(request: NextRequest, { params }: any) {
             .maybeSingle();
             
           if (!existingMembership) {
-            console.log(`[CSV Import API] Adding ${fullName} to room ${roomId}`);
-            await supabaseAdmin.from('room_memberships').insert({
+            console.log(`[CSV Import API] Adding ${fullName} (${userId}) to room ${roomId}`);
+            const { error: insertError } = await supabaseAdmin.from('room_memberships').insert({
               room_id: roomId,
               student_id: userId,
               joined_at: new Date().toISOString()
             });
+            
+            if (insertError) {
+              console.error(`[CSV Import API] Failed to insert room membership:`, insertError);
+              throw insertError;
+            }
+            console.log(`[CSV Import API] Successfully added ${fullName} to room ${roomId}`);
           } else {
             console.log(`[CSV Import API] ${fullName} already in room ${roomId}`);
           }
@@ -279,7 +300,7 @@ export async function POST(request: NextRequest, { params }: any) {
         // Add to successful imports
         successfulImports.push({
           fullName,
-          email,
+          email: null,
           username,
           pin_code: pinCode,
           magicLink
@@ -287,10 +308,17 @@ export async function POST(request: NextRequest, { params }: any) {
         
       } catch (studentError) {
         console.error(`[CSV Import API] Failed to process student ${fullName}:`, studentError);
+        const errorMessage = studentError instanceof Error 
+          ? studentError.message 
+          : typeof studentError === 'string' 
+          ? studentError 
+          : JSON.stringify(studentError);
+          
         failedImports.push({
           index: i,
-          student: { fullName, email },
-          error: studentError instanceof Error ? studentError.message : 'Unknown error'
+          student: { fullName, email: null },
+          error: errorMessage,
+          details: studentError instanceof Error ? studentError.stack : String(studentError)
         });
       }
     }
@@ -329,12 +357,3 @@ export async function POST(request: NextRequest, { params }: any) {
   }
 }
 
-function generateUsername(fullName: string): string {
-  // Remove special characters and convert to lowercase
-  const cleanName = fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  // Add a random suffix to ensure uniqueness (3 digits)
-  const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
-  
-  return cleanName + randomSuffix;
-}

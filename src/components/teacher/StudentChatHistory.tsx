@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { Card, Alert, Button } from '@/styles/StyledComponents';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import type { ChatMessage as DatabaseChatMessage } from '@/types/database.types';
 
@@ -13,7 +14,13 @@ const HistoryContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.xl};
 `;
 
-const FilterCard = styled(Card)`
+const FilterCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-bottom: ${({ theme }) => theme.spacing.lg};
 `;
 
@@ -61,7 +68,13 @@ const Select = styled.select`
   min-width: 200px;
 `;
 
-const ConversationCard = styled(Card)`
+const ConversationCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-bottom: ${({ theme }) => theme.spacing.lg};
 `;
 
@@ -98,9 +111,10 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-const LoadMoreButton = styled(Button)`
+const LoadMoreButtonWrapper = styled.div`
   margin: ${({ theme }) => theme.spacing.md} auto;
-  display: block;
+  display: flex;
+  justify-content: center;
 `;
 
 interface ChatbotOption {
@@ -243,9 +257,9 @@ export default function StudentChatHistory({
       )}
 
       {loading && conversations.length === 0 ? (
-        <Card>
+        <ConversationCard>
           <p>Loading conversations...</p>
-        </Card>
+        </ConversationCard>
       ) : conversations.length === 0 ? (
         <EmptyState>
           <h3>No conversations found</h3>
@@ -283,13 +297,15 @@ export default function StudentChatHistory({
           })}
 
           {hasMore && (
-            <LoadMoreButton
-              variant="outline"
-              onClick={handleLoadMore}
-              disabled={loading}
-            >
-              {loading ? 'Loading...' : 'Load More'}
-            </LoadMoreButton>
+            <LoadMoreButtonWrapper>
+              <ModernButton
+                variant="ghost"
+                onClick={handleLoadMore}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Load More'}
+              </ModernButton>
+            </LoadMoreButtonWrapper>
           )}
         </>
       )}

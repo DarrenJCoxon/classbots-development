@@ -7,7 +7,6 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Your client import
 import { Container, Button } from '@/styles/StyledComponents';
-import SignInDropdown from '@/components/auth/SignInDropdown';
 import HeaderNavigation from '@/components/layout/HeaderNavigation';
 import { APP_NAME } from '@/lib/utils/constants';
 import type { User } from '@supabase/supabase-js';
@@ -16,11 +15,11 @@ import { usePathname } from 'next/navigation';
 const HeaderWrapper = styled.header`
   background: ${({ theme }) => theme.colors.background};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  padding: ${({ theme }) => theme.spacing.md} 0;
+  padding: 12px 0;
   position: sticky;
   top: 0;
   z-index: 100;
-  min-height: 70px;
+  min-height: 60px;
   display: flex;
   align-items: center;
 `;
@@ -30,7 +29,7 @@ const HeaderContent = styled.div`
   justify-content: space-between;
   align-items: center;
   position: relative; /* For absolute positioning of Nav */
-  min-height: 60px; /* Ensure consistent height even when Nav is empty */
+  min-height: 48px; /* Reduced from 60px */
   width: 100%;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -40,14 +39,14 @@ const HeaderContent = styled.div`
 `;
 
 const Logo = styled(Link)`
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.primary};
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing.xs}; /* Further reduced gap */
-  padding: ${({ theme }) => theme.spacing.sm} 0;
+  gap: 4px;
+  padding: 4px 0;
   
   /* Create a proper container for logo images */
   > * {
@@ -84,7 +83,7 @@ const LogoImage = styled(Image)`
 const SiteTitleImage = styled(Image)`
   height: auto;
   width: auto;
-  max-height: 56px; /* Further increased from 50px */
+  max-height: 48px; /* Reduced from 56px */
   object-fit: contain;
   display: block;
   position: relative;
@@ -94,7 +93,7 @@ const SiteTitleImage = styled(Image)`
   
   /* Mobile responsiveness */
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    max-height: 45px; /* Slightly smaller on mobile */
+    max-height: 40px; /* Reduced from 45px */
     margin-left: -5px; /* Less negative margin on mobile */
   }
   
@@ -241,21 +240,12 @@ export default function Header() {
         <HeaderContent>
           <Logo href="/">
             <LogoImage 
-              src="/images/skolr-logo.png" 
-              alt="Logo" 
-              width={60} 
+              src="/images/skolr_new.png" 
+              alt="Skolr Logo" 
+              width={150} 
               height={60} 
               priority
             />
-            <div style={{ display: 'flex', alignItems: 'center', height: '60px', marginLeft: '-4px' }}>
-              <SiteTitleImage 
-                src="/images/site-title.png" 
-                alt="Site Title" 
-                width={290} 
-                height={56} 
-                priority
-              />
-            </div>
           </Logo>
           
           <HeaderNavigation 
@@ -265,22 +255,10 @@ export default function Header() {
           />
           
           <UserSection>
-            {user ? (
-              <>
-                {userRole === 'teacher' && (
-                  <ProfileButton href="/teacher-dashboard/profile">
-                    <span>👤</span>
-                    <span>Profile</span>
-                  </ProfileButton>
-                )}
-                <HeaderButton variant="outline" onClick={handleSignOut}>
-                  Sign Out
-                </HeaderButton>
-              </>
-            ) : (
-              pathname !== '/auth' && pathname !== '/student-login' && pathname !== '/student-access' && (
-                <SignInDropdown />
-              )
+            {user && userRole !== 'teacher' && (
+              <HeaderButton variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </HeaderButton>
             )}
           </UserSection>
         </HeaderContent>

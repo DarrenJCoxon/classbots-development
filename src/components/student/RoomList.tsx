@@ -3,7 +3,10 @@
 
 import styled from 'styled-components';
 import Link from 'next/link';
-import { Card, Button } from '@/styles/StyledComponents';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/styles/StyledComponents';
+import { GlassCard } from '@/components/shared/GlassCard';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { StudentRoom } from '@/types/student.types';
 
 const RoomGrid = styled.div`
@@ -12,13 +15,24 @@ const RoomGrid = styled.div`
   gap: ${({ theme }) => theme.spacing.lg};
 `;
 
-const RoomCard = styled(Card)`
+const RoomCard = styled(GlassCard)`
   display: flex;
   flex-direction: column;
-  transition: transform ${({ theme }) => theme.transitions.fast};
+  position: relative;
+  overflow: hidden;
   
-  &:hover {
-    transform: translateY(-2px);
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: ${({ theme }) => `linear-gradient(90deg, 
+      ${theme.colors.purple} 0%, 
+      ${theme.colors.primary} 50%, 
+      ${theme.colors.blue} 100%)`};
+    opacity: 0.8;
   }
 `;
 
@@ -30,6 +44,8 @@ const RoomName = styled.h3`
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: ${({ theme }) => theme.spacing.sm};
   font-size: 1.25rem;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
 `;
 
 const RoomDetails = styled.div`
@@ -50,10 +66,14 @@ const ChatbotInfo = styled.div`
 
 const ChatbotItem = styled.div`
   padding: ${({ theme }) => theme.spacing.sm};
-  background: ${({ theme }) => theme.colors.backgroundDark};
+  background: ${({ theme }) => `linear-gradient(135deg, 
+    ${theme.colors.backgroundDark}cc, 
+    ${theme.colors.background}cc)`};
+  backdrop-filter: blur(5px);
   border-radius: ${({ theme }) => theme.borderRadius.small};
   margin-bottom: ${({ theme }) => theme.spacing.sm};
   font-size: 0.875rem;
+  border: 1px solid ${({ theme }) => theme.colors.border}20;
   
   &:last-child {
     margin-bottom: 0;
@@ -95,10 +115,12 @@ interface RoomListProps {
 }
 
 export default function RoomList({ rooms }: RoomListProps) {
+  const router = useRouter();
+  
   return (
     <RoomGrid>
       {rooms.map((room) => (
-        <RoomCard key={room.room_id}>
+        <RoomCard key={room.room_id} variant="light" hoverable>
           <RoomHeader>
             <RoomName>{room.room_name}</RoomName>
             <RoomDetails>
@@ -110,7 +132,7 @@ export default function RoomList({ rooms }: RoomListProps) {
             {room.chatbots.length > 0 ? (
               <>
                 <ChatbotInfo>
-                  {room.chatbots.length} chatbot{room.chatbots.length > 1 ? 's' : ''}:
+                  {room.chatbots.length} skolrbot{room.chatbots.length > 1 ? 's' : ''}:
                 </ChatbotInfo>
                 {room.chatbots.map((chatbot) => (
                   <ChatbotItem key={chatbot.chatbot_id}>
@@ -122,7 +144,7 @@ export default function RoomList({ rooms }: RoomListProps) {
                 ))}
               </>
             ) : (
-              <EmptyState>No chatbots assigned</EmptyState>
+              <EmptyState>No skolrbots assigned</EmptyState>
             )}
           </ChatbotsList>
           
@@ -130,17 +152,17 @@ export default function RoomList({ rooms }: RoomListProps) {
             <JoinedDate>
               Joined: {new Date(room.joined_at || room.created_at).toLocaleDateString()}
             </JoinedDate>
-            <Button 
-              as={Link} 
-              href={`/room/${room.room_id}`}
-              size="medium"
+            <ModernButton 
+              onClick={() => router.push(`/room/${room.room_id}`)}
+              variant="primary"
+              size="small"
               style={{ 
                 minWidth: '120px',
                 textAlign: 'center'
               }}
             >
               Enter Room
-            </Button>
+            </ModernButton>
           </RoomFooter>
         </RoomCard>
       ))}

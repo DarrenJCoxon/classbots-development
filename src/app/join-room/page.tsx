@@ -4,9 +4,12 @@ import { useState, useEffect, Suspense } from 'react';
 import styled from 'styled-components';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Alert } from '@/styles/StyledComponents';
+import { Input, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { isValidRoomCode } from '@/lib/utils/room-codes';
+import { ModernStudentNav } from '@/components/student/ModernStudentNav';
+import { User } from '@supabase/supabase-js';
 
 // Steps for joining a room
 enum JoinStep {
@@ -16,26 +19,75 @@ enum JoinStep {
   COMPLETE = 'complete'
 }
 
-const PageWrapper = styled.div`
+const PageWrapper = styled.div<{ $hasNav?: boolean }>`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 80vh;
-  padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.backgroundDark};
+  ${({ $hasNav }) => $hasNav ? '' : 'align-items: center;'}
+  ${({ $hasNav }) => $hasNav ? '' : 'justify-content: center;'}
+  ${({ $hasNav }) => $hasNav ? '' : 'padding: 24px;'}
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
-const JoinCard = styled(Card)`
+const MainContent = styled.div<{ $hasNav?: boolean }>`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  margin-left: ${({ $hasNav }) => $hasNav ? '280px' : '0'};
+  min-height: 100vh;
+  
+  @media (max-width: 768px) {
+    margin-left: ${({ $hasNav }) => $hasNav ? '70px' : '0'};
+  }
+`;
+
+const JoinCard = styled.div`
   width: 100%;
   max-width: 400px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  position: relative;
+  z-index: 1;
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.primary};
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.secondary}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const Form = styled.form`
@@ -45,13 +97,16 @@ const Form = styled.form`
 const InputStyled = styled(Input)`
   text-align: center;
   font-size: 1.2rem;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  padding: ${({ theme }) => theme.spacing.md};
-  border: 2px solid ${({ theme }) => theme.colors.border};
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 2px solid rgba(152, 93, 215, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   
   &:focus {
     border-color: ${({ theme }) => theme.colors.primary};
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.primary}30;
+    box-shadow: 0 0 0 3px rgba(152, 93, 215, 0.1);
   }
 `;
 
@@ -74,13 +129,19 @@ const CodeBox = styled.div`
   font-family: ${({ theme }) => theme.fonts.mono};
   font-size: 2rem;
   font-weight: 600;
-  color: ${({ theme }) => theme.colors.primary};
-  margin: ${({ theme }) => theme.spacing.md} 0;
-  border: 3px dashed ${({ theme }) => theme.colors.primary};
-  padding: ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.large};
+  margin: 16px 0;
+  border: 3px dashed rgba(152, 93, 215, 0.3);
+  padding: 16px;
+  border-radius: 12px;
   letter-spacing: 0.2em;
-  background: ${({ theme }) => theme.colors.primary}10;
+  background: rgba(152, 93, 215, 0.05);
+  background-image: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.secondary}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const LoadingFallback = styled.div`
@@ -97,9 +158,39 @@ function JoinRoomContent() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [user, setUser] = useState<User | null>(null);
+  const [isStudent, setIsStudent] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // Check auth state on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+        
+        // Check if user is a student
+        if (user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+            
+          setIsStudent(profile?.role === 'student');
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, [supabase]);
 
   useEffect(() => {
     const codeFromUrl = searchParams?.get('code');
@@ -343,8 +434,10 @@ function JoinRoomContent() {
   // Step 1: Enter Room Code
   if (currentStep === JoinStep.ROOM_CODE) {
     return (
-      <PageWrapper>
-        <JoinCard>
+      <PageWrapper $hasNav={!authLoading && isStudent}>
+        {!authLoading && isStudent && <ModernStudentNav />}
+        <MainContent $hasNav={!authLoading && isStudent}>
+          <JoinCard>
           <Title>Join Classroom</Title>
           
           <Text>
@@ -365,16 +458,17 @@ function JoinRoomContent() {
               disabled={isLoading}
             />
             
-            <Button 
+            <ModernButton 
               type="submit" 
               disabled={isLoading} 
               style={{ width: '100%' }} 
               size="large"
             >
               {isLoading ? 'Checking...' : 'Continue'}
-            </Button>
+            </ModernButton>
           </Form>
-        </JoinCard>
+          </JoinCard>
+        </MainContent>
       </PageWrapper>
     );
   }
@@ -382,8 +476,10 @@ function JoinRoomContent() {
   // Step 2: Enter Student Name
   if (currentStep === JoinStep.STUDENT_NAME) {
     return (
-      <PageWrapper>
-        <JoinCard>
+      <PageWrapper $hasNav={!authLoading && isStudent}>
+        {!authLoading && isStudent && <ModernStudentNav />}
+        <MainContent $hasNav={!authLoading && isStudent}>
+          <JoinCard>
           <Title>Join Classroom</Title>
           
           <Text>
@@ -404,16 +500,17 @@ function JoinRoomContent() {
               required
               disabled={isLoading}
             />
-            <Button 
+            <ModernButton 
               type="submit" 
               disabled={isLoading} 
               style={{ width: '100%' }} 
               size="large"
             >
               {isLoading ? 'Joining...' : 'Join Classroom'}
-            </Button>
+            </ModernButton>
           </Form>
-        </JoinCard>
+          </JoinCard>
+        </MainContent>
       </PageWrapper>
     );
   }
@@ -421,27 +518,33 @@ function JoinRoomContent() {
   // Step 3: Joining (Loading state)
   if (currentStep === JoinStep.JOINING) {
     return (
-      <PageWrapper>
-        <JoinCard>
+      <PageWrapper $hasNav={!authLoading && isStudent}>
+        {!authLoading && isStudent && <ModernStudentNav />}
+        <MainContent $hasNav={!authLoading && isStudent}>
+          <JoinCard>
           <Title>Joining Classroom</Title>
           <CodeBox>Room: {roomCode}</CodeBox>
           <Text>Setting up your account...</Text>
           <LoadingSpinner />
-        </JoinCard>
+          </JoinCard>
+        </MainContent>
       </PageWrapper>
     );
   }
 
   // Step 4: Complete
   return (
-    <PageWrapper>
-      <JoinCard>
+    <PageWrapper $hasNav={!authLoading && isStudent}>
+      {!authLoading && isStudent && <ModernStudentNav />}
+      <MainContent $hasNav={!authLoading && isStudent}>
+        <JoinCard>
         <Title>Successfully Joined!</Title>
         <CodeBox>Room: {roomCode}</CodeBox>
         <Alert variant="success">Welcome to the classroom, {studentName}!</Alert>
         <Text>Redirecting to your classroom...</Text>
         <LoadingSpinner />
-      </JoinCard>
+        </JoinCard>
+      </MainContent>
     </PageWrapper>
   );
 }

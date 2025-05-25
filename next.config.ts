@@ -26,14 +26,14 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['styled-components'],
     webpackBuildWorker: true, // Use worker for webpack builds
   },
-  // Configure webpack for react-pdf
+  // Configure webpack for react-pdf (client-side PDF viewing)
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       canvas: false,
     };
 
-    // Configure PDF.js worker handling
+    // Configure PDF.js worker handling for react-pdf
     config.module.rules.push({
       test: /pdf\.worker\.(min\.)?js/,
       type: 'asset/resource',

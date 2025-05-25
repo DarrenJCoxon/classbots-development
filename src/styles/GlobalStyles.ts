@@ -4,8 +4,6 @@
 import { createGlobalStyle } from 'styled-components';
 
 export const GlobalStyles = createGlobalStyle`
-  /* Use web-safe fonts for now - add Google Fonts to your layout.tsx instead */
-  
   * {
     box-sizing: border-box;
     padding: 0;
@@ -27,7 +25,9 @@ export const GlobalStyles = createGlobalStyle`
     font-family: ${({ theme }) => theme.fonts.heading};
     line-height: 1.2;
     color: ${({ theme }) => theme.colors.text};
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
   
   h1 { font-size: 2.5rem; }

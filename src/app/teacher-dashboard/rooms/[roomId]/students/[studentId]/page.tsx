@@ -6,7 +6,8 @@ import { useState, useEffect, useCallback, useRef, FormEvent } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Container, Card, Button, Alert, Badge } from '@/styles/StyledComponents';
+import { Container, Alert, Badge } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import StudentChatHistory from '@/components/teacher/StudentChatHistory'; // To be used in a tab
 
@@ -37,6 +38,30 @@ interface StudentRoomAllDetails {
 // --- Styled Components ---
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.lg} 0;
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+`;
+
+const ContentContainer = styled(Container)`
+  position: relative;
+  z-index: 1;
 `;
 
 const Header = styled.div`
@@ -50,9 +75,23 @@ const Header = styled.div`
 
 const StudentInfoBar = styled.div`
   h1 {
-    color: ${({ theme }) => theme.colors.text};
+    font-size: 36px;
+    font-weight: 800;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 1px;
     margin-bottom: ${({ theme }) => theme.spacing.xs};
-    font-size: 1.8rem;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.magenta}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 28px;
+    }
   }
   p {
     color: ${({ theme }) => theme.colors.textLight};
@@ -63,23 +102,45 @@ const StudentInfoBar = styled.div`
 
 const TabContainer = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 8px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
   display: flex;
-  gap: ${({ theme }) => theme.spacing.sm};
+  gap: 8px;
 `;
 
 const TabButton = styled.button<{ $isActive: boolean }>`
-  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  padding: 12px 24px;
   border: none;
-  background: none;
+  background: ${({ $isActive }) => $isActive ? 'rgba(152, 93, 215, 0.1)' : 'transparent'};
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: ${({ theme, $isActive }) => $isActive ? theme.colors.primary : theme.colors.textLight};
-  border-bottom: 3px solid ${({ theme, $isActive }) => $isActive ? theme.colors.primary : 'transparent'};
+  border-radius: 12px;
   transition: all 0.2s ease;
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: ${({ $isActive }) => $isActive ? '40px' : '0'};
+    height: 3px;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.magenta}
+    );
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
 
   &:hover {
+    background: rgba(152, 93, 215, 0.05);
     color: ${({ theme }) => theme.colors.primary};
   }
 `;
@@ -88,7 +149,13 @@ const TabContent = styled.div`
   padding-top: ${({ theme }) => theme.spacing.lg};
 `;
 
-const SummarySection = styled(Card)`
+const SummarySection = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-bottom: ${({ theme }) => theme.spacing.lg};
 `;
 
@@ -149,14 +216,16 @@ const LoadingContainer = styled.div`
 `;
 
 const MagicLinkBox = styled.div`
-  background: ${({ theme }) => theme.colors.background};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  padding: ${({ theme }) => theme.spacing.md};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 24px;
   margin-top: ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.md};
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 16px rgba(152, 93, 215, 0.05);
 `;
 
 const MagicLinkText = styled.div`
@@ -454,11 +523,11 @@ export default function StudentRoomDetailPage() {
   if (loading) {
     return (
       <PageWrapper>
-        <Container>
+        <ContentContainer>
           <LoadingContainer>
             <LoadingSpinner size="large" /> <p>Loading student details...</p>
           </LoadingContainer>
-        </Container>
+        </ContentContainer>
       </PageWrapper>
     );
   }
@@ -466,12 +535,12 @@ export default function StudentRoomDetailPage() {
   if (error) {
     return (
       <PageWrapper>
-        <Container>
+        <ContentContainer>
           <Alert variant="error">{error}</Alert>
-          <Button onClick={() => router.back()} style={{ marginTop: '16px' }}>
-            ← Back
-          </Button>
-        </Container>
+          <div style={{ marginTop: '16px' }}>
+            <ModernButton onClick={() => router.back()}>← Back</ModernButton>
+          </div>
+        </ContentContainer>
       </PageWrapper>
     );
   }
@@ -479,12 +548,12 @@ export default function StudentRoomDetailPage() {
   if (!details || !details.student) {
     return (
       <PageWrapper>
-        <Container>
+        <ContentContainer>
           <Alert variant="info">Student details not found.</Alert>
-          <Button onClick={() => router.back()} style={{ marginTop: '16px' }}>
-            ← Back
-          </Button>
-        </Container>
+          <div style={{ marginTop: '16px' }}>
+            <ModernButton onClick={() => router.back()}>← Back</ModernButton>
+          </div>
+        </ContentContainer>
       </PageWrapper>
     );
   }
@@ -493,7 +562,7 @@ export default function StudentRoomDetailPage() {
 
   return (
     <PageWrapper>
-      <Container>
+      <ContentContainer>
         <Header>
           <StudentInfoBar>
             <h1>{student.full_name || 'Student'}</h1>
@@ -513,7 +582,7 @@ export default function StudentRoomDetailPage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <h4 style={{ margin: '0', fontSize: '1rem' }}>Login PIN</h4>
-                        <Button 
+                        <ModernButton 
                           onClick={handleRegeneratePin}
                           variant="secondary"
                           size="small"
@@ -521,7 +590,7 @@ export default function StudentRoomDetailPage() {
                           style={{ padding: '4px 8px', fontSize: '0.8rem' }}
                         >
                           {regeneratingPin ? 'Regenerating...' : 'Regenerate'}
-                        </Button>
+                        </ModernButton>
                       </div>
                       <div style={{ 
                         display: 'flex', 
@@ -538,15 +607,15 @@ export default function StudentRoomDetailPage() {
                           <span style={{ fontWeight: 'bold', marginRight: '6px' }}>PIN:</span>
                           <span style={{ letterSpacing: '1px' }}>{pinCode || 'Not set'}</span>
                         </div>
-                        <Button 
+                        <ModernButton 
                           onClick={copyPinToClipboard} 
-                          variant="outline"
+                          variant="ghost"
                           size="small"
                           disabled={!pinCode}
                           style={{ padding: '2px 8px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
                         >
                           {showCopiedMessage ? 'Copied!' : 'Copy'}
-                        </Button>
+                        </ModernButton>
                       </div>
                     </div>
                     
@@ -554,7 +623,7 @@ export default function StudentRoomDetailPage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <h4 style={{ margin: '0', fontSize: '1rem' }}>Magic Link</h4>
-                        <Button 
+                        <ModernButton 
                           onClick={handleRegenerateMagicLink}
                           variant="secondary"
                           size="small"
@@ -562,21 +631,21 @@ export default function StudentRoomDetailPage() {
                           style={{ padding: '4px 8px', fontSize: '0.8rem' }}
                         >
                           {regeneratingMagicLink ? 'Regenerating...' : 'Regenerate'}
-                        </Button>
+                        </ModernButton>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                         <MagicLinkText style={{ flex: 1, maxWidth: 'calc(100% - 70px)' }}>
                           {magicLink || 'No magic link available'}
                         </MagicLinkText>
-                        <Button 
+                        <ModernButton 
                           onClick={copyMagicLinkToClipboard} 
-                          variant="outline"
+                          variant="ghost"
                           size="small"
                           disabled={!magicLink}
                           style={{ padding: '2px 8px', fontSize: '0.8rem', flexShrink: 0, marginTop: '2px' }}
                         >
                           {showMagicLinkCopied ? 'Copied!' : 'Copy'}
-                        </Button>
+                        </ModernButton>
                       </div>
                     </div>
                     
@@ -588,9 +657,9 @@ export default function StudentRoomDetailPage() {
               </SummarySection>
             </div>
           </StudentInfoBar>
-          <Button variant="outline" onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}`)}>
+          <ModernButton variant="ghost" onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}`)}>
             ← Back to Room Overview
-          </Button>
+          </ModernButton>
         </Header>
 
         <TabContainer>
@@ -628,7 +697,7 @@ export default function StudentRoomDetailPage() {
                     ))}
                   </SummaryList>
                 ) : <p>No assessments found for this student in this room.</p>}
-                 {assessments.length > 5 && <Button variant="outline" onClick={() => setActiveTab('assessments')} style={{marginTop: '10px'}}>View All Assessments ({assessments.length})</Button>}
+                 {assessments.length > 5 && <div style={{marginTop: '10px'}}><ModernButton variant="ghost" onClick={() => setActiveTab('assessments')}>View All Assessments ({assessments.length})</ModernButton></div>}
               </SummarySection>
 
               <SummarySection>
@@ -653,24 +722,24 @@ export default function StudentRoomDetailPage() {
                     ))}
                   </SummaryList>
                 ) : <p>No concerns flagged for this student in this room.</p>}
-                {concerns.length > 5 && <Button variant="outline" onClick={() => setActiveTab('concerns')} style={{marginTop: '10px'}}>View All Concerns ({concerns.length})</Button>}
+                {concerns.length > 5 && <div style={{marginTop: '10px'}}><ModernButton variant="ghost" onClick={() => setActiveTab('concerns')}>View All Concerns ({concerns.length})</ModernButton></div>}
               </SummarySection>
             </div>
           )}
 
           {activeTab === 'chats' && (
-            <Card> {/* Wrap StudentChatHistory in a Card for consistent styling */}
+            <SummarySection>
               <StudentChatHistory
                 roomId={roomId}
                 studentId={studentId}
                 studentName={student.full_name || 'Student'}
                 chatbots={roomChatbots || []} // Pass the fetched chatbots for the room
               />
-            </Card>
+            </SummarySection>
           )}
 
           {activeTab === 'assessments' && (
-            <Card>
+            <SummarySection>
               <SectionTitle>All Assessments ({assessments.length})</SectionTitle>
               {assessments.length > 0 ? (
                 <SummaryList>
@@ -695,11 +764,11 @@ export default function StudentRoomDetailPage() {
                   ))}
                 </SummaryList>
               ) : <p>No assessments found for this student in this room.</p>}
-            </Card>
+            </SummarySection>
           )}
 
           {activeTab === 'concerns' && (
-            <Card>
+            <SummarySection>
               <SectionTitle>All Concerns ({concerns.length})</SectionTitle>
                {concerns.length > 0 ? (
                 <SummaryList>
@@ -721,10 +790,10 @@ export default function StudentRoomDetailPage() {
                   ))}
                 </SummaryList>
               ) : <p>No concerns flagged for this student in this room.</p>}
-            </Card>
+            </SummarySection>
           )}
         </TabContent>
-      </Container>
+      </ContentContainer>
     </PageWrapper>
   );
 }

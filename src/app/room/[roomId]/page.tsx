@@ -6,16 +6,34 @@ import styled from 'styled-components';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Alert, Button } from '@/styles/StyledComponents';
+import { Container, Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import StudentList from '@/components/teacher/StudentList';
+import { ModernStudentNav } from '@/components/student/ModernStudentNav';
 import type { Chatbot } from '@/types/database.types';
 
 const PageWrapper = styled.div`
-  padding: ${({ theme }) => theme.spacing.lg} 0;
+  display: flex;
   min-height: 100vh;
+  width: 100%;
+  position: relative;
+`;
+
+const MainContent = styled.div<{ $hasNav?: boolean }>`
+  flex: 1;
+  width: 100%;
+  padding: ${({ theme }) => theme.spacing.lg} 0;
+  margin-left: ${({ $hasNav }) => ($hasNav ? '280px' : '0')};
+  transition: margin-left 0.3s ease;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    margin-left: ${({ $hasNav }) => ($hasNav ? '70px' : '0')};
+  }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin-left: 0;
     padding: ${({ theme }) => theme.spacing.md} 0;
+    padding-bottom: ${({ $hasNav }) => ($hasNav ? '80px' : '0')};
   }
 `;
 
@@ -34,12 +52,22 @@ const Header = styled.div`
 
 const RoomInfo = styled.div`
   h1 {
-    color: ${({ theme }) => theme.colors.text};
+    font-size: 36px;
+    font-weight: 800;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 1px;
     margin-bottom: ${({ theme }) => theme.spacing.sm};
-    font-size: 2rem;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.blue}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     
     @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-      font-size: 1.5rem;
+      font-size: 28px;
       text-align: center;
     }
   }
@@ -66,25 +94,14 @@ const RoomInfo = styled.div`
   }
 `;
 
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
-  background: ${({ theme }) => theme.colors.backgroundCard};
-  color: ${({ theme }) => theme.colors.text};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-  
-  &:hover {
-    background: ${({ theme }) => theme.colors.backgroundDark};
-  }
-  
+const BackButtonWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
-    justify-content: center;
+    
+    button {
+      width: 100%;
+      justify-content: center;
+    }
   }
 `;
 
@@ -171,6 +188,7 @@ const LoadingContainer = styled.div`
   min-height: 50vh;
 `;
 
+
 // Extended chatbot interface to include instance_id
 interface ChatbotWithInstance extends Chatbot {
   instance_id?: string;
@@ -195,6 +213,7 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isStudent, setIsStudent] = useState(false);
   
   const params = useParams();
   const roomId = params?.roomId as string;
@@ -263,12 +282,14 @@ export default function RoomPage() {
           console.log('[RoomPage] Using direct access cookies:', authUserId);
           userId = authUserId;
           userRole = 'student';
+          setIsStudent(true);
         } else if (uidFromUrl) {
           console.log('[RoomPage] No authenticated user but UID found:', uidFromUrl);
           // Try to use the UID from either access_signature or legacy uid parameter
           userId = uidFromUrl;
           console.log('[RoomPage] Set userId to uidFromUrl:', userId);
           userRole = 'student'; // Assume student role for direct access
+          setIsStudent(true);
         } else {
           throw new Error('Not authenticated');
         }
@@ -285,6 +306,7 @@ export default function RoomPage() {
         if (!profile) throw new Error('User profile not found');
         userRole = profile.role;
         setUserRole(userRole);
+        setIsStudent(userRole === 'student');
       }
 
       // First, ensure we have access to this room
@@ -463,11 +485,14 @@ export default function RoomPage() {
   if (loading) {
     return (
       <PageWrapper>
-        <Container>
-          <LoadingContainer>
-            <Card>Loading room...</Card>
-          </LoadingContainer>
-        </Container>
+        {isStudent && <ModernStudentNav />}
+        <MainContent $hasNav={isStudent}>
+          <Container>
+            <LoadingContainer>
+              <Card>Loading room...</Card>
+            </LoadingContainer>
+          </Container>
+        </MainContent>
       </PageWrapper>
     );
   }
@@ -475,12 +500,17 @@ export default function RoomPage() {
   if (error) {
     return (
       <PageWrapper>
-        <Container>
-          <Alert variant="error">{error}</Alert>
-          <BackButton onClick={handleBack}>
-            ← Back to Dashboard
-          </BackButton>
-        </Container>
+        {isStudent && <ModernStudentNav />}
+        <MainContent $hasNav={isStudent}>
+          <Container>
+            <Alert variant="error">{error}</Alert>
+            <BackButtonWrapper>
+              <ModernButton onClick={handleBack} variant="ghost" size="small">
+                ← Back to Dashboard
+              </ModernButton>
+            </BackButtonWrapper>
+          </Container>
+        </MainContent>
       </PageWrapper>
     );
   }
@@ -491,7 +521,9 @@ export default function RoomPage() {
 
   return (
     <PageWrapper>
-      <Container>
+      {isStudent && <ModernStudentNav />}
+      <MainContent $hasNav={isStudent}>
+        <Container>
         <Header>
           <RoomInfo>
             <h1>{room.room_name}</h1>
@@ -502,9 +534,11 @@ export default function RoomPage() {
             </p>
             <div className="room-code">Room Code: {room.room_code}</div>
           </RoomInfo>
-          <BackButton onClick={handleBack}>
-            ← Back
-          </BackButton>
+          <BackButtonWrapper>
+            <ModernButton onClick={handleBack} variant="ghost" size="small">
+              ← Back
+            </ModernButton>
+          </BackButtonWrapper>
         </Header>
 
         {chatbots.length === 0 ? (
@@ -539,8 +573,36 @@ export default function RoomPage() {
                 style={{ textDecoration: 'none' }}
               >
                 <ChatbotCard>
-                  <h3>{chatbot.name}</h3>
+                  <h3>
+                    {chatbot.bot_type === 'assessment' && '📝 '}
+                    {chatbot.bot_type === 'reading_room' && '📖 '}
+                    {chatbot.bot_type === 'learning' && '🤖 '}
+                    {chatbot.name}
+                  </h3>
                   <p>{chatbot.description || 'No description'}</p>
+                  
+                  {chatbot.bot_type && (
+                    <div style={{
+                      display: 'inline-block',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '16px',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      marginBottom: '0.75rem',
+                      background: 
+                        chatbot.bot_type === 'assessment' ? '#fef3c7' :
+                        chatbot.bot_type === 'reading_room' ? '#dbeafe' :
+                        '#e0e7ff',
+                      color: 
+                        chatbot.bot_type === 'assessment' ? '#92400e' :
+                        chatbot.bot_type === 'reading_room' ? '#1e40af' :
+                        '#3730a3'
+                    }}>
+                      {chatbot.bot_type === 'assessment' ? 'Assessment Bot' :
+                       chatbot.bot_type === 'reading_room' ? 'Reading Room' :
+                       'Learning Bot'}
+                    </div>
+                  )}
                   
                   <div className="model-info">
                     {getModelDisplayName(chatbot.model)}
@@ -552,23 +614,30 @@ export default function RoomPage() {
                     </div>
                   )}
                   
-                  <Button 
+                  <ModernButton 
                     className="chat-button"
                     as="div"  // Prevent double link
+                    variant="primary"
+                    size="medium"
+                    fullWidth
                   >
-                    Start Chat
-                  </Button>
+                    {chatbot.bot_type === 'assessment' ? 'Start Assessment' :
+                     chatbot.bot_type === 'reading_room' ? 'Start Reading' :
+                     'Start Chat'}
+                  </ModernButton>
                 </ChatbotCard>
               </Link>
             ))}
           </ChatbotGrid>
         )}
         
+        
         {/* Student list section - only visible to teachers */}
         {userRole === 'teacher' && (
           <StudentList roomId={roomId} />
         )}
-      </Container>
+        </Container>
+      </MainContent>
     </PageWrapper>
   );
 }

@@ -34,12 +34,22 @@ export async function GET() {
     // Create admin client to bypass RLS policies
     const supabaseAdmin = createAdminClient();
     
+    // First, get all room IDs for this teacher
+    const { data: teacherRooms } = await supabaseAdmin
+        .from('rooms')
+        .select('room_id')
+        .eq('teacher_id', user.id);
+    
+    const roomIds = teacherRooms?.map(room => room.room_id) || [];
+    
     // Fetch all stats concurrently using admin client
     const [
         chatbotsResult,
         roomsResult,
         activeRoomsResult,
-        pendingConcernsResult
+        pendingConcernsResult,
+        studentsResult,
+        assessmentsResult
     ] = await Promise.all([
         supabaseAdmin
             .from('chatbots')
@@ -58,7 +68,22 @@ export async function GET() {
             .from('flagged_messages')
             .select('flag_id', { count: 'exact', head: true })
             .eq('teacher_id', user.id)
-            .eq('status', 'pending') // Count only PENDING concerns
+            .eq('status', 'pending'), // Count only PENDING concerns
+        // Count unique students across all teacher's rooms
+        roomIds.length > 0 
+            ? supabaseAdmin
+                .from('room_student_associations')
+                .select('student_id', { count: 'exact', head: true })
+                .in('room_id', roomIds)
+            : Promise.resolve({ count: 0, error: null }),
+        // Count completed assessments in teacher's rooms
+        roomIds.length > 0
+            ? supabaseAdmin
+                .from('assessment_results')
+                .select('result_id', { count: 'exact', head: true })
+                .in('room_id', roomIds)
+                .eq('status', 'completed')
+            : Promise.resolve({ count: 0, error: null })
     ]);
 
     // Error handling for each query (optional, but good for debugging)
@@ -66,12 +91,16 @@ export async function GET() {
     if (roomsResult.error) console.error('[API STATS] Error fetching total rooms count:', roomsResult.error.message);
     if (activeRoomsResult.error) console.error('[API STATS] Error fetching active rooms count:', activeRoomsResult.error.message);
     if (pendingConcernsResult.error) console.error('[API STATS] Error fetching pending concerns count:', pendingConcernsResult.error.message);
+    if (studentsResult.error) console.error('[API STATS] Error fetching students count:', studentsResult.error.message);
+    if (assessmentsResult.error) console.error('[API STATS] Error fetching assessments count:', assessmentsResult.error.message);
 
     const stats = {
       totalChatbots: chatbotsResult.count || 0,
       totalRooms: roomsResult.count || 0,
       activeRooms: activeRoomsResult.count || 0,
-      pendingConcerns: pendingConcernsResult.count || 0, // <<<< Use the actual count
+      pendingConcerns: pendingConcernsResult.count || 0,
+      totalStudents: studentsResult.count || 0,
+      assessmentsCompleted: assessmentsResult.count || 0
     };
     
     console.log('[API STATS] Returning stats:', stats);

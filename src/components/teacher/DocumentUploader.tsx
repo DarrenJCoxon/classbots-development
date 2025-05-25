@@ -3,7 +3,7 @@
 
 import { useState, useRef, ChangeEvent, DragEvent } from 'react'; // Added specific event types
 import styled from 'styled-components';
-import { Button, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { DocumentType } from '@/types/knowledge-base.types'; // Ensure this path is correct
 
 const UploaderContainer = styled.div`
@@ -12,17 +12,22 @@ const UploaderContainer = styled.div`
 
 const UploadArea = styled.div<{ $isDragging: boolean }>`
   border: 2px dashed ${({ theme, $isDragging }) => 
-    $isDragging ? theme.colors.primary : theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+    $isDragging ? theme.colors.primary : 'rgba(152, 93, 215, 0.3)'};
+  border-radius: 20px;
   padding: ${({ theme }) => theme.spacing.xl};
   text-align: center;
-  transition: all ${({ theme }) => theme.transitions.fast};
-  background-color: ${({ theme, $isDragging }) => 
-    $isDragging ? `${theme.colors.primary}10` : theme.colors.backgroundCard};
+  transition: all 0.3s ease;
+  background: ${({ theme, $isDragging }) => 
+    $isDragging 
+      ? 'rgba(152, 93, 215, 0.1)' 
+      : 'rgba(255, 255, 255, 0.8)'};
+  backdrop-filter: blur(10px);
   
   &:hover {
     border-color: ${({ theme }) => theme.colors.primary};
-    background-color: ${({ theme }) => `${theme.colors.primary}05`};
+    background: rgba(152, 93, 215, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
   }
   cursor: pointer;
 `;
@@ -33,19 +38,28 @@ const FileInput = styled.input`
 
 const UploadIcon = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.md};
-  font-size: 2rem;
-  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 3rem;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 `;
 
 const UploadText = styled.p`
   margin-bottom: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.text};
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  font-size: 1.1rem;
 `;
 
 const FileTypeInfo = styled.p`
   color: ${({ theme }) => theme.colors.textMuted};
   font-size: 0.875rem;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const SelectedFileContainer = styled.div` // Renamed from SelectedFile to avoid conflict
@@ -54,8 +68,10 @@ const SelectedFileContainer = styled.div` // Renamed from SelectedFile to avoid 
   align-items: center;
   gap: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.md};
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  background: rgba(152, 93, 215, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
 `;
 
 const FileName = styled.span`
@@ -63,14 +79,62 @@ const FileName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const FileSize = styled.span`
-  color: ${({ theme }) => theme.colors.textMuted};
+  color: ${({ theme }) => theme.colors.primary};
   font-size: 0.875rem;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
+
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' }>`
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: 12px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
+  animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(34, 197, 94, 0.1);
+          color: ${theme.colors.green};
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(239, 68, 68, 0.1);
+          color: ${theme.colors.red};
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
 
 interface DocumentUploaderProps {
   chatbotId: string;
@@ -153,7 +217,7 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
         throw new Error(data.error || 'Failed to upload document');
       }
       
-      setSuccessMessage(data.message || 'Document uploaded successfully!');
+      setSuccessMessage(data.message || 'Document uploaded and processing started automatically!');
       setSelectedFile(null); 
       if (fileInputRef.current) {
         fileInputRef.current.value = ""; // Reset file input
@@ -177,8 +241,8 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
 
   return (
     <UploaderContainer>
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
-      {successMessage && <Alert variant="success" style={{ marginBottom: '16px' }}>{successMessage}</Alert>}
+      {error && <ModernAlert $variant="error">{error}</ModernAlert>}
+      {successMessage && <ModernAlert $variant="success">{successMessage}</ModernAlert>}
       
       <UploadArea
         $isDragging={isDragging}
@@ -195,11 +259,14 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
         />
         <UploadIcon>📄</UploadIcon> {/* Replace with actual icon if you have one */}
         <UploadText>{isDragging ? 'Drop your file here' : 'Click or drag file to upload'}</UploadText>
+        <FileTypeInfo style={{ marginTop: '8px', marginBottom: '8px' }}>
+          Documents will be automatically processed after upload
+        </FileTypeInfo>
         <FileTypeInfo>Supported: PDF, DOC, DOCX, TXT (Max 10MB)</FileTypeInfo>
         {!selectedFile && (
-            <Button size="small" variant="outline" type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click();}}>
+            <ModernButton size="small" variant="ghost" type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click();}}>
                 Browse Files
-            </Button>
+            </ModernButton>
         )}
       </UploadArea>
 
@@ -208,24 +275,25 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
           <SelectedFileContainer>
             <FileName title={selectedFile.name}>{selectedFile.name}</FileName>
             <FileSize>{formatFileSize(selectedFile.size)}</FileSize>
-            <Button
+            <ModernButton
               size="small"
-              variant="outline"
+              variant="ghost"
               onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ""; setError(null);}}
               type="button"
             >
               Remove
-            </Button>
+            </ModernButton>
           </SelectedFileContainer>
           
-          <Button
+          <ModernButton
             onClick={handleUpload}
             disabled={isUploading}
-            style={{ marginTop: '16px', width: '100%' }}
+            fullWidth
+            style={{ marginTop: '16px' }}
             type="button"
           >
             {isUploading ? 'Uploading...' : `Upload ${selectedFile.name}`}
-          </Button>
+          </ModernButton>
         </>
       )}
     </UploaderContainer>

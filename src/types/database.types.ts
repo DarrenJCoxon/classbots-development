@@ -18,7 +18,7 @@ export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error' |
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
 // Bot Type Enum
-export type BotTypeEnum = 'learning' | 'assessment';
+export type BotTypeEnum = 'learning' | 'assessment' | 'reading_room';
 
 // Assessment Status Enum
 export type AssessmentStatusEnum = 'ai_processing' | 'ai_completed' | 'teacher_reviewed';
@@ -48,6 +48,15 @@ export interface Chatbot extends BaseTable {
   welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
 }
 
+export interface ReadingDocument extends BaseTable {
+  id: string;
+  chatbot_id: string;
+  file_name: string;
+  file_path: string;
+  file_url: string;
+  file_size: number;
+}
+
 export interface Room extends BaseTable {
   room_id: string;
   room_name: string;
@@ -56,6 +65,7 @@ export interface Room extends BaseTable {
   school_id?: string | null;
   is_active: boolean;
   is_archived?: boolean;
+  description?: string | null;
 }
 
 export interface RoomChatbot extends BaseTable {

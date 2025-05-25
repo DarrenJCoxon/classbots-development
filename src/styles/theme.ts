@@ -50,13 +50,22 @@ const theme: DefaultTheme = {
     textLight: '#5E6C7A', 
     textMuted: '#9CA3AF', 
     
-    // Accent/Status colors
-    green: skolrGreen, 
-    red: skolrCoral, 
-    blue: skolrCyan, // Using Cyan for info/blue context
+    // Status colors (simplified palette)
+    success: skolrCyan, // Using cyan instead of green
+    warning: skolrMagenta, // Using magenta instead of orange
+    danger: skolrCoral, // Pink/coral for errors
+    info: skolrCyan, // Cyan for information
     
-    // Additional brand accent color
+    // Core accent colors
+    purple: skolrPurple,
+    blue: skolrCyan,
+    pink: skolrCoral,
     magenta: skolrMagenta,
+    
+    // Legacy colors (for compatibility, but should be phased out)
+    green: skolrCyan, // Redirected to cyan
+    red: skolrCoral, // Redirected to coral
+    orange: skolrMagenta, // Redirected to magenta
     
     // UI colors
     border: '#E5E7EB', 
@@ -66,9 +75,10 @@ const theme: DefaultTheme = {
   },
   
   fonts: {
-    heading: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    heading: "var(--font-oxanium), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    body: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     mono: "'SF Mono', 'Fira Code', Consolas, monospace",
+    display: "var(--font-orbitron), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
   
   spacing: {
@@ -98,6 +108,46 @@ const theme: DefaultTheme = {
   gradients: {
     primary: `linear-gradient(135deg, ${skolrPurple}, ${lighten(skolrPurple, 20)})`, // Updated
     secondary: `linear-gradient(135deg, ${skolrOrange}, ${lighten(skolrOrange, 15)})`, // Updated
+    // New animated gradient backgrounds
+    animatedPurple: `linear-gradient(45deg, ${skolrPurple}, ${skolrMagenta}, ${skolrCyan})`,
+    animatedWarm: `linear-gradient(45deg, ${skolrOrange}, ${skolrCoral}, ${skolrMagenta})`,
+    animatedCool: `linear-gradient(45deg, ${skolrCyan}, ${skolrPurple}, ${skolrGreen})`,
+  },
+  
+  glassmorphism: {
+    // Glass effects with different intensities
+    light: {
+      background: 'rgba(255, 255, 255, 0.7)',
+      backdropFilter: 'blur(10px)',
+      border: '1px solid rgba(255, 255, 255, 0.3)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+    },
+    medium: {
+      background: 'rgba(255, 255, 255, 0.85)',
+      backdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255, 255, 255, 0.4)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+    },
+    dark: {
+      background: 'rgba(26, 30, 46, 0.8)',
+      backdropFilter: 'blur(16px)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+    },
+    colored: {
+      purple: {
+        background: `rgba(152, 93, 215, 0.15)`,
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(152, 93, 215, 0.3)',
+        boxShadow: '0 8px 32px rgba(152, 93, 215, 0.2)',
+      },
+      cyan: {
+        background: `rgba(76, 190, 243, 0.15)`,
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(76, 190, 243, 0.3)',
+        boxShadow: '0 8px 32px rgba(76, 190, 243, 0.2)',
+      },
+    },
   },
   
   breakpoints: {

@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import styled from 'styled-components';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Alert } from '@/styles/StyledComponents';
+import { Card, Input, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { isValidRoomCode } from '@/lib/utils/room-codes';
 
@@ -12,22 +13,60 @@ const PageWrapper = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 80vh;
+  min-height: 100vh;
   padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.backgroundDark};
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
-const ProfileCard = styled(Card)`
+const ProfileCard = styled.div`
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
+  position: relative;
+  z-index: 1;
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
+  font-size: 36px;
+  font-weight: 800;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.primary};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.blue}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 28px;
+  }
 `;
 
 const Form = styled.form`
@@ -35,14 +74,24 @@ const Form = styled.form`
 `;
 
 const NameInput = styled(Input)`
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   margin-bottom: ${({ theme }) => theme.spacing.lg};
-  padding: ${({ theme }) => theme.spacing.md};
-  border: 2px solid ${({ theme }) => theme.colors.border};
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(152, 93, 215, 0.2);
+  border-radius: 12px;
+  transition: all 0.3s ease;
   
   &:focus {
+    background: white;
     border-color: ${({ theme }) => theme.colors.primary};
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.primary}30;
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}20;
+    outline: none;
+  }
+  
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textLight};
   }
 `;
 
@@ -54,14 +103,19 @@ const Text = styled.p`
 
 const CodeBox = styled.div`
   font-family: ${({ theme }) => theme.fonts.mono};
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.primary};
+  font-size: 1.8rem;
+  font-weight: 700;
   margin: ${({ theme }) => theme.spacing.md} 0;
-  padding: ${({ theme }) => theme.spacing.sm};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  letter-spacing: 0.1em;
-  background: ${({ theme }) => theme.colors.primary}10;
+  padding: 16px 24px;
+  border-radius: 12px;
+  letter-spacing: 0.2em;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}20, 
+    ${({ theme }) => theme.colors.blue}20
+  );
+  border: 2px solid ${({ theme }) => theme.colors.primary}30;
+  color: ${({ theme }) => theme.colors.primary};
+  backdrop-filter: blur(10px);
 `;
 
 const LoadingFallback = styled.div`
@@ -238,14 +292,15 @@ function ProfileContent() {
             autoFocus
             required
           />
-          <Button 
+          <ModernButton 
             type="submit" 
             disabled={isLoading} 
-            style={{ width: '100%' }} 
+            fullWidth
+            variant="primary"
             size="large"
           >
             {isLoading ? 'Joining...' : 'Join Classroom'}
-          </Button>
+          </ModernButton>
         </Form>
       </ProfileCard>
     </PageWrapper>

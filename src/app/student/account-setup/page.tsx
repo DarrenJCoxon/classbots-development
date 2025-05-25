@@ -4,29 +4,65 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button, Alert } from '@/styles/StyledComponents';
+import { FormGroup, Label, Input, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
   display: flex;
-  justify-content: center;
   align-items: center;
-  min-height: 80vh;
-  padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.backgroundDark};
+  justify-content: center;
+  padding: 24px;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
-const SetupCard = styled(Card)`
+const SetupCard = styled.div`
   width: 100%;
   max-width: 450px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  position: relative;
+  z-index: 1;
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.primary};
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.secondary}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const Subtitle = styled.p`
@@ -47,12 +83,14 @@ const HelpText = styled.div`
 `;
 
 const SuccessBox = styled.div`
-  padding: ${({ theme }) => theme.spacing.lg};
-  background: ${({ theme }) => theme.colors.green}10;
-  border: 1px solid ${({ theme }) => theme.colors.green};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  margin: ${({ theme }) => theme.spacing.lg} 0;
+  padding: 24px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  margin: 24px 0;
   text-align: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 `;
 
 export default function StudentAccountSetup() {
@@ -182,14 +220,14 @@ export default function StudentAccountSetup() {
               />
             </FormGroup>
             
-            <Button 
+            <ModernButton 
               type="submit" 
               disabled={isLoading} 
               style={{ width: '100%' }} 
               size="large"
             >
               {isLoading ? 'Setting Up...' : 'Create Account'}
-            </Button>
+            </ModernButton>
           </Form>
         )}
       </SetupCard>

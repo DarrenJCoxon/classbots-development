@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Button, Alert } from '@/styles/StyledComponents';
+import { Container, Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import StudentChatHistory from '@/components/teacher/StudentChatHistory';
 
 const PageWrapper = styled.div`
@@ -28,9 +29,23 @@ const Header = styled.div`
 
 const StudentInfo = styled.div`
   h1 {
-    color: ${({ theme }) => theme.colors.text};
+    font-size: 36px;
+    font-weight: 800;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 1px;
     margin-bottom: ${({ theme }) => theme.spacing.sm};
-    font-size: 2rem;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.magenta}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 28px;
+    }
   }
   
   p {
@@ -39,9 +54,13 @@ const StudentInfo = styled.div`
   }
 `;
 
-const BackButton = styled(Button)`
+const BackButtonWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
+    
+    button {
+      width: 100%;
+    }
   }
 `;
 
@@ -181,9 +200,11 @@ export default function StudentChatPage() {
       <PageWrapper>
         <Container>
           <Alert variant="error">{error}</Alert>
-          <BackButton onClick={handleBack}>
-            ← Back to Room
-          </BackButton>
+          <BackButtonWrapper>
+            <ModernButton onClick={handleBack} variant="ghost">
+              ← Back to Room
+            </ModernButton>
+          </BackButtonWrapper>
         </Container>
       </PageWrapper>
     );
@@ -197,12 +218,14 @@ export default function StudentChatPage() {
             <h1>{studentName}</h1>
             <p>Chat History</p>
           </StudentInfo>
-          <BackButton 
-            variant="outline" 
-            onClick={handleBack}
-          >
-            ← Back to Room
-          </BackButton>
+          <BackButtonWrapper>
+            <ModernButton 
+              variant="ghost" 
+              onClick={handleBack}
+            >
+              ← Back to Room
+            </ModernButton>
+          </BackButtonWrapper>
         </Header>
         
         <StudentChatHistory

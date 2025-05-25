@@ -1,9 +1,4 @@
 /* src/app/globals.css */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-/* React PDF styles */
-@import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-@import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 :root {
   --background: #ffffff;

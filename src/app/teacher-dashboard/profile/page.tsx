@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Input, Alert, Select } from '@/styles/StyledComponents';
+import { Card, Input, Alert, Select } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { User } from '@supabase/supabase-js';
 
@@ -21,30 +22,73 @@ interface TeacherProfile {
 }
 
 // Styled Components
+const PageWrapper = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+`;
+
 const ProfileWrapper = styled.div`
   max-width: 800px;
   margin: 0 auto;
-  padding: ${({ theme }) => theme.spacing.xl} 0;
+  padding: 40px 24px;
+  position: relative;
+  z-index: 1;
 `;
 
 const PageTitle = styled.h1`
-  font-size: 2rem;
-  color: ${({ theme }) => theme.colors.primary};
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  text-align: center;
+  margin: 0 0 32px 0;
+  font-size: 36px;
+  font-weight: 800;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
-const ProfileSection = styled(Card)`
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  padding: ${({ theme }) => theme.spacing.xl};
+const ProfileSection = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 `;
 
 const SectionTitle = styled.h2`
-  font-size: 1.5rem;
+  font-size: 20px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.text};
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  padding-bottom: ${({ theme }) => theme.spacing.sm};
-  border-bottom: 2px solid ${({ theme }) => theme.colors.border};
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(152, 93, 215, 0.1);
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 `;
 
 const FormGroup = styled.div`
@@ -80,8 +124,8 @@ const ButtonGroup = styled.div`
 `;
 
 const DangerSection = styled(ProfileSection)`
-  border: 2px solid ${({ theme }) => theme.colors.red};
-  background-color: ${({ theme }) => theme.colors.red}08;
+  border: 2px solid rgba(220, 38, 38, 0.3);
+  background: rgba(254, 226, 226, 0.5);
 `;
 
 const DangerTitle = styled(SectionTitle)`
@@ -104,10 +148,18 @@ const StatsGrid = styled.div`
 
 const StatCard = styled.div`
   text-align: center;
-  padding: ${({ theme }) => theme.spacing.lg};
-  background-color: ${({ theme }) => theme.colors.backgroundCard};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.08);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(152, 93, 215, 0.1);
+  }
 `;
 
 const StatNumber = styled.div`
@@ -128,7 +180,13 @@ const LoadingContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 `;
 
 const HelpText = styled.div`
@@ -371,8 +429,9 @@ export default function TeacherProfilePage() {
   }
 
   return (
-    <ProfileWrapper>
-      <PageTitle>Teacher Profile</PageTitle>
+    <PageWrapper>
+      <ProfileWrapper>
+        <PageTitle>Teacher Profile</PageTitle>
       
       {error && <Alert variant="error" style={{ marginBottom: '24px' }}>{error}</Alert>}
       {success && <Alert variant="success" style={{ marginBottom: '24px' }}>{success}</Alert>}
@@ -483,13 +542,13 @@ export default function TeacherProfilePage() {
           </FormGroup>
           
           <ButtonGroup>
-            <Button 
+            <ModernButton 
               type="submit" 
               variant="primary" 
               disabled={updating}
             >
               {updating ? 'Updating...' : 'Update Profile'}
-            </Button>
+            </ModernButton>
           </ButtonGroup>
         </form>
       </ProfileSection>
@@ -524,13 +583,13 @@ export default function TeacherProfilePage() {
           </FormGroup>
           
           <ButtonGroup>
-            <Button 
+            <ModernButton 
               type="submit" 
               variant="secondary" 
               disabled={updating}
             >
               {updating ? 'Changing...' : 'Change Password'}
-            </Button>
+            </ModernButton>
           </ButtonGroup>
         </form>
       </ProfileSection>
@@ -564,15 +623,16 @@ export default function TeacherProfilePage() {
         </FormGroup>
         
         <ButtonGroup>
-          <Button 
+          <ModernButton 
             variant="danger"
             onClick={handleDeleteAccount}
             disabled={deleting || deleteConfirmText !== 'DELETE MY ACCOUNT'}
           >
             {deleting ? 'Deleting Account...' : 'Delete My Account'}
-          </Button>
+          </ModernButton>
         </ButtonGroup>
       </DangerSection>
-    </ProfileWrapper>
+      </ProfileWrapper>
+    </PageWrapper>
   );
 }

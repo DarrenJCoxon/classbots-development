@@ -4,7 +4,8 @@
 import { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
-import { Button } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { FiChevronDown } from 'react-icons/fi';
 
 const DropdownContainer = styled.div`
   position: relative;
@@ -15,11 +16,12 @@ const DropdownMenu = styled.div<{ $isOpen: boolean }>`
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 0.5rem;
-  background: ${({ theme }) => theme.colors.background};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(152, 93, 215, 0.15);
   display: ${({ $isOpen }) => ($isOpen ? 'block' : 'none')};
   min-width: 200px;
   z-index: 1000;
@@ -28,34 +30,37 @@ const DropdownMenu = styled.div<{ $isOpen: boolean }>`
 
 const DropdownItem = styled(Link)`
   display: block;
-  padding: 0.75rem 1rem;
+  padding: 12px 20px;
   color: ${({ theme }) => theme.colors.text};
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
   
   &:hover {
-    background: ${({ theme }) => theme.colors.backgroundDark};
+    background: rgba(152, 93, 215, 0.05);
+    color: ${({ theme }) => theme.colors.primary};
+    padding-left: 24px;
   }
   
   &:not(:last-child) {
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    border-bottom: 1px solid rgba(152, 93, 215, 0.1);
   }
 `;
 
-const StyledButton = styled(Button)`
-  display: flex;
+const StyledButton = styled(ModernButton)`
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 8px;
   
-  &:after {
-    content: '▼';
-    font-size: 0.7rem;
-    margin-top: 2px;
+  svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
   }
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
-    font-size: 0.9rem;
+  &[data-open="true"] svg {
+    transform: rotate(180deg);
   }
 `;
 
@@ -83,8 +88,14 @@ export default function SignInDropdown() {
 
   return (
     <DropdownContainer ref={dropdownRef}>
-      <StyledButton onClick={toggleDropdown}>
+      <StyledButton 
+        onClick={toggleDropdown}
+        variant="primary"
+        size="medium"
+        data-open={isOpen}
+      >
         Sign In
+        <FiChevronDown />
       </StyledButton>
       
       <DropdownMenu $isOpen={isOpen}>

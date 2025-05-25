@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Container } from '@/styles/StyledComponents';
 import Footer from '@/components/layout/Footer';
 import StudentProfileCheck from '@/components/student/StudentProfileCheck';
+import { ModernStudentNav } from '@/components/student/ModernStudentNav';
 
 const StudentLayout = styled.div`
   min-height: 100vh;
@@ -16,8 +17,23 @@ const StudentLayout = styled.div`
   background: ${({ theme }) => theme.colors.background};
 `;
 
-const MainContent = styled.main`
+const MainWrapper = styled.div`
+  display: flex;
   flex: 1;
+  position: relative;
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  margin-left: 80px;
+  transition: margin-left 0.3s ease;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    margin-left: 0;
+  }
+`;
+
+const MainContent = styled.main`
   padding: ${({ theme }) => theme.spacing.xl} 0;
 `;
 
@@ -159,11 +175,16 @@ export default function StudentLayoutWrapper({
     <StudentLayout>
       {/* Add StudentProfileCheck to automatically repair profiles if needed */}
       <StudentProfileCheck />
-      <Container>
-        <MainContent>
-          {children}
-        </MainContent>
-      </Container>
+      <MainWrapper>
+        <ModernStudentNav />
+        <ContentArea>
+          <Container>
+            <MainContent>
+              {children}
+            </MainContent>
+          </Container>
+        </ContentArea>
+      </MainWrapper>
       <Footer />
     </StudentLayout>
   );

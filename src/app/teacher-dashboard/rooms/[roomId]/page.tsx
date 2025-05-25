@@ -5,15 +5,18 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Container, Card, Button, Alert, Badge } from '@/styles/StyledComponents';
+import { Container, Card, Alert, Badge } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import StudentCsvUpload from '@/components/teacher/StudentCsvUpload';
 import ArchivePanel from '@/components/teacher/ArchivePanel';
 import type { Room, Chatbot, Profile } from '@/types/database.types'; // Base types
 
 // --- Data Structure for the Page State ---
-interface StudentInRoom extends Pick<Profile, 'user_id' | 'full_name' | 'email'> {
+interface StudentInRoom extends Pick<Profile, 'user_id' | 'full_name'> {
   joined_at: string;
+  email?: string; // Make email optional for backward compatibility
+  username?: string;
 }
 
 interface RoomDetailsData {
@@ -25,6 +28,53 @@ interface RoomDetailsData {
 // MagicLinkResponse interface removed
 
 // --- Styled Components ---
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+`;
+
+const ModalContent = styled.div`
+  width: 100%;
+  max-width: 450px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  
+  h3 {
+    margin-bottom: 16px;
+    font-size: 24px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
+  }
+  
+  p {
+    margin-bottom: 24px;
+    color: ${({ theme }) => theme.colors.textLight};
+    line-height: 1.5;
+  }
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 24px;
+`;
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.lg} 0;
   min-height: 100vh;
@@ -45,12 +95,22 @@ const Header = styled.div`
 
 const RoomInfo = styled.div`
   h1 {
-    color: ${({ theme }) => theme.colors.text};
+    font-size: 36px;
+    font-weight: 800;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 1px;
     margin-bottom: ${({ theme }) => theme.spacing.sm};
-    font-size: 2rem;
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.magenta}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     
     @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-      font-size: 1.5rem;
+      font-size: 28px;
     }
   }
   
@@ -67,11 +127,17 @@ const RoomInfo = styled.div`
   }
 `;
 
-const BackButton = styled(Button)`
-  // No specific styles needed if general Button styling is sufficient
+const BackButtonWrapper = styled.div`
+  // Wrapper for back button
 `;
 
-const Section = styled(Card)`
+const Section = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
@@ -90,21 +156,33 @@ const ChatbotGrid = styled.div`
   gap: ${({ theme }) => theme.spacing.lg};
 `;
 
-const ChatbotCard = styled(Card)`
+const ChatbotCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(152, 93, 215, 0.1);
+  }
+
   h3 {
     color: ${({ theme }) => theme.colors.text};
-    margin-bottom: ${({ theme }) => theme.spacing.xs};
-    font-size: 1.2rem;
+    margin-bottom: ${({ theme }) => theme.spacing.sm};
+    font-size: 1.3rem;
+    font-weight: 600;
   }
+  
   p {
     color: ${({ theme }) => theme.colors.textLight};
-    font-size: 0.9rem;
-    margin-bottom: ${({ theme }) => theme.spacing.sm};
-    min-height: 40px; /* Ensure some consistent height */
-  }
-  .bot-type {
-    font-size: 0.8rem;
-    font-style: italic;
+    font-size: 0.95rem;
+    margin-bottom: ${({ theme }) => theme.spacing.md};
+    min-height: 45px;
+    line-height: 1.5;
   }
 `;
 
@@ -147,7 +225,19 @@ const StudentListMobile = styled.div`
   }
 `;
 
-const StudentCard = styled(Card)`
+const StudentCard = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 4px 16px rgba(152, 93, 215, 0.05);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
+  }
   margin-bottom: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.md};
 
@@ -196,6 +286,9 @@ export default function TeacherRoomDetailPage() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showArchivedStudents, setShowArchivedStudents] = useState(false);
   const [archivingStudents, setArchivingStudents] = useState<Record<string, boolean>>({});
+  const [deletingStudents, setDeletingStudents] = useState<Record<string, boolean>>({});
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<StudentInRoom | null>(null);
   
   const params = useParams();
   const router = useRouter();
@@ -249,6 +342,16 @@ export default function TeacherRoomDetailPage() {
     setStudentToArchive(null);
   };
   
+  const openDeleteModal = (student: StudentInRoom) => {
+    setStudentToDelete(student);
+    setShowDeleteModal(true);
+  };
+  
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setStudentToDelete(null);
+  };
+  
   const archiveStudent = async (studentId: string) => {
     // Mark student as archiving
     setArchivingStudents(prev => ({ ...prev, [studentId]: true }));
@@ -294,6 +397,51 @@ export default function TeacherRoomDetailPage() {
     }
   };
   
+  const deleteStudent = async (studentId: string) => {
+    // Mark student as deleting
+    setDeletingStudents(prev => ({ ...prev, [studentId]: true }));
+    
+    try {
+      const response = await fetch(`/api/teacher/students`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId,
+          roomId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to delete student (${response.status})`);
+      }
+      
+      // Remove the student from the list
+      if (roomDetails) {
+        setRoomDetails({
+          ...roomDetails,
+          students: roomDetails.students.filter(s => s.user_id !== studentId)
+        });
+      }
+      
+      closeDeleteModal();
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete student');
+      
+      // Reset deleting state
+      setDeletingStudents(prev => {
+        const newState = { ...prev };
+        delete newState[studentId];
+        return newState;
+      });
+      
+      closeDeleteModal();
+    }
+  };
+  
   // Magic link related functions removed
 
   if (loading) {
@@ -314,9 +462,9 @@ export default function TeacherRoomDetailPage() {
       <PageWrapper>
         <Container>
           <Alert variant="error">{error}</Alert>
-          <Button onClick={() => router.push('/teacher-dashboard/rooms')} style={{ marginTop: '16px' }}>
+          <ModernButton onClick={() => router.push('/teacher-dashboard/rooms')} variant="ghost" style={{ marginTop: '16px' }}>
             Back to Rooms
-          </Button>
+          </ModernButton>
         </Container>
       </PageWrapper>
     );
@@ -327,9 +475,9 @@ export default function TeacherRoomDetailPage() {
       <PageWrapper>
         <Container>
           <Alert variant="info">Room details not found.</Alert>
-           <Button onClick={() => router.push('/teacher-dashboard/rooms')} style={{ marginTop: '16px' }}>
+           <ModernButton onClick={() => router.push('/teacher-dashboard/rooms')} variant="ghost" style={{ marginTop: '16px' }}>
             Back to Rooms
-          </Button>
+          </ModernButton>
         </Container>
       </PageWrapper>
     );
@@ -345,12 +493,14 @@ export default function TeacherRoomDetailPage() {
             <h1>{room.room_name}</h1>
             <p className="room-code">Room Code: {room.room_code}</p>
           </RoomInfo>
-          <BackButton 
-            variant="outline"
-            onClick={() => router.push('/teacher-dashboard/rooms')}
-          >
-            ← All Rooms
-          </BackButton>
+          <BackButtonWrapper>
+            <ModernButton 
+              variant="ghost"
+              onClick={() => router.push('/teacher-dashboard/rooms')}
+            >
+              ← All Rooms
+            </ModernButton>
+          </BackButtonWrapper>
         </Header>
 
         <Section>
@@ -359,10 +509,21 @@ export default function TeacherRoomDetailPage() {
             <ChatbotGrid>
               {chatbots.map(bot => (
                 <ChatbotCard key={bot.chatbot_id}>
-                  <h3>{bot.name}</h3>
+                  <h3>
+                    {bot.bot_type === 'assessment' && '📝 '}
+                    {bot.bot_type === 'reading_room' && '📖 '}
+                    {bot.bot_type === 'learning' && '🤖 '}
+                    {bot.name}
+                  </h3>
                   <p>{bot.description || 'No description provided.'}</p>
-                  <Badge variant={bot.bot_type === 'assessment' ? 'warning' : 'default'}>
-                    Type: {bot.bot_type || 'Learning'}
+                  <Badge variant={
+                    bot.bot_type === 'assessment' ? 'warning' :
+                    bot.bot_type === 'reading_room' ? 'cyan' :
+                    'default'
+                  }>
+                    {bot.bot_type === 'assessment' ? 'Assessment Bot' :
+                     bot.bot_type === 'reading_room' ? 'Reading Room' :
+                     'Learning Bot'}
                   </Badge>
                 </ChatbotCard>
               ))}
@@ -372,52 +533,25 @@ export default function TeacherRoomDetailPage() {
           )}
         </Section>
 
-        <Section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionTitle>📖 SkolrRead Sessions</SectionTitle>
-            <Button
-              variant="primary"
-              size="small"
-              as={Link}
-              href={`/teacher-dashboard/rooms/${roomId}/skolrread`}
-            >
-              Manage SkolrRead
-            </Button>
-          </div>
-          <Card style={{ padding: '1.5rem', textAlign: 'center', color: '#666' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📚</div>
-            <h3 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>Interactive Reading Experience</h3>
-            <p style={{ margin: '0 0 1rem 0' }}>
-              Create engaging reading sessions where students can read documents and chat with AI about the content.
-            </p>
-            <Button
-              as={Link}
-              href={`/teacher-dashboard/rooms/${roomId}/skolrread`}
-              variant="outline"
-            >
-              Get Started with SkolrRead
-            </Button>
-          </Card>
-        </Section>
 
         <Section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <SectionTitle>Enrolled Students ({students.length})</SectionTitle>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <Button
-                variant="outline"
+              <ModernButton
+                variant="ghost"
                 size="small"
                 onClick={() => setShowArchivedStudents(!showArchivedStudents)}
               >
                 {showArchivedStudents ? 'Hide Archived Students' : 'View Archived Students'}
-              </Button>
-              <Button 
+              </ModernButton>
+              <ModernButton 
                 variant="primary" 
                 size="small"
                 onClick={() => setShowCsvUpload(true)}
               >
                 Import from CSV
-              </Button>
+              </ModernButton>
             </div>
           </div>
           
@@ -427,7 +561,7 @@ export default function TeacherRoomDetailPage() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Email</th>
+                    <th>Username</th>
                     <th>Joined On</th>
                     <th>Actions</th>
                   </tr>
@@ -441,30 +575,43 @@ export default function TeacherRoomDetailPage() {
                            {student.full_name}
                         </Link>
                       </td>
-                      <td>{student.email}</td>
+                      <td>{student.username || 'N/A'}</td>
                       <td>{formatDate(student.joined_at)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <Button 
-                            size="small" 
-                            as={Link} 
-                            href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
-                            variant="outline"
+                          <ModernButton 
+                            size="small"
+                            onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`)}
+                            variant="ghost"
                           >
                             View Details
-                          </Button>
+                          </ModernButton>
                           {archivingStudents[student.user_id] ? (
-                            <Button size="small" disabled>
+                            <ModernButton size="small" disabled>
                               <LoadingSpinner size="small" /> Archiving...
-                            </Button>
+                            </ModernButton>
                           ) : (
-                            <Button
+                            <ModernButton
                               size="small"
                               variant="secondary"
                               onClick={() => openArchiveModal(student)}
                             >
                               Archive
-                            </Button>
+                            </ModernButton>
+                          )}
+                          {deletingStudents[student.user_id] ? (
+                            <ModernButton size="small" disabled>
+                              <LoadingSpinner size="small" /> Deleting...
+                            </ModernButton>
+                          ) : (
+                            <ModernButton
+                              size="small"
+                              variant="danger"
+                              onClick={() => openDeleteModal(student)}
+                              style={{ backgroundColor: '#dc3545', color: 'white' }}
+                            >
+                              Delete
+                            </ModernButton>
                           )}
                         </div>
                       </td>
@@ -480,31 +627,44 @@ export default function TeacherRoomDetailPage() {
                     <Link href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`} className="student-name-link">
                         {student.full_name}
                     </Link>
-                    <p className="student-email">{student.email}</p>
+                    <p className="student-email">Username: {student.username || 'N/A'}</p>
                     <p className="joined-at">Joined: {formatDate(student.joined_at)}</p>
                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
-                        <Button 
-                          size="small" 
-                          as={Link} 
-                          href={`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`}
-                          variant="outline"
+                        <ModernButton 
+                          size="small"
+                          onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`)}
+                          variant="ghost"
                           style={{flex: 1}}
                         >
                           View Details
-                        </Button>
+                        </ModernButton>
                         {archivingStudents[student.user_id] ? (
-                          <Button size="small" disabled style={{flex: 1}}>
+                          <ModernButton size="small" disabled style={{flex: 1}}>
                             <LoadingSpinner size="small" /> Archiving...
-                          </Button>
+                          </ModernButton>
                         ) : (
-                          <Button
+                          <ModernButton
                             size="small"
                             variant="secondary"
                             onClick={() => openArchiveModal(student)}
                             style={{flex: 1}}
                           >
                             Archive
-                          </Button>
+                          </ModernButton>
+                        )}
+                        {deletingStudents[student.user_id] ? (
+                          <ModernButton size="small" disabled style={{flex: 1}}>
+                            <LoadingSpinner size="small" /> Deleting...
+                          </ModernButton>
+                        ) : (
+                          <ModernButton
+                            size="small"
+                            variant="danger"
+                            onClick={() => openDeleteModal(student)}
+                            style={{flex: 1, backgroundColor: '#dc3545', color: 'white'}}
+                          >
+                            Delete
+                          </ModernButton>
                         )}
                       </div>
                       
@@ -543,45 +703,47 @@ export default function TeacherRoomDetailPage() {
       
       {/* Archive Confirmation Modal */}
       {showArchiveModal && studentToArchive && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.6)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <Card style={{
-            width: '100%',
-            maxWidth: '400px',
-            padding: '24px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ marginBottom: '16px' }}>Archive Student</h3>
+        <ModalOverlay onClick={closeArchiveModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <h3>Archive Student</h3>
             <p>Are you sure you want to remove <strong>{studentToArchive.full_name}</strong> from this room?</p>
-            <p style={{ marginTop: '8px' }}>The student will no longer have access to this room, but their account and data will be preserved.</p>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              gap: '16px', 
-              marginTop: '24px' 
-            }}>
-              <Button variant="outline" onClick={closeArchiveModal}>
+            <p>The student will no longer have access to this room, but their account and data will be preserved.</p>
+            <ModalActions>
+              <ModernButton variant="ghost" onClick={closeArchiveModal}>
                 Cancel
-              </Button>
-              <Button 
+              </ModernButton>
+              <ModernButton 
                 variant="secondary" 
                 onClick={() => archiveStudent(studentToArchive.user_id)}
               >
                 Archive Student
-              </Button>
-            </div>
-          </Card>
-        </div>
+              </ModernButton>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && studentToDelete && (
+        <ModalOverlay onClick={closeDeleteModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <h3>Delete Student</h3>
+            <p>Are you sure you want to permanently delete <strong>{studentToDelete.full_name}</strong>?</p>
+            <p style={{ color: '#dc3545', fontWeight: 'bold' }}>⚠️ This action cannot be undone. The student's account and all associated data will be permanently deleted.</p>
+            <ModalActions>
+              <ModernButton variant="ghost" onClick={closeDeleteModal}>
+                Cancel
+              </ModernButton>
+              <ModernButton 
+                variant="danger" 
+                onClick={() => deleteStudent(studentToDelete.user_id)}
+                style={{ backgroundColor: '#dc3545', color: 'white' }}
+              >
+                Delete Permanently
+              </ModernButton>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
       )}
     </PageWrapper>
   );

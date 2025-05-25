@@ -3,40 +3,110 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
-import { Card, Button, Badge, Alert } from '@/styles/StyledComponents';
+import { Card, Button } from '@/styles/StyledComponents';
+import { GlassCard } from '@/components/shared/GlassCard';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { Document as KnowledgeDocument, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
 import { createClient } from '@/lib/supabase/client';
 
-const ListContainer = styled(Card)`
+const ModernBadge = styled.span<{ $variant?: 'success' | 'warning' | 'error' | 'default' }>`
+  display: inline-flex;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(34, 197, 94, 0.1);
+          color: ${theme.colors.green};
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        `;
+      case 'warning':
+        return `
+          background: rgba(251, 191, 36, 0.1);
+          color: ${theme.colors.secondary};
+          border: 1px solid rgba(251, 191, 36, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(239, 68, 68, 0.1);
+          color: ${theme.colors.red};
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
+`;
+
+const ListContainer = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-top: ${({ theme }) => theme.spacing.lg};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
-  overflow-x: auto; 
+  overflow-x: auto;
 `;
 
 const Table = styled.table`
   width: 100%;
   min-width: 700px; 
-  border-collapse: collapse; 
+  border-collapse: separate;
+  border-spacing: 0;
+  
+  thead {
+    background: rgba(152, 93, 215, 0.03);
+  }
   
   th, td {
     text-align: left;
-    padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    padding: ${({ theme }) => theme.spacing.md};
+    border-bottom: 1px solid rgba(152, 93, 215, 0.08);
     vertical-align: middle; 
   }
 
   th {
-    color: ${({ theme }) => theme.colors.textLight};
-    font-size: 0.8rem;
-    font-weight: 600;
+    color: ${({ theme }) => theme.colors.primary};
+    font-size: 0.875rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap; 
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    font-family: ${({ theme }) => theme.fonts.heading};
+  }
+
+  tbody tr {
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: rgba(152, 93, 215, 0.02);
+      
+      td {
+        color: ${({ theme }) => theme.colors.text};
+      }
+    }
   }
 
   td {
-    color: ${({ theme }) => theme.colors.text};
+    color: ${({ theme }) => theme.colors.textMuted};
     font-size: 0.875rem;
+    font-family: ${({ theme }) => theme.fonts.body};
   }
 
   .actions-cell {
@@ -44,11 +114,23 @@ const Table = styled.table`
     white-space: nowrap;
   }
   
-  .filename-cell { // MODIFIED: Added for better filename display
+  .filename-cell {
     max-width: 250px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 500;
+    color: ${({ theme }) => theme.colors.text};
+    
+    a {
+      color: ${({ theme }) => theme.colors.primary};
+      text-decoration: none;
+      transition: color 0.2s ease;
+      
+      &:hover {
+        color: ${({ theme }) => theme.colors.magenta};
+      }
+    }
   }
 `;
 
@@ -60,8 +142,14 @@ const MobileList = styled.div`
 `;
 
 const MobileCard = styled.div`
-  padding: ${({ theme }) => theme.spacing.md};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-bottom: 1px solid rgba(152, 93, 215, 0.08);
+  transition: background 0.2s ease;
+  
+  &:hover {
+    background: rgba(152, 93, 215, 0.02);
+  }
+  
   &:last-child {
     border-bottom: none;
   }
@@ -75,9 +163,20 @@ const MobileHeader = styled.div`
 `;
 
 const FileNameMobile = styled.div`
-  font-weight: 500;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.text};
   word-break: break-all;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  
+  a {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: none;
+    transition: color 0.2s ease;
+    
+    &:hover {
+      color: ${({ theme }) => theme.colors.magenta};
+    }
+  }
 `;
 
 const MobileDetails = styled.div`
@@ -85,10 +184,17 @@ const MobileDetails = styled.div`
   grid-template-columns: auto 1fr;
   gap: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.md};
-  font-size: 0.8rem;
+  font-size: 0.875rem;
+  font-family: ${({ theme }) => theme.fonts.body};
+  
   .label {
-    color: ${({ theme }) => theme.colors.textMuted};
+    color: ${({ theme }) => theme.colors.primary};
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
   }
+  
   .value {
     color: ${({ theme }) => theme.colors.text};
     word-break: break-all;
@@ -110,10 +216,43 @@ const EmptyState = styled.div`
   text-align: center;
   padding: ${({ theme }) => theme.spacing.xl};
   color: ${({ theme }) => theme.colors.textMuted};
+  font-family: ${({ theme }) => theme.fonts.body};
+  
+  p {
+    margin-bottom: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
-const SuccessNotification = styled(Alert)`
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' }>`
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: 12px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
   animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(34, 197, 94, 0.1);
+          color: ${theme.colors.green};
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(239, 68, 68, 0.1);
+          color: ${theme.colors.red};
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
   
   @keyframes fadeIn {
     from {
@@ -131,8 +270,10 @@ const FilterBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  padding: ${({ theme }) => theme.spacing.sm} 0;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.md};
+  background: rgba(152, 93, 215, 0.03);
+  border-radius: 12px;
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.sm};
   
@@ -149,40 +290,57 @@ const FilterGroup = styled.div`
 `;
 
 const FilterButton = styled.button<{ $active: boolean }>`
-  background-color: ${({ theme, $active }) => 
-    $active ? theme.colors.primary : theme.colors.backgroundDark};
+  background: ${({ theme, $active }) => 
+    $active 
+      ? `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.magenta})`
+      : 'rgba(255, 255, 255, 0.8)'};
   color: ${({ theme, $active }) => 
     $active ? '#fff' : theme.colors.text};
   border: 1px solid ${({ theme, $active }) => 
-    $active ? theme.colors.primary : theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.small};
-  padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.sm}`};
+    $active ? 'transparent' : 'rgba(152, 93, 215, 0.2)'};
+  border-radius: 8px;
+  padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.md}`};
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.body};
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
   
   &:hover {
-    background-color: ${({ theme, $active }) => 
-      $active ? theme.colors.primary : theme.colors.backgroundDark};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px ${({ theme, $active }) => 
+      $active ? 'rgba(152, 93, 215, 0.3)' : 'rgba(152, 93, 215, 0.1)'};
+    background: ${({ theme, $active }) => 
+      !$active && 'rgba(152, 93, 215, 0.1)'};
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 `;
 
 const SearchInput = styled.input`
-  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.small};
-  background-color: ${({ theme }) => theme.colors.background};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
   color: ${({ theme }) => theme.colors.text};
   min-width: 200px;
+  font-family: ${({ theme }) => theme.fonts.body};
+  transition: all 0.2s ease;
+  
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
   
   &:focus {
     outline: none;
     border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 2px rgba(152, 93, 215, 0.1);
   }
 `;
 
@@ -282,38 +440,72 @@ export default function DocumentList({
     
     console.log(`[DocumentList] Setting up subscription for ${documentIds.length} documents`);
     
-    // Subscribe to changes in documents table for these document IDs
+    // Create a unique channel name to avoid conflicts
+    const channelName = `document-status-changes-${Date.now()}`;
+    
+    // Subscribe to changes in documents table
+    // Note: Supabase realtime doesn't support IN filters, so we'll filter client-side
     const subscription = supabase
-      .channel('document-status-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'documents',
-          filter: `document_id=in.(${documentIds.join(',')})`,
+          table: 'documents'
         },
         (payload) => {
-          console.log('[DocumentList] Received real-time update:', payload);
           const updatedDocument = payload.new as KnowledgeDocument;
           
-          // Immediately update the document in the local state
-          setDocuments(prevDocs => 
-            prevDocs.map(doc => 
-              doc.document_id === updatedDocument.document_id 
-                ? { ...doc, ...updatedDocument } 
-                : doc
-            )
-          );
-          
-          // Also call the updateDocumentStatus callback which handles notifications
-          updateDocumentStatus(updatedDocument);
+          // Client-side filter: only process if document is in our list
+          if (documentIds.includes(updatedDocument.document_id)) {
+            console.log('[DocumentList] Received real-time UPDATE for document:', updatedDocument.document_id);
+            
+            // Immediately update the document in the local state
+            setDocuments(prevDocs => 
+              prevDocs.map(doc => 
+                doc.document_id === updatedDocument.document_id 
+                  ? { ...doc, ...updatedDocument } 
+                  : doc
+              )
+            );
+            
+            // Also call the updateDocumentStatus callback which handles notifications
+            updateDocumentStatus(updatedDocument);
+          }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'documents'
+        },
+        (payload) => {
+          const newDocument = payload.new as KnowledgeDocument;
+          
+          // Check if this document belongs to the current chatbot
+          // We need to match on chatbot_id since we don't have the document ID yet
+          if (documents.length > 0 && documents[0].chatbot_id === newDocument.chatbot_id) {
+            console.log('[DocumentList] Received real-time INSERT for new document:', newDocument.document_id);
+            
+            // Add the new document to the state
+            setDocuments(prevDocs => [...prevDocs, newDocument]);
+            
+            // Show notification for new document
+            setSubscriptionMessage(`New document "${newDocument.file_name}" added!`);
+            setTimeout(() => setSubscriptionMessage(null), 5000);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[DocumentList] Subscription status: ${status}`);
+      });
       
     // Clean up subscription on unmount
     return () => {
+      console.log('[DocumentList] Cleaning up subscription');
       subscription.unsubscribe();
     };
   }, [initialDocuments, updateDocumentStatus]);
@@ -385,11 +577,11 @@ export default function DocumentList({
   // MODIFIED: getStatusLabel to include 'fetched'
   const getStatusLabel = (status: DocumentStatus): string => {
     const labels: Record<DocumentStatus, string> = {
-      uploaded: 'Uploaded',
+      uploaded: 'Pending Processing',
       processing: 'Processing',
-      completed: 'Completed',
+      completed: 'In Knowledge Base',
       error: 'Error',
-      fetched: 'Fetched', // New label
+      fetched: 'Pending Processing', // New label
     };
     return labels[status] || status;
   };
@@ -435,8 +627,8 @@ export default function DocumentList({
   if (filteredDocuments.length === 0 && (statusFilter !== 'all' || typeFilter !== 'all' || searchTerm !== '')) {
     return (
       <ListContainer>
-        {actionError && <Alert variant="error" style={{ marginBottom: '16px'}}>{actionError}</Alert>}
-        {subscriptionMessage && <SuccessNotification variant="success" style={{ marginBottom: '16px'}}>{subscriptionMessage}</SuccessNotification>}
+        {actionError && <ModernAlert $variant="error">{actionError}</ModernAlert>}
+        {subscriptionMessage && <ModernAlert $variant="success">{subscriptionMessage}</ModernAlert>}
         
         <FilterBar>
           <FilterGroup>
@@ -494,11 +686,11 @@ export default function DocumentList({
         
         <EmptyState>
           <p>No documents match your current filters.</p>
-          <Button size="small" variant="outline" onClick={() => {
+          <ModernButton size="small" variant="ghost" onClick={() => {
             setStatusFilter('all');
             setTypeFilter('all');
             setSearchTerm('');
-          }}>Clear filters</Button>
+          }}>Clear filters</ModernButton>
         </EmptyState>
       </ListContainer>
     );
@@ -506,28 +698,28 @@ export default function DocumentList({
 
   const renderActions = (doc: KnowledgeDocument) => (
     <>
-      {/* MODIFIED: Allow processing for 'fetched' status as well */}
+      {/* Documents now auto-process on upload - show pending status */}
       {(doc.status === 'uploaded' || doc.status === 'fetched') && (
-        <Button
+        <ModernButton
           size="small"
-          onClick={() => handleProcess(doc.document_id)}
-          disabled={processingId === doc.document_id}
-          title="Process this document/webpage for RAG"
+          variant="ghost"
+          disabled
+          title="Document will be processed automatically"
         >
-          {processingId === doc.document_id ? 'Starting...' : 'Process'}
-        </Button>
+          Auto-processing...
+        </ModernButton>
       )}
       {(doc.status === 'processing' || doc.status === 'completed' || doc.status === 'error') && (
-        <Button
+        <ModernButton
           size="small"
-          variant="outline"
+          variant="ghost"
           onClick={() => onViewStatus(doc.document_id)}
           title="View detailed processing status"
         >
           View Status
-        </Button>
+        </ModernButton>
       )}
-      <Button
+      <ModernButton
         size="small"
         variant="danger" 
         onClick={() => handleDelete(doc.document_id, doc.file_name)}
@@ -535,15 +727,15 @@ export default function DocumentList({
         title="Delete this document/webpage"
       >
         {deletingId === doc.document_id ? 'Deleting...' : 'Delete'}
-      </Button>
+      </ModernButton>
     </>
   );
 
 
   return (
     <ListContainer>
-      {actionError && <Alert variant="error" style={{ marginBottom: '16px'}}>{actionError}</Alert>}
-      {subscriptionMessage && <SuccessNotification variant="success" style={{ marginBottom: '16px'}}>{subscriptionMessage}</SuccessNotification>}
+      {actionError && <ModernAlert $variant="error">{actionError}</ModernAlert>}
+      {subscriptionMessage && <ModernAlert $variant="success">{subscriptionMessage}</ModernAlert>}
       
       {documents.length > 0 && (
         <FilterBar>
@@ -627,9 +819,20 @@ export default function DocumentList({
               {/* MODIFIED: Pass file_type to formatFileSize */}
               <td>{formatFileSize(doc.file_size, doc.file_type)}</td>
               <td>
-                <Badge variant={getStatusBadgeVariant(doc.status)}>
+                <ModernBadge $variant={getStatusBadgeVariant(doc.status)}>
                   {getStatusLabel(doc.status)}
-                </Badge>
+                </ModernBadge>
+                {doc.status === 'error' && doc.error_message && (
+                  <div style={{ 
+                    marginTop: '4px', 
+                    fontSize: '0.75rem', 
+                    color: '#dc2626',
+                    maxWidth: '200px',
+                    lineHeight: '1.3'
+                  }}>
+                    {doc.error_message}
+                  </div>
+                )}
               </td>
               <td>{formatDate(doc.created_at)}</td>
               <td className="actions-cell">
@@ -655,9 +858,9 @@ export default function DocumentList({
                   : doc.file_name
                 }
               </FileNameMobile>
-              <Badge variant={getStatusBadgeVariant(doc.status)}>
+              <ModernBadge $variant={getStatusBadgeVariant(doc.status)}>
                 {getStatusLabel(doc.status)}
-              </Badge>
+              </ModernBadge>
             </MobileHeader>
             <MobileDetails>
               <span className="label">Type:</span>

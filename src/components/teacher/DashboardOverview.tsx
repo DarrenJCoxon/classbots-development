@@ -41,6 +41,8 @@ const SectionTitle = styled.h2`
   font-size: 1.5rem;
   color: ${({ theme }) => theme.colors.text};
   margin: 0;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
 `;
 
 const QuickActionsContainer = styled.div`
@@ -259,25 +261,25 @@ export default function DashboardOverview() {
               title="Pending Concerns"
               value={stats?.pendingConcerns ?? 0}
               onClick={() => router.push('/teacher-dashboard/concerns')}
-              variant={(stats?.pendingConcerns ?? 0) > 0 ? 'danger' : 'green'}
+              variant={(stats?.pendingConcerns ?? 0) > 0 ? 'danger' : 'primary'}
             />
             <StatsCard
               title="Active Rooms"
               value={stats?.activeRooms ?? 0}
               onClick={() => router.push('/teacher-dashboard/rooms')}
-              variant="cyan" 
+              variant="info" 
             />
             <StatsCard
-              title="My Chatbots"
+              title="My Skolrbots"
               value={stats?.totalChatbots ?? 0}
               onClick={() => router.push('/teacher-dashboard/chatbots')}
-              variant="magenta" 
+              variant="secondary" 
             />
             <StatsCard
               title="Total Rooms"
               value={stats?.totalRooms ?? 0}
               onClick={() => router.push('/teacher-dashboard/rooms')} 
-              variant="orange_secondary" 
+              variant="accent" 
             />
           </>
         )}
@@ -289,19 +291,19 @@ export default function DashboardOverview() {
         </SectionHeader>
         <QuickActionsContainer>
           <Button onClick={handleCreateNewChatbot}>
-            + Create New Chatbot
+            + Create New Skolrbot
           </Button>
           <Button
             onClick={() => setShowRoomForm(true)}
             disabled={loadingChatbots || availableChatbots.length === 0}
-            title={availableChatbots.length === 0 && !loadingChatbots ? "Create a chatbot before creating a room" : "Create New Room"}
+            title={availableChatbots.length === 0 && !loadingChatbots ? "Create a skolrbot before creating a room" : "Create New Room"}
           >
-            {loadingChatbots ? "Loading Chatbots..." : "+ Create New Room"}
+            {loadingChatbots ? "Loading Skolrbots..." : "+ Create New Room"}
           </Button>
         </QuickActionsContainer>
         {availableChatbots.length === 0 && !loadingChatbots && !statsError?.includes("Failed to load chatbots for Room Creation.") && (
             <Alert variant='info' style={{marginTop: '16px'}}>
-                You need to create at least one chatbot before you can create a classroom room using the quick action.
+                You need to create at least one skolrbot before you can create a classroom room using the quick action.
             </Alert>
         )}
       </Section>
@@ -309,7 +311,7 @@ export default function DashboardOverview() {
       {/* MODIFIED: Section to display recent chatbots */}
       <Section $accentSide="top" $accentColor="blue">
         <SectionHeader>
-          <SectionTitle>My Recent Chatbots</SectionTitle>
+          <SectionTitle>My Recent Skolrbots</SectionTitle>
           {stats && stats.totalChatbots > recentChatbots.length && (
             <Button variant="outline" size="small" onClick={() => router.push('/teacher-dashboard/chatbots')}>
               View All ({stats.totalChatbots})
@@ -317,7 +319,7 @@ export default function DashboardOverview() {
           )}
         </SectionHeader>
         {loadingRecentChatbots && recentChatbots.length === 0 ? (
-            <div style={{textAlign: 'center', padding: '20px'}}><LoadingSpinner /> Loading chatbots...</div>
+            <div style={{textAlign: 'center', padding: '20px'}}><LoadingSpinner /> Loading skolrbots...</div>
         ) : recentChatbots.length > 0 ? (
           <ChatbotList
             chatbots={recentChatbots} 
@@ -326,7 +328,7 @@ export default function DashboardOverview() {
             viewMode="card" // MODIFIED: Provide the viewMode prop, defaulting to 'card' for overview
           />
         ) : (
-          <p>No chatbots created yet. <Link href="/teacher-dashboard/chatbots/new/edit" style={{textDecoration: 'underline', fontWeight: '500'}}>Create one now!</Link></p>
+          <p>No skolrbots created yet. <Link href="/teacher-dashboard/chatbots/new/edit" style={{textDecoration: 'underline', fontWeight: '500'}}>Create one now!</Link></p>
         )}
       </Section>
 

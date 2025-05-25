@@ -3,7 +3,8 @@
 
 import { useState, KeyboardEvent } from 'react';
 import styled from 'styled-components';
-import { Button, Alert } from '@/styles/StyledComponents';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 // ... (InputContainer, InputForm, TextInput, SendButton, ErrorAlert styled components remain the same)
 
@@ -46,13 +47,16 @@ const TextInput = styled.input`
   }
 `;
 
-const SendButton = styled(Button)`
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.xl};
+const SendButtonWrapper = styled.div`
   min-width: 100px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
-    min-height: 48px;
+    
+    button {
+      width: 100%;
+      min-height: 48px;
+    }
   }
 `;
 
@@ -134,12 +138,16 @@ export default function ChatInput({ onSend, isLoading, error, onClearError, hint
           placeholder="Type your message..."
           disabled={isLoading}
         />
-        <SendButton
-          type="submit"
-          disabled={isLoading || !message.trim()}
-        >
-          {isLoading ? 'Sending...' : 'Send'}
-        </SendButton>
+        <SendButtonWrapper>
+          <ModernButton
+            type="submit"
+            disabled={isLoading || !message.trim()}
+            variant="primary"
+            size="medium"
+          >
+            {isLoading ? 'Sending...' : 'Send'}
+          </ModernButton>
+        </SendButtonWrapper>
       </InputForm>
 
       {hint && <AssessmentHint>{hint}</AssessmentHint>}

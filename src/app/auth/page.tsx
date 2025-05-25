@@ -2,42 +2,88 @@
 
 import { useState, Suspense, useEffect } from 'react';
 import styled from 'styled-components';
+import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import AuthForm from '@/components/auth/AuthForm';
-import { Container, Alert, Button } from '@/styles/StyledComponents';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { FullPageLoader } from '@/components/shared/AnimatedLoader';
+import { FiArrowRight } from 'react-icons/fi';
 
 const AuthPage = styled.div`
-  padding: ${({ theme }) => theme.spacing.xl};
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.background};
+  position: relative;
+  
+  /* Subtle animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
 `;
 
-const StyledAlert = styled(Alert)`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 60px 24px;
+  position: relative;
+  z-index: 1;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 40px 16px;
+  }
+`;
+
+const AuthContainer = styled(motion.div)`
+  max-width: 480px;
+  margin: 0 auto;
 `;
 
 const TabContainer = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 40px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 10px 40px rgba(152, 93, 215, 0.05);
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 24px;
+  }
 `;
 
 const TabButtons = styled.div`
   display: flex;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  background: ${({ theme }) => theme.colors.backgroundDark};
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 32px;
 `;
 
 const TabButton = styled.button<{ $active: boolean }>`
-  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
-  background: none;
+  flex: 1;
+  padding: 12px 24px;
+  background: ${({ $active, theme }) => $active ? 'white' : 'transparent'};
   border: none;
-  border-bottom: 3px solid ${({ theme, $active }) => $active ? theme.colors.primary : 'transparent'};
+  border-radius: 8px;
   color: ${({ theme, $active }) => $active ? theme.colors.primary : theme.colors.textLight};
-  font-weight: ${({ $active }) => $active ? 'bold' : 'normal'};
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: ${({ $active }) => $active ? '0 2px 8px rgba(0, 0, 0, 0.05)' : 'none'};
   
-  &:hover {
+  &:hover:not(:disabled) {
     color: ${({ theme }) => theme.colors.primary};
   }
 `;
@@ -47,29 +93,51 @@ const ToggleButton = styled.button`
   border: none;
   color: ${({ theme }) => theme.colors.primary};
   cursor: pointer;
-  margin-top: ${({ theme }) => theme.spacing.md};
+  margin-top: 24px;
   text-align: center;
   display: block;
   width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s ease;
 
   &:hover {
+    color: ${({ theme }) => theme.colors.primaryDark};
     text-decoration: underline;
   }
 `;
 
-const LoadingFallback = styled.div`
-  text-align: center;
-  padding: ${({ theme }) => theme.spacing.lg};
-  color: ${({ theme }) => theme.colors.textMuted};
+const StyledAlert = styled(Alert)`
+  margin-bottom: 24px;
 `;
 
-const StudentRedirectCard = styled.div`
-  background: ${({ theme }) => theme.colors.backgroundDark};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  padding: ${({ theme }) => theme.spacing.lg};
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+const StudentRedirectCard = styled(motion.div)`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(76, 190, 243, 0.2);
+  border-radius: 20px;
+  padding: 40px;
   text-align: center;
+  box-shadow: 0 10px 40px rgba(76, 190, 243, 0.1);
+  max-width: 480px;
+  margin: 0 auto;
+  
+  h2 {
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    color: ${({ theme }) => theme.colors.blue};
+    margin-bottom: 16px;
+  }
+  
+  p {
+    color: ${({ theme }) => theme.colors.textLight};
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+  
+  .loader-wrapper {
+    margin: 24px 0;
+  }
 `;
 
 function AuthContent() {
@@ -99,16 +167,24 @@ function AuthContent() {
     return (
       <AuthPage>
         <Container>
-          <StudentRedirectCard>
+          <StudentRedirectCard
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
             <h2>Student Login</h2>
             <p>We&apos;ve improved the student login experience!</p>
             <p>Redirecting you to the new student login page...</p>
-            <div style={{ margin: '1rem auto', textAlign: 'center' }}>
-              <LoadingSpinner size="medium" />
+            <div className="loader-wrapper">
+              <FullPageLoader message="" variant="dots" />
             </div>
-            <Button onClick={() => router.push('/student-access')}>
+            <ModernButton 
+              variant="secondary"
+              onClick={() => router.push('/student-access')}
+            >
               Go to Student Login Now
-            </Button>
+              <FiArrowRight />
+            </ModernButton>
           </StudentRedirectCard>
         </Container>
       </AuthPage>
@@ -121,12 +197,21 @@ function AuthContent() {
         {urlLoginType === 'student' ? (
           <StyledAlert variant="info">
             The student login page has moved. Please use the new student access page.
-            <Button onClick={() => router.push('/student-access')} style={{ marginTop: '1rem' }}>
+            <ModernButton 
+              variant="secondary"
+              onClick={() => router.push('/student-access')} 
+              style={{ marginTop: '16px' }}
+            >
               Go to Student Access
-            </Button>
+              <FiArrowRight />
+            </ModernButton>
           </StyledAlert>
         ) : (
-          <Suspense fallback={<LoadingFallback>Loading...</LoadingFallback>}>
+          <AuthContainer
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
             {urlMessage === 'password_updated' && (
               <StyledAlert variant="success">
                 Your password has been successfully updated! You can now log in with your new password.
@@ -167,7 +252,7 @@ function AuthContent() {
                 Already have an account? Log in
               </ToggleButton>
             )}
-          </Suspense>
+          </AuthContainer>
         )}
       </Container>
     </AuthPage>
@@ -177,7 +262,7 @@ function AuthContent() {
 // Export the page with a Suspense boundary
 export default function Auth() {
   return (
-    <Suspense fallback={<div>Loading auth page...</div>}>
+    <Suspense fallback={<FullPageLoader message="Loading..." variant="dots" />}>
       <AuthContent />
     </Suspense>
   );

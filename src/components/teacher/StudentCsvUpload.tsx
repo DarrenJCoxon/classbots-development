@@ -223,7 +223,7 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
         } else {
           setResults([{
             fullName: "Debug Student",
-            email: "debug@example.com",
+            email: null,
             magicLink: "https://example.com/debug-link"
           }]);
         }
@@ -234,8 +234,20 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
         const failedCount = data.failedImports.length;
         
         setSuccess(`Partially successful: Added ${successCount} out of ${successCount + failedCount} students to room "${roomName}".`);
-        setError(`Failed to add ${failedCount} students. Please check console for details.`);
-        console.error('Failed student imports:', data.failedImports);
+        
+        // Show the first error in the UI
+        const firstError = data.failedImports[0];
+        setError(`Failed to add ${failedCount} students. First error: ${firstError.error} (Student: ${firstError.student.fullName})`);
+        
+        // Log all errors with details
+        console.error('Failed student imports with details:');
+        data.failedImports.forEach((failed: any, index: number) => {
+          console.error(`${index + 1}. Student: ${failed.student.fullName}`, {
+            error: failed.error,
+            details: failed.details,
+            index: failed.index
+          });
+        });
         setResults(data?.students || []);
       } else {
         setSuccess(`Successfully added ${data.students?.length || 0} students to room "${roomName}".`);
@@ -283,7 +295,7 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
   const downloadTemplateCSV = () => {
     // Using separate lines for each student to make it clearer in the CSV file
     // Add more rows to demonstrate multiple students can be imported
-    const csvContent = 'Full Name,Email\nJohn Doe,john.doe@example.com\nJane Smith,jane.smith@example.com\nBob Johnson,bob.johnson@example.com';
+    const csvContent = 'First Name,Surname\nJohn,Doe\nJane,Smith\nBob,Johnson';
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -329,9 +341,12 @@ const ModalBody = styled.div`
             Required CSV format: <TemplateLink onClick={downloadTemplateCSV}>Download Template</TemplateLink>
           </ModalText>
           <ul>
-            <li><strong>Full Name</strong> (required)</li>
-            <li><strong>Email</strong> (optional - if provided, students can also login with email)</li>
+            <li><strong>First Name</strong> (required)</li>
+            <li><strong>Surname</strong> (required)</li>
           </ul>
+          <ModalText style={{ fontSize: '0.9rem', color: 'var(--color-text-light)' }}>
+            Student usernames will be generated as firstname.surname (e.g., jane.smith)
+          </ModalText>
 
           {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
           {success && <Alert variant="success" style={{ marginBottom: '16px' }}>{success}</Alert>}
@@ -358,7 +373,6 @@ const ModalBody = styled.div`
                 {results.map((student, index) => (
                   <MagicLinkItem key={index}>
                     <StudentName>{student.fullName}</StudentName>
-                    {student.email && <div>Email: {student.email}</div>}
                     <MagicLink>{student.magicLink}</MagicLink>
                     <CopyButton 
                       size="small"

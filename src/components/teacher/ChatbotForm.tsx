@@ -5,8 +5,6 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { BotTypeEnum } from '@/types/database.types';
 import {
-    Card,
-    Button,
     FormGroup,
     Label,
     Input,
@@ -14,10 +12,13 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 // Import all required components for document handling
 import EnhancedRagUploader from './EnhancedRagUploader';
 import EnhancedRagScraper from './EnhancedRagScraper';
 import DocumentList from './DocumentList';
+import DocumentUploader from './DocumentUploader';
+import ReadingDocumentUploader from './ReadingDocumentUploader';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 // No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
@@ -31,6 +32,7 @@ const Overlay = styled.div`
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -43,7 +45,13 @@ const Overlay = styled.div`
   }
 `;
 
-const FormCard = styled(Card)`
+const FormCard = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 0;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
   width: 100%;
   max-width: 650px;
   margin: 20px;
@@ -78,21 +86,37 @@ const Header = styled.div`
 
 const Title = styled.h2`
   margin: 0;
-  font-size: 1.4rem;
-  color: ${({ theme }) => theme.colors.text};
+  font-size: 24px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const CloseButton = styled.button`
-  background: none;
+  background: rgba(152, 93, 215, 0.1);
   border: none;
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.primary};
   cursor: pointer;
-  font-size: 1.75rem;
-  padding: 0;
-  line-height: 1;
-
+  font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  
   &:hover {
-    color: ${({ theme }) => theme.colors.text};
+    background: rgba(152, 93, 215, 0.2);
+    transform: scale(1.1);
   }
 `;
 
@@ -141,12 +165,6 @@ const Footer = styled.div`
   }
 `;
 
-const ActionButton = styled(Button)`
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 100%;
-    min-height: 48px;
-  }
-`;
 
 const HelpText = styled.p`
   font-size: 0.875rem;
@@ -174,13 +192,6 @@ const ExampleTemplateContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.sm};
 `;
 
-const TemplateButton = styled(Button)`
-  align-self: flex-start;
-  font-size: 0.85rem;
-  padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.sm}`};
-  margin-right: ${({ theme }) => theme.spacing.sm};
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
-`;
 
 const TemplateButtonGroup = styled.div`
   display: flex;
@@ -233,6 +244,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
   const [docsError, setDocsError] = useState<string | null>(null);
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For forcing document list refresh
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof ChatbotFormData, string>> = {};
@@ -302,7 +314,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       model: formData.model,
       max_tokens: (formData.max_tokens === undefined || formData.max_tokens === null || isNaN(formData.max_tokens) || String(formData.max_tokens).trim() === '') ? null : Number(formData.max_tokens),
       temperature: (formData.temperature === undefined || formData.temperature === null || isNaN(formData.temperature) || String(formData.temperature).trim() === '') ? null : Number(formData.temperature),
-      enable_rag: formData.bot_type === 'learning' ? formData.enable_rag : false,
+      enable_rag: (formData.bot_type === 'learning' || formData.bot_type === 'reading_room') ? formData.enable_rag : false,
       bot_type: formData.bot_type,
       assessment_criteria_text: formData.bot_type === 'assessment' ? (formData.assessment_criteria_text || null) : null,
       welcome_message: formData.welcome_message.trim() || null, // <--- ADDED (send null if empty)
@@ -368,14 +380,14 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
   
   // Fetch documents when in edit mode and chatbot has RAG enabled
   useEffect(() => {
-    if (editMode && initialData?.chatbot_id && formData.enable_rag && formData.bot_type === 'learning') {
+    if (editMode && initialData?.chatbot_id && formData.enable_rag && (formData.bot_type === 'learning' || formData.bot_type === 'reading_room')) {
       fetchDocuments();
     }
   }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, fetchDocuments, refreshTrigger]);
   
   // Set up polling for document updates to ensure we catch status changes
   useEffect(() => {
-    if (!editMode || !initialData?.chatbot_id || !formData.enable_rag || formData.bot_type !== 'learning') return;
+    if (!editMode || !initialData?.chatbot_id || !formData.enable_rag || (formData.bot_type !== 'learning' && formData.bot_type !== 'reading_room')) return;
     
     // Set up a polling interval to refresh documents every 5 seconds
     // but only if there are documents that are processing
@@ -477,17 +489,18 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     <Overlay>
       <FormCard>
         <Header>
-          <Title>{editMode ? 'Edit Chatbot' : 'Create New Chatbot'}</Title>
+          <Title>{editMode ? 'Edit Skolrbot' : 'Create New Skolrbot'}</Title>
           <CloseButton onClick={onClose} aria-label="Close modal">×</CloseButton>
         </Header>
 
         <FormContent>
           {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+          {successMessage && <Alert variant="success" style={{ marginBottom: '16px' }}>{successMessage}</Alert>}
 
           <form onSubmit={handleSubmit} id="chatbotCreateForm">
             {/* ... other FormGroups for name, bot_type, assessment_criteria, description, system_prompt ... */}
             <FormGroup>
-              <Label htmlFor="name">Chatbot Name</Label>
+              <Label htmlFor="name">Skolrbot Name</Label>
               <Input
                 id="name"
                 name="name"
@@ -514,9 +527,13 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
               >
                 <option value="learning">Learning Bot</option>
                 <option value="assessment">Assessment Bot</option>
+                <option value="reading_room">Reading Room Bot</option>
               </StyledSelect>
               <HelpText>
-                Choose &apos;Learning&apos; for general interaction or &apos;Assessment&apos; to evaluate student responses against criteria.
+                {formData.bot_type === 'reading_room' 
+                  ? "Reading Room: Students read a document alongside AI assistance. Perfect for guided reading sessions."
+                  : "Choose 'Learning' for general interaction or 'Assessment' to evaluate student responses against criteria."
+                }
               </HelpText>
             </FormGroup>
 
@@ -549,9 +566,10 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 <ExampleTemplateContainer>
                   <Label as="p" style={{ marginBottom: '4px' }}>Example Templates:</Label>
                   <TemplateButtonGroup>
-                    <TemplateButton 
-                      variant="outline" 
+                    <ModernButton 
+                      variant="ghost" 
                       size="small"
+                      style={{ marginRight: '8px', marginBottom: '8px' }}
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
@@ -580,11 +598,12 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Science Assessment
-                    </TemplateButton>
+                    </ModernButton>
                     
-                    <TemplateButton 
-                      variant="outline" 
+                    <ModernButton 
+                      variant="ghost" 
                       size="small"
+                      style={{ marginRight: '8px', marginBottom: '8px' }}
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
@@ -613,11 +632,12 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Essay Rubric
-                    </TemplateButton>
+                    </ModernButton>
                     
-                    <TemplateButton 
-                      variant="outline" 
+                    <ModernButton 
+                      variant="ghost" 
                       size="small"
+                      style={{ marginRight: '8px', marginBottom: '8px' }}
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
@@ -646,7 +666,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Math Problems
-                    </TemplateButton>
+                    </ModernButton>
                   </TemplateButtonGroup>
                 </ExampleTemplateContainer>
                 
@@ -683,6 +703,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 placeholder={
                   formData.bot_type === 'assessment'
                   ? "e.g., You are an assessment assistant. Engage the student based on the provided topic. Do not provide answers directly but guide them if they struggle. After the interaction, your analysis will be based on teacher criteria."
+                  : formData.bot_type === 'reading_room'
+                  ? "e.g., You are a reading companion helping students understand [book/document name]. Help them with vocabulary, comprehension, and analysis. Reference specific pages or passages when helpful."
                   : "e.g., You are a friendly and helpful history tutor for Grade 10 students."
                 }
                 required
@@ -741,7 +763,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
               </HelpText>
             </FormGroup>
 
-            {formData.bot_type === 'learning' && (
+            {(formData.bot_type === 'learning' || formData.bot_type === 'reading_room') && (
               <FormGroup>
                   <Label htmlFor="enable_rag">Knowledge Base (RAG)</Label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px'}}>
@@ -823,6 +845,131 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
               </FormGroup>
             )}
 
+            {formData.bot_type === 'reading_room' && (
+              <>
+                {/* Reading Document Upload Section */}
+                <FormGroup style={{ 
+                  border: '2px solid #3b82f6', 
+                  padding: '1.5rem', 
+                  borderRadius: '8px',
+                  background: '#f0f9ff',
+                  marginBottom: '2rem'
+                }}>
+                  <Label htmlFor="reading_document" style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'block' }}>📖 Reading Document</Label>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong style={{ color: '#1e40af' }}>This is the main document students will read:</strong>
+                    <ul style={{ marginTop: '0.5rem', marginBottom: '1rem', paddingLeft: '1.5rem', color: '#64748b' }}>
+                      <li>Students see this PDF on the left side of their screen</li>
+                      <li>The AI helps explain and answer questions about this document</li>
+                      <li>Perfect for: textbooks, articles, stories, or any reading material</li>
+                    </ul>
+                  </div>
+                  
+                  {editMode && initialData?.chatbot_id ? (
+                    <>
+                      <ReadingDocumentUploader
+                        chatbotId={initialData.chatbot_id}
+                        onUploadSuccess={() => {
+                          setSuccessMessage('Reading document updated successfully!');
+                          setTimeout(() => setSuccessMessage(null), 5000);
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <Alert variant="info">
+                      After creating your Reading Room bot, you'll upload the reading document here.
+                    </Alert>
+                  )}
+                </FormGroup>
+
+                {/* Knowledge Base Section for Reading Room */}
+                <FormGroup style={{ 
+                  border: '2px dashed #10b981', 
+                  padding: '1.5rem', 
+                  borderRadius: '8px',
+                  background: '#f0fdf4'
+                }}>
+                  <Label style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'block' }}>📚 Reference Materials (Optional)</Label>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong style={{ color: '#059669' }}>Add supplementary materials to help the AI:</strong>
+                    <ul style={{ marginTop: '0.5rem', marginBottom: '1rem', paddingLeft: '1.5rem', color: '#64748b' }}>
+                      <li>Teacher guides, answer keys, or study notes</li>
+                      <li>Background information or context about the reading</li>
+                      <li>Related articles or additional resources</li>
+                    </ul>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                    <input
+                      id="enable_rag_reading"
+                      name="enable_rag"
+                      type="checkbox"
+                      checked={formData.enable_rag}
+                      onChange={handleChange}
+                      style={{ width: '1.15em', height: '1.15em', cursor: 'pointer' }}
+                    />
+                    <span>Enable Reference Materials: Allow the AI to use additional documents for context</span>
+                  </div>
+                  
+                  {formData.enable_rag && (
+                    <>
+                      {editMode && initialData?.chatbot_id ? (
+                        <>
+                          <EnhancedRagUploader
+                            chatbotId={initialData.chatbot_id}
+                            onUploadSuccess={(newDocument) => {
+                              if (newDocument) {
+                                setDocuments(prev => [newDocument, ...prev]);
+                              }
+                              setRefreshTrigger(prev => prev + 1);
+                            }}
+                          />
+                          <EnhancedRagScraper
+                            chatbotId={initialData.chatbot_id}
+                            onScrapeSuccess={(newDocument) => {
+                              if (newDocument) {
+                                setDocuments(prev => [newDocument, ...prev]);
+                              }
+                              setRefreshTrigger(prev => prev + 1);
+                            }}
+                          />
+                          
+                          {docsError && <Alert variant="error" style={{ marginTop: '16px' }}>{docsError}</Alert>}
+                          
+                          <div style={{ marginTop: '24px' }}>
+                            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Reference Documents</h3>
+                            
+                            {docsLoading && documents.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '20px' }}>
+                                <p>Loading documents...</p>
+                              </div>
+                            ) : (
+                              <DocumentList
+                                documents={documents}
+                                onProcessDocument={handleProcessDocument}
+                                onDeleteDocument={handleDeleteDocument}
+                                onViewStatus={() => {}}
+                              />
+                            )}
+                            
+                            {!docsLoading && documents.length === 0 && (
+                              <Alert variant="info" style={{ marginTop: '12px' }}>
+                                No reference materials added yet. These are optional but can help the AI provide better assistance.
+                              </Alert>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <Alert variant="info">
+                          After creating your Reading Room bot, you can add reference materials here.
+                        </Alert>
+                      )}
+                    </>
+                  )}
+                </FormGroup>
+              </>
+            )}
+
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>
               <Input 
@@ -860,18 +1007,27 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   {validationErrors.temperature}
                 </Alert>
               )}
-              <HelpText>0.0 = most deterministic, 2.0 = most creative. Default is 0.7 for the chatbot&apos;s replies.</HelpText>
+              <HelpText>0.0 = most deterministic, 2.0 = most creative. Default is 0.7 for the skolrbot&apos;s replies.</HelpText>
             </FormGroup>
           </form>
         </FormContent>
 
         <Footer>
-          <ActionButton type="button" variant="outline" onClick={onClose}>
+          <ModernButton 
+            type="button" 
+            variant="ghost" 
+            onClick={onClose}
+          >
             Cancel
-          </ActionButton>
-          <ActionButton type="submit" form="chatbotCreateForm" disabled={isSubmitting}>
-            {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Chatbot')}
-          </ActionButton>
+          </ModernButton>
+          <ModernButton 
+            type="submit" 
+            form="chatbotCreateForm" 
+            variant="primary"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Skolrbot')}
+          </ModernButton>
         </Footer>
       </FormCard>
     </Overlay>

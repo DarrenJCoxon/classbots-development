@@ -5,38 +5,114 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
-import { Card, FormGroup, Label, Input, Button as StyledButton, Alert, Select as StyledSelect } from '@/styles/StyledComponents';
+import { FormGroup, Label, Input, Alert, Select as StyledSelect } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 
-const AuthCard = styled(Card)`
-  max-width: 400px;
-  margin: 4rem auto;
+const AuthFormContainer = styled.div`
+  width: 100%;
 `;
 
 const HelpText = styled.div`
-  font-size: 0.95em;
+  font-size: 14px;
   color: ${({ theme }) => theme.colors.textLight};
-  margin-top: ${({ theme }) => theme.spacing.xs};
+  margin-top: 8px;
+  line-height: 1.5;
 `;
 
-const Title = styled.h1`
+const Title = styled.h2`
   text-align: center;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  color: ${({ theme }) => theme.colors.primary};
+  margin-bottom: 32px;
+  color: ${({ theme }) => theme.colors.text};
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  font-size: 28px;
+  font-weight: 700;
 `;
 
 const InfoBox = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.backgroundCard};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  margin-bottom: 24px;
+  padding: 16px;
+  background: rgba(152, 93, 215, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
   
   p {
-    margin-bottom: ${({ theme }) => theme.spacing.sm};
+    margin-bottom: 8px;
     color: ${({ theme }) => theme.colors.textLight};
+    font-size: 14px;
+    line-height: 1.6;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
   }
   
   strong {
     color: ${({ theme }) => theme.colors.primary};
+    font-weight: 600;
+  }
+`;
+
+const StyledFormGroup = styled(FormGroup)`
+  margin-bottom: 20px;
+`;
+
+const StyledLabel = styled(Label)`
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: 8px;
+  display: block;
+`;
+
+const StyledInput = styled(Input)`
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid ${({ theme }) => theme.colors.border};
+  transition: all 0.2s ease;
+  
+  &:focus {
+    background: white;
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}20;
+  }
+`;
+
+const StyledAlert = styled(Alert)`
+  margin-bottom: 20px;
+`;
+
+const StyledSelectWrapper = styled(StyledSelect)`
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid ${({ theme }) => theme.colors.border};
+  transition: all 0.2s ease;
+  
+  &:focus {
+    background: white;
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}20;
+  }
+`;
+
+const ForgotPasswordLink = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.primary};
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+  padding: 0;
+  margin-top: 16px;
+  display: block;
+  text-align: center;
+  width: 100%;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: ${({ theme }) => theme.colors.primaryDark};
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 
@@ -191,8 +267,8 @@ export default function AuthForm({ type }: AuthFormProps) {
   };
 
   return (
-    <AuthCard>
-      <Title>{type === 'login' ? 'Login' : 'Teacher Sign Up'}</Title>
+    <AuthFormContainer>
+      <Title>{type === 'login' ? 'Welcome Back' : 'Create Account'}</Title>
       
       {type === 'signup' && ( 
         <InfoBox>
@@ -208,14 +284,14 @@ export default function AuthForm({ type }: AuthFormProps) {
         </InfoBox>
       )}
       
-      {error && <Alert variant="error">{error}</Alert>}
+      {error && <StyledAlert variant="error">{error}</StyledAlert>}
       
       <form onSubmit={handleSubmit}>
         {type === 'signup' && ( 
           <>
-            <FormGroup>
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
+            <StyledFormGroup>
+              <StyledLabel htmlFor="fullName">Full Name</StyledLabel>
+              <StyledInput
                 id="fullName"
                 type="text"
                 value={fullName}
@@ -223,10 +299,10 @@ export default function AuthForm({ type }: AuthFormProps) {
                 placeholder="Enter your full name"
                 required
               />
-            </FormGroup>
-            <FormGroup>
-               <Label htmlFor="countryCode">Your Country (Optional)</Label>
-               <StyledSelect
+            </StyledFormGroup>
+            <StyledFormGroup>
+               <StyledLabel htmlFor="countryCode">Your Country (Optional)</StyledLabel>
+               <StyledSelectWrapper
                    id="countryCode"
                    name="countryCode"
                    value={countryCode}
@@ -241,14 +317,14 @@ export default function AuthForm({ type }: AuthFormProps) {
                    <option value="NZ">New Zealand</option>
                    <option value="AE">United Arab Emirates</option>
                    <option value="EU">EU (Other)</option>
-               </StyledSelect>
+               </StyledSelectWrapper>
                <HelpText>Selecting your country helps us provide localized safety resources for your students if a concern is flagged.</HelpText>
-            </FormGroup>
+            </StyledFormGroup>
           </>
         )}
-        <FormGroup>
-          <Label htmlFor="email">Email</Label>
-          <Input
+        <StyledFormGroup>
+          <StyledLabel htmlFor="email">Email</StyledLabel>
+          <StyledInput
             id="email"
             type="email"
             value={email}
@@ -256,10 +332,10 @@ export default function AuthForm({ type }: AuthFormProps) {
             placeholder="Enter your email"
             required
           />
-        </FormGroup>
-        <FormGroup>
-          <Label htmlFor="password">Password</Label>
-          <Input
+        </StyledFormGroup>
+        <StyledFormGroup>
+          <StyledLabel htmlFor="password">Password</StyledLabel>
+          <StyledInput
             id="password"
             type="password"
             value={password}
@@ -267,50 +343,46 @@ export default function AuthForm({ type }: AuthFormProps) {
             placeholder="Enter your password"
             required
           />
-        </FormGroup>
-        <StyledButton type="submit" disabled={loading} style={{ width: '100%' }}>
+        </StyledFormGroup>
+        <ModernButton 
+          type="submit" 
+          disabled={loading} 
+          variant="primary"
+          size="large"
+          style={{ width: '100%', marginTop: '24px' }}
+        >
           {loading ? 'Loading...' : type === 'login' ? 'Login' : 'Sign Up as Teacher'}
-        </StyledButton>
+        </ModernButton>
         
         {type === 'login' && (
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!email.trim()) {
-                  setError('Please enter your email address first');
-                  return;
-                }
+          <ForgotPasswordLink
+            type="button"
+            onClick={async () => {
+              if (!email.trim()) {
+                setError('Please enter your email address first');
+                return;
+              }
+              
+              try {
+                setLoading(true);
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                  redirectTo: `https://skolr.app/auth/update-password`,
+                });
                 
-                try {
-                  setLoading(true);
-                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                    redirectTo: `https://skolr.app/auth/update-password`,
-                  });
-                  
-                  if (error) throw error;
-                  alert('Password reset email sent! Please check your email and spam folder.');
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to send reset email');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#0066CC',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                fontSize: '0.9rem'
-              }}
-              disabled={loading}
-            >
-              Forgot Password?
-            </button>
-          </div>
+                if (error) throw error;
+                alert('Password reset email sent! Please check your email and spam folder.');
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to send reset email');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+          >
+            Forgot Password?
+          </ForgotPasswordLink>
         )}
       </form>
-    </AuthCard>
+    </AuthFormContainer>
   );
 }

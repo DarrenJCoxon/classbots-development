@@ -4,27 +4,57 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { Card, Alert, Button, Badge, Select as StyledSelect } from '@/styles/StyledComponents';
+import { Alert, Badge } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { ConcernStatus, FlaggedMessage } from '@/types/database.types';
 
 // --- Styled Components ---
-const ListContainer = styled(Card)` // This is the Card we want to pass the accent to
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  /* The $accentColor prop will be handled by the base Card component */
+const ListContainer = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(254, 67, 114, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 `;
 
-const Title = styled.h2`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.text};
-`;
+// Title removed as it's now at the page level
 
 const FilterControls = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(254, 67, 114, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
   display: flex;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+`;
+
+const StyledSelect = styled.select`
+  padding: 10px 16px;
+  border: 1px solid rgba(254, 67, 114, 0.2);
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  font-family: ${({ theme }) => theme.fonts.body};
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: rgba(254, 67, 114, 0.4);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.pink};
+    box-shadow: 0 0 0 3px rgba(254, 67, 114, 0.1);
+  }
 `;
 
 const TableContainer = styled.div`
@@ -116,27 +146,44 @@ const StatusBadge = styled(Badge)<StatusBadgeProps>`
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: ${({ theme }) => theme.spacing.xl};
-  color: ${({ theme }) => theme.colors.textMuted};
+  padding: 60px;
+  color: ${({ theme }) => theme.colors.textLight};
+  
+  h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
+    margin-bottom: 12px;
+  }
+  
+  p {
+    font-size: 16px;
+  }
 `;
 
 const LoadingState = styled.div`
   text-align: center;
-  padding: ${({ theme }) => theme.spacing.xl};
+  padding: 60px;
   color: ${({ theme }) => theme.colors.textLight};
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: ${({ theme }) => theme.spacing.md};
-  min-height: 100px; 
+  gap: 16px;
+  min-height: 200px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(254, 67, 114, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 `;
 
 const PaginationControls = styled.div`
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-top: ${({ theme }) => theme.spacing.lg};
-    gap: ${({ theme }) => theme.spacing.md};
+    margin-top: 32px;
+    gap: 16px;
 `;
 
 interface ConcernDetails extends FlaggedMessage {
@@ -302,12 +349,12 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
                                         </StatusBadge>
                                     </TableCell>
                                     <TableCell>
-                                        <Button
+                                        <ModernButton
                                             size="small"
                                             onClick={() => handleViewConversation(concern)}
                                         >
                                             Review
-                                        </Button>
+                                        </ModernButton>
                                     </TableCell>
                                 </tr>
                             ))}
@@ -317,9 +364,9 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
 
                 {!limit && pagination.hasMore && ( 
                  <PaginationControls>
-                     <Button onClick={handleLoadMore} variant="outline" disabled={loading}>
+                     <ModernButton onClick={handleLoadMore} variant="ghost" disabled={loading}>
                          {loading ? 'Loading...' : 'Load More Concerns'}
-                     </Button>
+                     </ModernButton>
                  </PaginationControls>
                 )}
             </>
@@ -327,10 +374,9 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
     };
 
     return (
-        <ListContainer $accentColor={accentColor} $accentSide="top"> {/* MODIFIED: Passed props to Card */}
+        <ListContainer>
             {!limit && (
                 <>
-                    <Title>Student Welfare Concerns</Title>
                     <FilterControls>
                         <label htmlFor="status-filter">Filter by status:</label>
                         <StyledSelect 

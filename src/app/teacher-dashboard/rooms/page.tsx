@@ -2,42 +2,47 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import styled, { useTheme } from 'styled-components';
-// No longer need useRouter if not used directly on this page for navigation
-// import { useRouter } from 'next/navigation';
-import { Button, Alert, Card, Container } from '@/styles/StyledComponents';
-import RoomList from '@/components/teacher/RoomList';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { PageWrapper } from '@/components/shared/PageStructure';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernRoomsList } from '@/components/teacher/ModernRoomsList';
+import { ModernButton } from '@/components/shared/ModernButton';
 import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
 import ArchivePanel from '@/components/teacher/ArchivePanel';
+import { FullPageLoader } from '@/components/shared/AnimatedLoader';
 import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.types';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { FiArchive } from 'react-icons/fi';
 
-const PageWrapper = styled.div``;
 
-const PageHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing.md};
-`;
-
-const Title = styled.h1`
-  font-size: 1.8rem;
-  color: ${({ theme }) => theme.colors.text};
-  margin: 0;
+const ArchiveButton = styled(ModernButton)`
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  z-index: 100;
+  box-shadow: 0 10px 40px rgba(152, 93, 215, 0.3);
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    bottom: 30px;
+    right: 30px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    bottom: 20px;
+    right: 20px;
+  }
 `;
 
 // Styled components for DeleteModal
-const ModalOverlay = styled.div`
+const ModalOverlay = styled(motion.div)`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -45,23 +50,32 @@ const ModalOverlay = styled.div`
   padding: ${({ theme }) => theme.spacing.md};
 `;
 
-const ModalContent = styled(Card)`
+const ModalContent = styled(motion.div)`
   width: 100%;
   max-width: 450px;
-  margin: 20px;
-  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   text-align: center;
-  border-top: none !important;
 `;
 
 const ModalTitle = styled.h3`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
   color: ${({ theme }) => theme.colors.text};
 `;
 
 const ModalText = styled.p`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  margin: 0 0 24px 0;
   color: ${({ theme }) => theme.colors.textLight};
+  font-size: 16px;
+  line-height: 1.5;
 `;
 
 const ModalActions = styled.div`
@@ -83,28 +97,43 @@ function DeleteModal({ isOpen, itemType, itemName, onConfirm, onCancel, isDeleti
   if (!isOpen) return null;
 
   return (
-    <ModalOverlay>
-      <ModalContent>
-        <ModalTitle>Delete {itemType}</ModalTitle>
-        <ModalText>
-          Are you sure you want to delete the {itemType.toLowerCase()} &quot;
-          <strong>{itemName}</strong>
-          &quot;? This action cannot be undone and may affect associated data (e.g., student memberships, chat history).
-        </ModalText>
-        <ModalActions>
-          <Button variant="outline" onClick={onCancel} disabled={isDeleting}>
-            Cancel
-          </Button>
-          <Button
-             variant="danger"
-             onClick={onConfirm}
-             disabled={isDeleting}
+    <AnimatePresence>
+      {isOpen && (
+        <ModalOverlay
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onCancel}
+        >
+          <ModalContent
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25 }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {isDeleting ? 'Deleting...' : `Yes, Delete ${itemType}`}
-          </Button>
-        </ModalActions>
-      </ModalContent>
-    </ModalOverlay>
+            <ModalTitle>Delete {itemType}</ModalTitle>
+            <ModalText>
+              Are you sure you want to delete the {itemType.toLowerCase()} &quot;
+              <strong>{itemName}</strong>
+              &quot;? This action cannot be undone and may affect associated data (e.g., student memberships, chat history).
+            </ModalText>
+            <ModalActions>
+              <ModernButton variant="ghost" onClick={onCancel} disabled={isDeleting}>
+                Cancel
+              </ModernButton>
+              <ModernButton
+                 variant="danger"
+                 onClick={onConfirm}
+                 disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : `Yes, Delete ${itemType}`}
+              </ModernButton>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -117,8 +146,6 @@ export default function ManageRoomsPage() {
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<BaseRoom | null>(null);
   const [showArchivedRooms, setShowArchivedRooms] = useState(false);
-  const theme = useTheme();
-  // const router = useRouter(); // Removed if not used
 
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
@@ -264,51 +291,51 @@ export default function ManageRoomsPage() {
   };
 
 
-  return (
-    <PageWrapper>
-      <Container>
-        <PageHeader>
-          <Title>Rooms</Title>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Button
-              variant="outline"
-              onClick={() => setShowArchivedRooms(!showArchivedRooms)}
-            >
-              {showArchivedRooms ? 'Hide Archived Rooms' : 'View Archived Rooms'}
-            </Button>
-            <Button
-              onClick={() => setShowRoomForm(true)}
-              disabled={chatbots.length === 0 && !isLoading}
-              title={chatbots.length === 0 && !isLoading ? "Create a chatbot before creating a room" : "Create New Room"}
-            >
-              + Create New Room
-            </Button>
-          </div>
-        </PageHeader>
+  if (isLoading) {
+    return <FullPageLoader message="Loading your classrooms..." variant="dots" />;
+  }
 
-        {chatbots.length === 0 && !isLoading && !error && (
-          <Alert variant='info' style={{marginBottom: '16px'}}>
+  return (
+    <PageWrapper
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
+        {chatbots.length === 0 && !error && (
+          <Alert variant='info' style={{marginBottom: '24px'}}>
               You need to create at least one chatbot before you can create a classroom room.
           </Alert>
         )}
 
-        {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+        {error && <Alert variant="error" style={{ marginBottom: '24px' }}>{error}</Alert>}
 
-        {isLoading ? (
-          <Card style={{ textAlign: 'center', padding: '40px' }}>
-            <LoadingSpinner /> Loading rooms...
-          </Card>
-        ) : error ? null : (
-          <RoomList
-            rooms={rooms}
-            onUpdate={fetchData}
-            onEditRoom={handleEditRoom}
-            onDeleteRoom={openDeleteModal}
-            onArchiveRoom={openArchiveModal}
-            // 👇 CORRECTED: Pass the blue (skolrCyan) color from the theme
-            accentColor={theme.colors.blue}
-          />
-        )}
+        <ModernRoomsList
+          rooms={rooms}
+          onCreateRoom={() => setShowRoomForm(true)}
+          onEditRoom={handleEditRoom}
+          onDeleteRoom={openDeleteModal}
+          onArchiveRoom={openArchiveModal}
+          canCreateRoom={chatbots.length > 0}
+        />
+        
+        <AnimatePresence>
+          {!showArchivedRooms && (
+            <ArchiveButton
+              as={motion.button}
+              variant="secondary"
+              size="large"
+              onClick={() => setShowArchivedRooms(true)}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <FiArchive />
+              View Archive
+            </ArchiveButton>
+          )}
+        </AnimatePresence>
         
         {showArchivedRooms && (
           <ArchivePanel 
@@ -316,8 +343,6 @@ export default function ManageRoomsPage() {
             onItemRestored={fetchData}
           />
         )}
-      </Container>
-
       {showRoomForm && (
         <RoomForm
           chatbots={chatbots}
@@ -345,30 +370,43 @@ export default function ManageRoomsPage() {
       />
       
       {/* Archive Modal */}
-      {archiveModal.isOpen && (
-        <ModalOverlay>
-          <ModalContent>
-            <ModalTitle>Archive Room</ModalTitle>
-            <ModalText>
-              Are you sure you want to archive the room &quot;
-              <strong>{archiveModal.name}</strong>
-              &quot;? The room will still be accessible but won't appear in your active rooms list.
-            </ModalText>
-            <ModalActions>
-              <Button variant="outline" onClick={closeArchiveModal} disabled={isArchiving}>
-                Cancel
-              </Button>
-              <Button
-                 variant="secondary"
-                 onClick={handleArchiveRoom}
-                 disabled={isArchiving}
-              >
-                {isArchiving ? 'Archiving...' : 'Archive Room'}
-              </Button>
-            </ModalActions>
-          </ModalContent>
-        </ModalOverlay>
-      )}
+      <AnimatePresence>
+        {archiveModal.isOpen && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeArchiveModal}
+          >
+            <ModalContent
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ModalTitle>Archive Room</ModalTitle>
+              <ModalText>
+                Are you sure you want to archive the room &quot;
+                <strong>{archiveModal.name}</strong>
+                &quot;? The room will still be accessible but won't appear in your active rooms list.
+              </ModalText>
+              <ModalActions>
+                <ModernButton variant="ghost" onClick={closeArchiveModal} disabled={isArchiving}>
+                  Cancel
+                </ModernButton>
+                <ModernButton
+                   variant="secondary"
+                   onClick={handleArchiveRoom}
+                   disabled={isArchiving}
+                >
+                  {isArchiving ? 'Archiving...' : 'Archive Room'}
+                </ModernButton>
+              </ModalActions>
+            </ModalContent>
+          </ModalOverlay>
+        )}
+      </AnimatePresence>
     </PageWrapper>
   );
 }

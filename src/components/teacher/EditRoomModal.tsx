@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Card, Button, Alert } from '@/styles/StyledComponents';
+import { Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { Room, Chatbot } from '@/types/database.types';
 
 // ... (styled components remain the same)
@@ -14,17 +15,26 @@ const Overlay = styled.div`
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
 `;
 
-const FormCard = styled(Card)`
+const FormCard = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
   width: 100%;
   max-width: 600px;
   margin: 20px;
   position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
 `;
 
 const Header = styled.div`
@@ -36,18 +46,37 @@ const Header = styled.div`
 
 const Title = styled.h2`
   margin: 0;
-  color: ${({ theme }) => theme.colors.text};
+  font-size: 24px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const CloseButton = styled.button`
-  background: none;
+  background: rgba(152, 93, 215, 0.1);
   border: none;
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.primary};
   cursor: pointer;
   font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
   
   &:hover {
-    color: ${({ theme }) => theme.colors.text};
+    background: rgba(152, 93, 215, 0.2);
+    transform: scale(1.1);
   }
 `;
 
@@ -63,9 +92,10 @@ const SectionTitle = styled.h3`
 const ChatbotList = styled.div`
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 12px;
   padding: ${({ theme }) => theme.spacing.sm};
+  background: rgba(248, 248, 248, 0.5);
 `;
 
 const ChatbotItem = styled.label`
@@ -73,9 +103,11 @@ const ChatbotItem = styled.label`
   align-items: center;
   padding: ${({ theme }) => theme.spacing.sm};
   cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
   
   &:hover {
-    background: ${({ theme }) => theme.colors.backgroundDark};
+    background: rgba(152, 93, 215, 0.05);
   }
 `;
 
@@ -95,9 +127,9 @@ const Footer = styled.div`
 const DirectAccessContainer = styled.div`
   margin-top: ${({ theme }) => theme.spacing.lg};
   padding: ${({ theme }) => theme.spacing.md};
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  border: 1px dashed ${({ theme }) => theme.colors.border};
+  background: rgba(76, 190, 243, 0.05);
+  border-radius: 12px;
+  border: 1px dashed rgba(76, 190, 243, 0.3);
 `;
 
 const DirectAccessUrl = styled.input`
@@ -179,13 +211,13 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
 
       if (!response.ok) {
         // Attempt to parse error JSON, but handle cases where it might not be JSON
-        let errorMsg = 'Failed to update room chatbots';
+        let errorMsg = 'Failed to update room skolrbots';
         try {
             const errorData = await response.json();
             errorMsg = errorData.error || errorMsg;
         } catch {
             // If response is not JSON, use status text or a generic message
-            errorMsg = `Failed to update room chatbots (status: ${response.status} ${response.statusText})`;
+            errorMsg = `Failed to update room skolrbots (status: ${response.status} ${response.statusText})`;
             console.error("PUT request failed with non-JSON response:", await response.text());
         }
         throw new Error(errorMsg);
@@ -213,11 +245,11 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
         {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
         <Section>
-          <SectionTitle>Select Chatbots for this Room</SectionTitle>
+          <SectionTitle>Select Skolrbots for this Room</SectionTitle>
           {isLoading ? (
-            <div style={{textAlign: 'center', padding: '20px'}}>Loading chatbots...</div>
+            <div style={{textAlign: 'center', padding: '20px'}}>Loading skolrbots...</div>
           ) : chatbots.length === 0 ? (
-            <p>No chatbots available to assign. Please create a chatbot first.</p>
+            <p>No skolrbots available to assign. Please create a skolrbot first.</p>
           ) : (
             <ChatbotList>
               {chatbots.map(chatbot => (
@@ -252,8 +284,8 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
               readOnly
               onClick={(e) => e.currentTarget.select()}
             />
-            <Button 
-              variant="outline" 
+            <ModernButton 
+              variant="secondary" 
               size="small" 
               onClick={() => {
                 navigator.clipboard.writeText(`${window.location.origin}/chat/${room.room_id}`);
@@ -261,23 +293,24 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
               }}
             >
               Copy Link
-            </Button>
+            </ModernButton>
           </DirectAccessContainer>
         </Section>
 
         <Footer>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <ModernButton type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Cancel
-          </Button>
-          <Button 
+          </ModernButton>
+          <ModernButton 
             type="button" 
+            variant="primary"
             onClick={handleSubmit} 
             disabled={isSubmitting || isLoading || (chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading) }
             // Disable save if loading, submitting, or if chatbots are available but none are selected (unless still loading initial selection)
-            title={chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading ? "Select at least one chatbot" : undefined}
+            title={chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading ? "Select at least one skolrbot" : undefined}
           >
             {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Button>
+          </ModernButton>
         </Footer>
       </FormCard>
     </Overlay>
