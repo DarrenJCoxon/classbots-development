@@ -368,6 +368,24 @@ export const ProgressWidget: React.FC<{
   );
 };
 
+const EmptyActivityState = styled.div`
+  text-align: center;
+  padding: 40px 20px;
+  color: ${({ theme }) => theme.colors.textLight};
+  
+  svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+  
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+`;
+
 export const ActivityWidget: React.FC<{
   title: string;
   activities: Array<{
@@ -387,22 +405,32 @@ export const ActivityWidget: React.FC<{
     >
       <WidgetTitle style={{ marginBottom: '20px' }}>{title}</WidgetTitle>
       
-      {activities.map((activity, index) => (
-        <ActivityItem
-          key={activity.id}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.1 }}
-        >
-          <ActivityIcon variant={activity.variant}>
-            {activity.icon}
-          </ActivityIcon>
-          <ActivityContent>
-            <p>{activity.content}</p>
-            <span>{activity.time}</span>
-          </ActivityContent>
-        </ActivityItem>
-      ))}
+      {activities.length === 0 ? (
+        <EmptyActivityState>
+          <FiActivity />
+          <p>No recent activity</p>
+          <p style={{ fontSize: '12px', marginTop: '8px' }}>
+            Activity from your rooms will appear here
+          </p>
+        </EmptyActivityState>
+      ) : (
+        activities.map((activity, index) => (
+          <ActivityItem
+            key={activity.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
+          >
+            <ActivityIcon variant={activity.variant}>
+              {activity.icon}
+            </ActivityIcon>
+            <ActivityContent>
+              <p>{activity.content}</p>
+              <span>{activity.time}</span>
+            </ActivityContent>
+          </ActivityItem>
+        ))
+      )}
     </WidgetContainer>
   );
 };
