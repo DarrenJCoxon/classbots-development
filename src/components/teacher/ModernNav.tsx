@@ -320,6 +320,19 @@ export const ModernNav: React.FC = () => {
   const router = useRouter();
   const supabase = createClient();
   
+  // Check if we're on mobile
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   // Always collapse sidebar when pathname changes
   useEffect(() => {
     setIsOpen(false);

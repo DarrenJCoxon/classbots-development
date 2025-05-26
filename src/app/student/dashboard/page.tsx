@@ -98,6 +98,11 @@ const Title = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 28px;
+    letter-spacing: 0.5px;
+  }
 `;
 
 const Subtitle = styled.p`

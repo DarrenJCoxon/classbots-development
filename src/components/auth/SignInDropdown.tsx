@@ -30,12 +30,15 @@ const DropdownMenu = styled.div<{ $isOpen: boolean }>`
 
 const DropdownItem = styled(Link)`
   display: block;
-  padding: 12px 20px;
+  padding: 16px 20px;
   color: ${({ theme }) => theme.colors.text};
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
   
   &:hover {
     background: rgba(152, 93, 215, 0.05);
@@ -45,6 +48,11 @@ const DropdownItem = styled(Link)`
   
   &:not(:last-child) {
     border-bottom: 1px solid rgba(152, 93, 215, 0.1);
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 18px 20px;
+    font-size: 16px;
   }
 `;
 

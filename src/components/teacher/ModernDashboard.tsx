@@ -67,6 +67,16 @@ const WelcomeText = styled.h1`
   align-items: center;
   gap: 12px;
   
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 28px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 24px;
+    letter-spacing: 0.5px;
+    gap: 8px;
+  }
+  
   span {
     background: linear-gradient(135deg, 
       ${({ theme }) => theme.colors.primary}, 
@@ -87,6 +97,10 @@ const WelcomeIcon = styled(FiZap)`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 24px;
+  }
 `;
 
 const DateText = styled.p`
@@ -212,6 +226,10 @@ const Grid = styled.div`
   
   &.stats {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      grid-template-columns: 1fr;
+    }
   }
   
   &.main {

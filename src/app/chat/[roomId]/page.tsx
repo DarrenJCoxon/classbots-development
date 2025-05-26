@@ -88,18 +88,6 @@ const LoadingContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
-const SplitScreenContainer = styled.div`
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 8px;
-  height: calc(100vh - 180px);
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-`;
-
 const DocumentSection = styled.div`
   background: ${({ theme }) => theme.colors.backgroundCard};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
@@ -113,6 +101,32 @@ const ChatSection = styled.div`
   background: ${({ theme }) => theme.colors.backgroundCard};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   overflow: hidden;
+`;
+
+const SplitScreenContainer = styled.div`
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 8px;
+  height: calc(100vh - 180px);
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: 1fr;
+    height: auto;
+    gap: 16px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    height: auto;
+    
+    ${DocumentSection} {
+      min-height: 400px;
+      max-height: 50vh;
+    }
+    
+    ${ChatSection} {
+      min-height: 400px;
+    }
+  }
 `;
 
 interface RoomQueryResult {

@@ -70,6 +70,10 @@ const MessagesList = styled.div`
   position: relative; // Added for absolute positioning of children
   will-change: transform; // Performance optimization for scrolling
   -webkit-overflow-scrolling: touch; // Better scrolling on iOS
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    max-height: calc(100vh - 250px); // Account for mobile browser chrome
+  }
 `;
 
 const StyledChatInputContainer = styled.div`

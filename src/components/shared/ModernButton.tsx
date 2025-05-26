@@ -112,16 +112,31 @@ const getSizeStyles = (size: ButtonSize) => {
       padding: 8px 20px;
       font-size: 13px;
       font-weight: 700;
+      
+      @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+        padding: 8px 16px;
+        font-size: 12px;
+      }
     `,
     medium: css`
       padding: 12px 32px;
       font-size: 14px;
       font-weight: 700;
+      
+      @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+        padding: 10px 24px;
+        font-size: 13px;
+      }
     `,
     large: css`
       padding: 16px 40px;
       font-size: 16px;
       font-weight: 700;
+      
+      @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+        padding: 14px 32px;
+        font-size: 15px;
+      }
     `,
   };
   

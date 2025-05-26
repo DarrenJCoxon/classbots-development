@@ -23,7 +23,7 @@ const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: bo
   backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 24px;
-  height: 200px;
+  min-height: 200px;
   border: 1px solid rgba(152, 93, 215, 0.1);
   box-shadow: 
     0 10px 40px rgba(152, 93, 215, 0.05),
@@ -75,6 +75,11 @@ const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: bo
     );
     pointer-events: none;
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 20px;
+    min-height: 160px;
+  }
 `;
 
 const CardHeader = styled.div`
@@ -108,6 +113,10 @@ const CardValue = styled.div<{ $layout?: 'default' | 'compact' }>`
   line-height: 1.2;
   margin-bottom: 4px;
   font-family: ${({ theme, $layout }) => $layout === 'compact' ? theme.fonts.mono : 'inherit'};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: ${({ $layout }) => $layout === 'compact' ? '1rem' : '1.8rem'};
+  }
 `;
 
 const CardSubtitle = styled.p`

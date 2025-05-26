@@ -19,6 +19,8 @@ const HomePage = styled.div`
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  width: 100%;
   
   /* Subtle animated background */
   &::before {
@@ -42,12 +44,23 @@ const HeroSection = styled.section`
   z-index: 1;
   padding: 80px 0 60px 0;
   text-align: center;
+  width: 100%;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 60px 0 40px 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 40px 0 30px 0;
+  }
 `;
 
 const Container = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
+  width: 100%;
+  box-sizing: border-box;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 0 16px;
@@ -61,6 +74,7 @@ const HeroTitle = styled(motion.h1)`
   text-transform: uppercase;
   margin: 0 0 32px 0;
   letter-spacing: 2px;
+  line-height: 1.2;
   
   /* Animated gradient text */
   background: linear-gradient(135deg, 
@@ -80,8 +94,16 @@ const HeroTitle = styled(motion.h1)`
     100% { background-position: 0% 50%; }
   }
   
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 40px;
+    margin: 0 0 24px 0;
+  }
+  
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: 36px;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+    margin: 0 0 20px 0;
+    line-height: 1.3;
   }
 `;
 
@@ -92,13 +114,20 @@ const CTAButtons = styled.div`
   margin: 40px 0;
   flex-wrap: wrap;
   
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    gap: 16px;
+    margin: 30px 0;
+  }
+  
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    gap: 12px;
+    margin: 24px 0;
+    width: 100%;
     
     button {
       width: 100%;
-      max-width: 280px;
     }
   }
 `;
@@ -111,6 +140,15 @@ const MainContent = styled.div`
 
 const PathCardsSection = styled.section`
   padding: 40px 0 80px 0;
+  width: 100%;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 30px 0 60px 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 20px 0 40px 0;
+  }
 `;
 
 const PathCardsGrid = styled.div`
@@ -118,6 +156,18 @@ const PathCardsGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 24px;
   margin-bottom: 60px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 30px;
+  }
 `;
 
 const PathCard = styled(motion.div)<{ $accentColor: string }>`
@@ -131,10 +181,20 @@ const PathCard = styled(motion.div)<{ $accentColor: string }>`
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  height: 200px;
+  min-height: 200px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 28px;
+    min-height: 180px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 20px;
+    min-height: 160px;
+  }
   
   /* Accent gradient border */
   &::before {
@@ -186,6 +246,17 @@ const PathCardIcon = styled.div<{ $color: string }>`
     width: 24px;
     height: 24px;
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
 `;
 
 const PathCardContent = styled.div`
@@ -200,6 +271,15 @@ const PathCardTitle = styled.h3`
   text-transform: uppercase;
   margin: 0 0 8px 0;
   color: ${({ theme }) => theme.colors.text};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 22px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 20px;
+    margin: 0 0 6px 0;
+  }
 `;
 
 const PathCardDescription = styled.p`
@@ -207,6 +287,15 @@ const PathCardDescription = styled.p`
   color: ${({ theme }) => theme.colors.textLight};
   margin: 0;
   line-height: 1.5;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 15px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 14px;
+    line-height: 1.4;
+  }
 `;
 
 const PathCardAction = styled.div<{ $color: string }>`
@@ -220,6 +309,12 @@ const PathCardAction = styled.div<{ $color: string }>`
   
   .arrow {
     transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 13px;
+    margin-top: 12px;
   }
 `;
 
@@ -233,6 +328,16 @@ const QuickJoinCard = styled(motion.div)`
   max-width: 400px;
   margin: 0 auto;
   text-align: center;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 28px;
+    max-width: 360px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 24px;
+    max-width: 100%;
+  }
 `;
 
 const QuickJoinTitle = styled.h3`
@@ -242,6 +347,11 @@ const QuickJoinTitle = styled.h3`
   text-transform: uppercase;
   color: ${({ theme }) => theme.colors.magenta};
   margin: 0 0 16px 0;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 18px;
+    margin: 0 0 12px 0;
+  }
 `;
 
 const QuickJoinInput = styled.input`
@@ -254,6 +364,12 @@ const QuickJoinInput = styled.input`
   text-transform: uppercase;
   letter-spacing: 2px;
   transition: all 0.2s ease;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 10px 12px;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+  }
   
   &:focus {
     outline: none;

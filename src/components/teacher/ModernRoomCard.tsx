@@ -85,6 +85,11 @@ const RoomDescription = styled.p`
   color: ${({ theme }) => theme.colors.textLight};
   font-size: 14px;
   line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 `;
 
 const CardBody = styled.div`
@@ -96,6 +101,15 @@ const StatsGrid = styled.div`
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 24px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const StatItem = styled.div`
