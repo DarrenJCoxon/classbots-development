@@ -18,6 +18,7 @@ import {
   FiPlus,
   FiFileText,
   FiAlertCircle,
+  FiChevronRight,
   FiClipboard
 } from 'react-icons/fi';
 import { ActivityWidget } from './ModernDashboardWidgets';
@@ -247,6 +248,15 @@ const ChartPlaceholder = styled.div`
   font-size: 14px;
 `;
 
+const WorkflowArrow = styled(FiChevronRight)`
+  font-size: 24px;
+  color: ${({ theme }) => theme.colors.textLight};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    display: none;
+  }
+`;
+
 interface RoomEngagement {
   room_id: string;
   room_name: string;
@@ -325,26 +335,28 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({ stats, recentA
                 <Button
                   variant="primary"
                   size="medium"
+                  icon={<FiMessageSquare />}
+                  onClick={() => router.push('/teacher-dashboard/chatbots')}
+                >
+                  Create Skolrbot
+                </Button>
+                <WorkflowArrow />
+                <Button
+                  variant="secondary"
+                  size="medium"
                   icon={<FiPlus />}
                   onClick={() => router.push('/teacher-dashboard/rooms')}
                 >
                   Create Room
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="medium"
-                  icon={<FiMessageSquare />}
-                  onClick={() => router.push('/teacher-dashboard/chatbots')}
-                >
-                  Create Bot
-                </Button>
+                <WorkflowArrow />
                 <Button
                   variant="success"
                   size="medium"
-                  icon={<FiFileText />}
+                  icon={<FiClipboard />}
                   onClick={() => router.push('/teacher-dashboard/assessments')}
                 >
-                  Assessments
+                  Assess Progress
                 </Button>
               </ButtonGroup>
             </Section>
