@@ -96,9 +96,19 @@ function MagicLinkContent() {
         setRoomId(data.room_id);
         setStatus('success');
         
-        // Redirect to chat
+        // Store user ID in localStorage for dashboard access
+        if (data.user_id) {
+          localStorage.setItem('student_direct_access_id', data.user_id);
+          localStorage.setItem('current_student_id', data.user_id);
+        }
+        
+        // Create access signature for direct access
+        const timestamp = Date.now();
+        const accessSignature = btoa(`${data.user_id}:${timestamp}`);
+        
+        // Redirect to chat with access signature
         setTimeout(() => {
-          router.push(`/chat/${data.room_id}`);
+          router.push(`/chat/${data.room_id}?direct=true&access_signature=${accessSignature}&ts=${timestamp}&uid=${data.user_id}`);
         }, 1500);
       } catch (err) {
         console.error('Magic link error:', err);

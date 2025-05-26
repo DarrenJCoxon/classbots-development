@@ -541,6 +541,21 @@ export const ModernStudentNav: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
   
+  // Function to get student ID from various sources
+  const getStudentId = () => {
+    if (typeof window === 'undefined') return null;
+    
+    // Check localStorage first
+    const storedDirectId = localStorage.getItem('student_direct_access_id');
+    const storedCurrentId = localStorage.getItem('current_student_id');
+    
+    // Check URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlUserId = urlParams.get('uid');
+    
+    return storedDirectId || storedCurrentId || urlUserId;
+  };
+  
   const handleSignOut = async () => {
     // Clear any stored IDs
     localStorage.removeItem('student_direct_access_id');
@@ -586,8 +601,23 @@ export const ModernStudentNav: React.FC = () => {
             (item.href !== '/student/dashboard' && pathname.startsWith(item.href.split('#')[0]));
           
           const handleClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            
+            // For dashboard links, include user ID if available
+            if (item.href.includes('/student/dashboard')) {
+              const studentId = getStudentId();
+              if (studentId) {
+                const timestamp = Date.now();
+                const accessSignature = btoa(`${studentId}:${timestamp}`);
+                const baseHref = item.href.split('#')[0];
+                const hash = item.href.includes('#') ? item.href.split('#')[1] : '';
+                const dashboardUrl = `${baseHref}?uid=${studentId}&access_signature=${accessSignature}&ts=${timestamp}${hash ? '#' + hash : ''}`;
+                router.push(dashboardUrl);
+                return;
+              }
+            }
+            
             if (item.href.includes('#')) {
-              e.preventDefault();
               const [path, hash] = item.href.split('#');
               
               if (pathname !== path) {
@@ -599,7 +629,6 @@ export const ModernStudentNav: React.FC = () => {
                 }
               }
             } else {
-              e.preventDefault();
               router.push(item.href);
             }
           };
@@ -682,13 +711,46 @@ export const ModernStudentNav: React.FC = () => {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
           >
-            <MobileNavLink href="/student/dashboard" $isActive={pathname === '/student/dashboard'}>
+            <MobileNavLink 
+              href={(() => {
+                const studentId = getStudentId();
+                if (studentId) {
+                  const timestamp = Date.now();
+                  const accessSignature = btoa(`${studentId}:${timestamp}`);
+                  return `/student/dashboard?uid=${studentId}&access_signature=${accessSignature}&ts=${timestamp}`;
+                }
+                return '/student/dashboard';
+              })()}
+              $isActive={pathname === '/student/dashboard'}
+            >
               Dashboard
             </MobileNavLink>
-            <MobileNavLink href="/student/dashboard#classrooms" $isActive={pathname === '/student/dashboard#classrooms'}>
+            <MobileNavLink 
+              href={(() => {
+                const studentId = getStudentId();
+                if (studentId) {
+                  const timestamp = Date.now();
+                  const accessSignature = btoa(`${studentId}:${timestamp}`);
+                  return `/student/dashboard?uid=${studentId}&access_signature=${accessSignature}&ts=${timestamp}#classrooms`;
+                }
+                return '/student/dashboard#classrooms';
+              })()}
+              $isActive={pathname === '/student/dashboard#classrooms'}
+            >
               My Classrooms
             </MobileNavLink>
-            <MobileNavLink href="/student/dashboard#assessments" $isActive={pathname === '/student/dashboard#assessments'}>
+            <MobileNavLink 
+              href={(() => {
+                const studentId = getStudentId();
+                if (studentId) {
+                  const timestamp = Date.now();
+                  const accessSignature = btoa(`${studentId}:${timestamp}`);
+                  return `/student/dashboard?uid=${studentId}&access_signature=${accessSignature}&ts=${timestamp}#assessments`;
+                }
+                return '/student/dashboard#assessments';
+              })()}
+              $isActive={pathname === '/student/dashboard#assessments'}
+            >
               Assessments
             </MobileNavLink>
             <MobileNavLink href="/student/account-setup" $isActive={pathname === '/student/account-setup'}>
