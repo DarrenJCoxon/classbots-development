@@ -38,6 +38,23 @@ interface ModernRoomsListProps {
 const ListContainer = styled.div`
   width: 100%;
   overflow-x: hidden;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0 16px;
+  }
+`;
+
+const CreateRoomButton = styled(ModernButton)`
+  white-space: nowrap;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 10px 16px;
+    font-size: 14px;
+    
+    svg {
+      display: none; /* Hide icon on mobile to save space */
+    }
+  }
 `;
 
 const ListHeader = styled.div`
@@ -63,12 +80,26 @@ const Title = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 28px;
+  }
 `;
 
 const HeaderActions = styled.div`
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    gap: 12px;
+  }
 `;
 
 const SearchBar = styled.div`
@@ -76,6 +107,11 @@ const SearchBar = styled.div`
   width: 300px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    width: 100%;
+    order: 3;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
   }
 `;
@@ -119,6 +155,10 @@ const ViewToggle = styled.div`
   border: 1px solid rgba(152, 93, 215, 0.2);
   border-radius: 10px;
   overflow: hidden;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: none; /* Hide view toggle on mobile to save space */
+  }
 `;
 
 const ToggleButton = styled.button<{ $isActive: boolean }>`
@@ -155,6 +195,12 @@ const StatsBar = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
 `;
 
 const StatCard = styled(motion.div)`
@@ -224,7 +270,7 @@ const RoomsGrid = styled.div<{ isGrid: boolean }>`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 16px;
   }
 `;
 
@@ -602,7 +648,7 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
             </ToggleButton>
           </ViewToggle>
           
-          <ModernButton
+          <CreateRoomButton
             variant="primary"
             size="medium"
             onClick={onCreateRoom}
@@ -611,7 +657,7 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
           >
             <FiPlus />
             Create Room
-          </ModernButton>
+          </CreateRoomButton>
         </HeaderActions>
       </ListHeader>
       

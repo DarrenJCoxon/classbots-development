@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import { Metadata, Viewport } from 'next';
 import Providers from './providers';
-import Header from '@/components/layout/Header';
+import ConditionalHeader from '@/components/layout/ConditionalHeader';
 import { APP_NAME, APP_DESCRIPTION } from '@/lib/utils/constants';
 import { inter, orbitron, oxanium } from './fonts';
 import './globals.css';
@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${orbitron.variable} ${oxanium.variable}`}>
       <body className={inter.className}>
         <Providers>
-          <Header />
+          <ConditionalHeader />
           {children}
         </Providers>
       </body>

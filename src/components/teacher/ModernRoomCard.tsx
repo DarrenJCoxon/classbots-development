@@ -36,10 +36,18 @@ const RoomCardContainer = styled(GlassCard)`
   overflow: hidden;
   transition: all 0.3s ease;
   cursor: pointer;
+  width: 100%;
+  max-width: 100%;
   
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    &:hover {
+      transform: none; /* Disable hover effects on mobile */
+    }
   }
 `;
 

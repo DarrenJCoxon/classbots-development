@@ -31,7 +31,7 @@ const MainContent = styled.main`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     margin-left: 0;
-    padding: 20px 0 24px 0;
+    padding: 80px 0 24px 0; /* Add more top padding to account for mobile header */
   }
 `;
 

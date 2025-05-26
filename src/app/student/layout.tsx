@@ -31,6 +31,10 @@ const ContentArea = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     margin-left: 0;
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding-top: 60px; /* Add top padding for mobile header */
+  }
 `;
 
 const MainContent = styled.main`
