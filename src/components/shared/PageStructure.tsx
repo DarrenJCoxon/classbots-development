@@ -4,14 +4,14 @@ import { motion } from 'framer-motion';
 
 export const PageWrapper = styled(motion.div)`
   width: 100%;
-  padding: 40px 0;
+  padding: 0 0 40px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 32px 0;
+    padding: 0 0 32px;
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 24px 0;
+    padding: 0 0 24px;
   }
 `;
 

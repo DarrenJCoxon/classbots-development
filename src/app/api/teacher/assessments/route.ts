@@ -73,21 +73,10 @@ export async function GET(request: NextRequest) {
             const studentForeignKeyHint = "!student_assessments_student_id_fkey"; // Using the name from your FK list
             const chatbotForeignKeyHint = "!student_assessments_chatbot_id_fkey"; // Using the name from your FK list
 
+            // First, get the assessments
             let query = adminSupabase
                 .from('student_assessments')
-                .select(`
-                    assessment_id,
-                    student_id,
-                    chatbot_id,
-                    room_id,
-                    teacher_id, 
-                    assessed_at,
-                    ai_grade_raw,
-                    teacher_override_grade,
-                    status,
-                    student:profiles${studentForeignKeyHint}!inner(full_name), 
-                    chatbot:chatbots${chatbotForeignKeyHint}!inner(name)
-                `, { count: 'exact' })
+                .select('*', { count: 'exact' })
                 .eq('teacher_id', user.id) 
                 .order('assessed_at', { ascending: false })
                 .range(offset, offset + limit - 1);
@@ -108,7 +97,47 @@ export async function GET(request: NextRequest) {
                  return NextResponse.json({ assessments: [], pagination: { currentPage: page, pageSize: limit, totalCount: 0, totalPages: 0 }});
             }
             
-            // Step 2: Fetch room names separately for valid UUID room_ids
+            // Step 2: Fetch student names separately
+            const studentIds = [...new Set(data.map(item => item.student_id).filter(Boolean))] as string[];
+            const studentNamesMap: Map<string, string> = new Map();
+            if (studentIds.length > 0) {
+                const { data: studentData, error: studentError } = await adminSupabase
+                    .from('profiles')
+                    .select('user_id, full_name')
+                    .in('user_id', studentIds);
+                
+                if (studentError) {
+                    console.warn("[API GET /assessments] Error fetching student names:", studentError.message);
+                } else if (studentData) {
+                    studentData.forEach(student => {
+                        if (student.full_name) {
+                            studentNamesMap.set(student.user_id, student.full_name);
+                        }
+                    });
+                }
+            }
+            
+            // Step 3: Fetch chatbot names separately
+            const chatbotIds = [...new Set(data.map(item => item.chatbot_id).filter(Boolean))] as string[];
+            const chatbotNamesMap: Map<string, string> = new Map();
+            if (chatbotIds.length > 0) {
+                const { data: chatbotData, error: chatbotError } = await adminSupabase
+                    .from('chatbots')
+                    .select('chatbot_id, name')
+                    .in('chatbot_id', chatbotIds);
+                
+                if (chatbotError) {
+                    console.warn("[API GET /assessments] Error fetching chatbot names:", chatbotError.message);
+                } else if (chatbotData) {
+                    chatbotData.forEach(chatbot => {
+                        if (chatbot.name) {
+                            chatbotNamesMap.set(chatbot.chatbot_id, chatbot.name);
+                        }
+                    });
+                }
+            }
+            
+            // Step 4: Fetch room names separately for valid UUID room_ids
             const roomIdsToFetchNames = [...new Set(
                 data.map(item => item.room_id).filter(id => id && !id.startsWith('teacher_test_room_'))
             )] as string[]; // Ensure it's an array of strings
@@ -128,8 +157,8 @@ export async function GET(request: NextRequest) {
             }
 
             const assessments: AssessmentListSummary[] = data.map(item => {
-                const studentData = item.student as { full_name?: string | null } | null;
-                const chatbotData = item.chatbot as { name?: string | null } | null;
+                const studentName = item.student_id ? studentNamesMap.get(item.student_id) || 'N/A' : 'N/A';
+                const chatbotName = item.chatbot_id ? chatbotNamesMap.get(item.chatbot_id) || 'N/A' : 'N/A';
                 
                 let resolvedRoomName = 'N/A';
                 if (item.room_id) {
@@ -147,8 +176,8 @@ export async function GET(request: NextRequest) {
                     assessment_id: item.assessment_id, student_id: item.student_id, chatbot_id: item.chatbot_id,
                     room_id: item.room_id, teacher_id: item.teacher_id, assessed_at: item.assessed_at,
                     ai_grade_raw: item.ai_grade_raw, teacher_override_grade: item.teacher_override_grade, status: item.status,
-                    student_name: studentData?.full_name || 'N/A',
-                    chatbot_name: chatbotData?.name || 'N/A',
+                    student_name: studentName,
+                    chatbot_name: chatbotName,
                     room_name: resolvedRoomName
                 };
             });

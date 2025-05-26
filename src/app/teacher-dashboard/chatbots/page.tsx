@@ -157,6 +157,18 @@ const StatsBar = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
 `;
 
 const StatCard = styled(motion.div)`
@@ -174,6 +186,16 @@ const StatCard = styled(motion.div)`
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 12px;
+    gap: 12px;
+  }
 `;
 
 const StatIconWrapper = styled.div<{ color: string }>`
@@ -190,10 +212,38 @@ const StatIconWrapper = styled.div<{ color: string }>`
     height: 24px;
     color: ${({ color }) => color};
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
 `;
 
 const StatContent = styled.div`
   flex: 1;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
 `;
 
 const StatValue = styled.div`
@@ -201,6 +251,17 @@ const StatValue = styled.div`
   font-weight: 700;
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: 4px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 18px;
+    margin-bottom: 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 18px;
+    margin-bottom: 0;
+    order: 2;
+  }
 `;
 
 const StatLabel = styled.div`
@@ -208,6 +269,18 @@ const StatLabel = styled.div`
   color: ${({ theme }) => theme.colors.textLight};
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: 12px;
+    letter-spacing: 0.3px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 11px;
+    letter-spacing: 0;
+    order: 1;
+    margin-right: 8px;
+  }
 `;
 
 const EmptyState = styled.div`
@@ -545,6 +618,7 @@ export default function ManageSkolrbotsPage() {
               <option value="">All Types</option>
               <option value="learning">Learning</option>
               <option value="assessment">Assessment</option>
+              <option value="reading_room">Reading Room</option>
             </StyledSelectBox>
           </StyledFormGroup>
           

@@ -21,7 +21,34 @@ import {
   FiChevronRight
 } from 'react-icons/fi';
 import { ModernRoomCard } from './ModernRoomCard';
-import { ModernButton } from '@/components/shared/ModernButton';
+import { 
+  PageWrapper, 
+  Container, 
+  Section, 
+  Grid, 
+  Flex, 
+  Stack,
+  StatsCard,
+  Card,
+  CardBody,
+  Button,
+  IconButton,
+  ButtonGroup,
+  Heading,
+  Text,
+  PageTitle,
+  SectionTitle,
+  SearchInput,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  Badge,
+  StatusBadge,
+  CodeBadge
+} from '@/components/ui';
 import type { TeacherRoom } from '@/types/database.types';
 import StudentCsvUpload from './StudentCsvUpload';
 import Link from 'next/link';
@@ -35,16 +62,8 @@ interface ModernRoomsListProps {
   canCreateRoom: boolean;
 }
 
-const ListContainer = styled.div`
-  width: 100%;
-  overflow-x: hidden;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 0 16px;
-  }
-`;
-
-const CreateRoomButton = styled(ModernButton)`
+// Custom styled components that aren't in the unified library yet
+const CreateRoomButton = styled(Button)`
   white-space: nowrap;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -57,53 +76,7 @@ const CreateRoomButton = styled(ModernButton)`
   }
 `;
 
-const ListHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
-  gap: 16px;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  font-size: 36px;
-  font-weight: 800;
-  font-family: ${({ theme }) => theme.fonts.heading};
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  background: linear-gradient(135deg, 
-    ${({ theme }) => theme.colors.primary}, 
-    ${({ theme }) => theme.colors.magenta}
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: 28px;
-  }
-`;
-
-const HeaderActions = styled.div`
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    gap: 12px;
-  }
-`;
-
-const SearchBar = styled.div`
-  position: relative;
+const SearchBarWrapper = styled.div`
   width: 300px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -114,38 +87,6 @@ const SearchBar = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
   }
-`;
-
-const SearchInput = styled.input`
-  width: 100%;
-  padding: 12px 16px 12px 48px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(152, 93, 215, 0.2);
-  border-radius: 12px;
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.text};
-  transition: all 0.3s ease;
-  
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.primary};
-    box-shadow: 0 0 0 3px rgba(152, 93, 215, 0.1);
-  }
-  
-  &::placeholder {
-    color: ${({ theme }) => theme.colors.textLight};
-  }
-`;
-
-const SearchIcon = styled(FiSearch)`
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: ${({ theme }) => theme.colors.textLight};
-  width: 20px;
-  height: 20px;
 `;
 
 const ViewToggle = styled.div`
@@ -190,97 +131,24 @@ const ToggleButton = styled.button<{ $isActive: boolean }>`
   }
 `;
 
-const StatsBar = styled.div`
+const RoomsGrid = styled.div<{ $isGrid: boolean }>`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-`;
-
-const StatCard = styled(motion.div)`
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(152, 93, 215, 0.1);
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
-  }
-`;
-
-const StatIconWrapper = styled.div<{ color: string }>`
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ color }) => `${color}15`};
-  border-radius: 12px;
-  
-  svg {
-    width: 24px;
-    height: 24px;
-    color: ${({ color }) => color};
-  }
-`;
-
-const StatContent = styled.div`
-  flex: 1;
-`;
-
-const StatValue = styled.div`
-  font-size: 24px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.text};
-  margin-bottom: 4px;
-`;
-
-const StatLabel = styled.div`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textLight};
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`;
-
-const RoomsGrid = styled.div<{ isGrid: boolean }>`
-  display: grid;
-  grid-template-columns: ${({ isGrid }) => 
-    isGrid ? 'repeat(auto-fill, minmax(380px, 1fr))' : '1fr'
+  grid-template-columns: ${({ $isGrid }) => 
+    $isGrid ? 'repeat(auto-fill, minmax(380px, 1fr))' : '1fr'
   };
   gap: 32px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: ${({ isGrid }) => 
-      isGrid ? 'repeat(auto-fill, minmax(320px, 1fr))' : '1fr'
+    grid-template-columns: ${({ $isGrid }) => 
+      $isGrid ? 'repeat(auto-fill, minmax(300px, 1fr))' : '1fr'
     };
-    gap: 24px;
+    gap: 20px;
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 80px 40px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border: 2px dashed rgba(152, 93, 215, 0.3);
-  border-radius: 20px;
 `;
 
 const EmptyIcon = styled.div`
@@ -303,67 +171,6 @@ const EmptyIcon = styled.div`
   }
 `;
 
-const EmptyTitle = styled.h3`
-  margin: 0 0 12px 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.text};
-`;
-
-const EmptyText = styled.p`
-  margin: 0 0 24px 0;
-  color: ${({ theme }) => theme.colors.textLight};
-  font-size: 16px;
-`;
-
-// List View Styles
-const ListTable = styled.table`
-  width: 100%;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(152, 93, 215, 0.1);
-  border-radius: 16px;
-  overflow: hidden;
-  border-collapse: collapse;
-`;
-
-const TableHeader = styled.thead`
-  background: linear-gradient(135deg, 
-    rgba(152, 93, 215, 0.05), 
-    rgba(200, 72, 175, 0.05)
-  );
-`;
-
-const TableRow = styled.tr`
-  border-bottom: 1px solid rgba(152, 93, 215, 0.1);
-  transition: all 0.2s ease;
-  
-  &:last-child {
-    border-bottom: none;
-  }
-  
-  &:hover {
-    background: rgba(152, 93, 215, 0.02);
-  }
-`;
-
-const TableHeaderCell = styled.th`
-  padding: 16px 20px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: ${({ theme }) => theme.colors.textLight};
-`;
-
-const TableCell = styled.td`
-  padding: 20px;
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.text};
-  vertical-align: middle;
-`;
-
 const RoomNameLink = styled(Link)`
   color: ${({ theme }) => theme.colors.text};
   font-weight: 600;
@@ -378,54 +185,6 @@ const RoomNameLink = styled(Link)`
   }
 `;
 
-const RoomCodeBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  background: linear-gradient(135deg, 
-    ${({ theme }) => theme.colors.primary}20, 
-    ${({ theme }) => theme.colors.magenta}20
-  );
-  border: 1px solid ${({ theme }) => theme.colors.primary}30;
-  color: ${({ theme }) => theme.colors.primary};
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: ${({ theme }) => theme.fonts.mono};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: linear-gradient(135deg, 
-      ${({ theme }) => theme.colors.primary}30, 
-      ${({ theme }) => theme.colors.magenta}30
-    );
-  }
-`;
-
-const StatusBadge = styled.span<{ $isActive: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: ${({ $isActive, theme }) => 
-    $isActive 
-      ? 'rgba(76, 190, 243, 0.1)' 
-      : 'rgba(254, 67, 114, 0.1)'
-  };
-  color: ${({ $isActive, theme }) => 
-    $isActive ? theme.colors.blue : theme.colors.pink
-  };
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
 const ActionButtonsCell = styled.div`
   display: flex;
   gap: 8px;
@@ -437,7 +196,7 @@ const DropdownContainer = styled.div`
   position: relative;
 `;
 
-const DropdownButton = styled(ModernButton)`
+const DropdownButton = styled(IconButton)`
   padding: 8px;
   
   svg {
@@ -525,10 +284,10 @@ const RoomDropdownMenu: React.FC<{
       <DropdownButton
         variant="ghost"
         size="small"
+        aria-label="Room options"
         onClick={() => setIsOpen(!isOpen)}
-      >
-        <FiMoreVertical />
-      </DropdownButton>
+        icon={<FiMoreVertical />}
+      />
       
       <AnimatePresence>
         {isOpen && (
@@ -619,234 +378,219 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
   };
   
   return (
-    <ListContainer>
-      <ListHeader>
-        <Title>My Classrooms</Title>
-        <HeaderActions>
-          <SearchBar>
-            <SearchIcon />
-            <SearchInput
-              type="text"
-              placeholder="Search rooms..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </SearchBar>
-          
-          <ViewToggle>
-            <ToggleButton
-              $isActive={viewMode === 'grid'}
-              onClick={() => setViewMode('grid')}
-            >
-              <FiGrid />
-            </ToggleButton>
-            <ToggleButton
-              $isActive={viewMode === 'list'}
-              onClick={() => setViewMode('list')}
-            >
-              <FiList />
-            </ToggleButton>
-          </ViewToggle>
-          
-          <CreateRoomButton
-            variant="primary"
-            size="medium"
-            onClick={onCreateRoom}
-            disabled={!canCreateRoom}
-            title={!canCreateRoom ? "Create a chatbot before creating a room" : "Create New Room"}
-          >
-            <FiPlus />
-            Create Room
-          </CreateRoomButton>
-        </HeaderActions>
-      </ListHeader>
-      
-      <StatsBar>
-        <StatCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <StatIconWrapper color="#985DD7">
-            <FiActivity />
-          </StatIconWrapper>
-          <StatContent>
-            <StatValue>{activeRooms}</StatValue>
-            <StatLabel>Active Rooms</StatLabel>
-          </StatContent>
-        </StatCard>
-        
-        <StatCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <StatIconWrapper color="#4CBEF3">
-            <FiUsers />
-          </StatIconWrapper>
-          <StatContent>
-            <StatValue>{totalStudents}</StatValue>
-            <StatLabel>Total Students</StatLabel>
-          </StatContent>
-        </StatCard>
-        
-        <StatCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <StatIconWrapper color="#C848AF">
-            <FiMessageSquare />
-          </StatIconWrapper>
-          <StatContent>
-            <StatValue>{totalChatbots}</StatValue>
-            <StatLabel>Active Chatbots</StatLabel>
-          </StatContent>
-        </StatCard>
-      </StatsBar>
-      
-      {filteredRooms.length === 0 ? (
-        <EmptyState>
-          <EmptyIcon>
-            <FiPlus />
-          </EmptyIcon>
-          <EmptyTitle>
-            {searchTerm ? 'No rooms found' : 'No rooms yet'}
-          </EmptyTitle>
-          <EmptyText>
-            {searchTerm 
-              ? 'Try adjusting your search terms'
-              : 'Create your first classroom to get started'
-            }
-          </EmptyText>
-          {!searchTerm && (
-            <ModernButton
-              variant="primary"
-              onClick={onCreateRoom}
-              disabled={!canCreateRoom}
-            >
-              <FiPlus />
-              Create Your First Room
-            </ModernButton>
-          )}
-        </EmptyState>
-      ) : viewMode === 'grid' ? (
-        <AnimatePresence mode="wait">
-          <RoomsGrid isGrid={true}>
-            {filteredRooms.map((room, index) => (
-              <motion.div
-                key={room.room_id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <ModernRoomCard
-                  room={room}
-                  onEdit={onEditRoom}
-                  onDelete={onDeleteRoom}
-                  onArchive={onArchiveRoom}
+    <PageWrapper gradient>
+      <Container size="large" spacing="xl">
+        <Stack spacing="lg">
+          <Flex justify="between" align="center" wrap gap="md">
+            <PageTitle gradient>My Classrooms</PageTitle>
+            <Flex gap="md" align="center" wrap>
+              <SearchBarWrapper>
+                <SearchInput
+                  placeholder="Search rooms..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
-              </motion.div>
-            ))}
-          </RoomsGrid>
-        </AnimatePresence>
-      ) : (
-        <ListTable>
-          <TableHeader>
-            <tr>
-              <TableHeaderCell>Room Name</TableHeaderCell>
-              <TableHeaderCell>Room Code</TableHeaderCell>
-              <TableHeaderCell>Chatbots</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Created</TableHeaderCell>
-              <TableHeaderCell>Actions</TableHeaderCell>
-            </tr>
-          </TableHeader>
-          <tbody>
-            {filteredRooms.map((room) => (
-              <TableRow key={room.room_id}>
-                <TableCell>
-                  <RoomNameLink href={`/teacher-dashboard/rooms/${room.room_id}`}>
-                    {room.room_name}
-                    <FiChevronRight />
-                  </RoomNameLink>
-                </TableCell>
-                <TableCell>
-                  <RoomCodeBadge onClick={() => copyRoomCode(room.room_code)}>
-                    {room.room_code}
-                  </RoomCodeBadge>
-                </TableCell>
-                <TableCell>
-                  {room.room_chatbots?.length || 0} Active
-                </TableCell>
-                <TableCell>
-                  <StatusBadge $isActive={room.is_active}>
-                    {room.is_active ? (
-                      <>
-                        <FiActivity />
-                        Active
-                      </>
-                    ) : (
-                      'Inactive'
-                    )}
-                  </StatusBadge>
-                </TableCell>
-                <TableCell>
-                  {new Date(room.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <ActionButtonsCell>
-                    <ModernButton
-                      variant="ghost"
-                      size="small"
-                      onClick={() => onEditRoom(room)}
-                    >
-                      Edit
-                    </ModernButton>
-                    <ModernButton
-                      variant="ghost"
-                      size="small"
-                      onClick={() => generateJoinUrl(room.room_code)}
-                    >
-                      Join URL
-                    </ModernButton>
-                    <ModernButton
+              </SearchBarWrapper>
+              
+              <ViewToggle>
+                <ToggleButton
+                  $isActive={viewMode === 'grid'}
+                  onClick={() => setViewMode('grid')}
+                >
+                  <FiGrid />
+                </ToggleButton>
+                <ToggleButton
+                  $isActive={viewMode === 'list'}
+                  onClick={() => setViewMode('list')}
+                >
+                  <FiList />
+                </ToggleButton>
+              </ViewToggle>
+              
+              <CreateRoomButton
+                variant="primary"
+                size="medium"
+                icon={<FiPlus />}
+                onClick={onCreateRoom}
+                disabled={!canCreateRoom}
+                title={!canCreateRoom ? "Create a chatbot before creating a room" : "Create New Room"}
+              >
+                Create Room
+              </CreateRoomButton>
+            </Flex>
+          </Flex>
+          
+          <Grid cols={3} gap="md">
+            <StatsCard
+              icon={<FiActivity />}
+              title="Active Rooms"
+              value={activeRooms}
+              accentColor="primary"
+            />
+            
+            <StatsCard
+              icon={<FiUsers />}
+              title="Total Students"
+              value={totalStudents}
+              accentColor="success"
+            />
+            
+            <StatsCard
+              icon={<FiMessageSquare />}
+              title="Active Chatbots"
+              value={totalChatbots}
+              accentColor="secondary"
+            />
+          </Grid>
+          
+          {filteredRooms.length === 0 ? (
+            <Card variant="minimal" hoverable={false}>
+              <CardBody>
+                <Stack spacing="md" align="center">
+                  <EmptyIcon>
+                    <FiPlus />
+                  </EmptyIcon>
+                  <Heading level="h3" noMargin>
+                    {searchTerm ? 'No rooms found' : 'No rooms yet'}
+                  </Heading>
+                  <Text color="light" align="center">
+                    {searchTerm 
+                      ? 'Try adjusting your search terms'
+                      : 'Create your first classroom to get started'
+                    }
+                  </Text>
+                  {!searchTerm && (
+                    <Button
                       variant="primary"
-                      size="small"
-                      onClick={() => setCsvUploadRoom(room)}
+                      icon={<FiPlus />}
+                      onClick={onCreateRoom}
+                      disabled={!canCreateRoom}
                     >
-                      Import Students
-                    </ModernButton>
-                    <ModernButton
-                      variant="ghost"
-                      size="small"
-                      onClick={() => onArchiveRoom(room)}
-                    >
-                      Archive
-                    </ModernButton>
-                    <ModernButton
-                      variant="danger"
-                      size="small"
-                      onClick={() => onDeleteRoom(room)}
-                    >
-                      Delete
-                    </ModernButton>
-                  </ActionButtonsCell>
-                </TableCell>
-              </TableRow>
-            ))}
-          </tbody>
-        </ListTable>
-      )}
-      
-      {csvUploadRoom && (
-        <StudentCsvUpload
-          roomId={csvUploadRoom.room_id}
-          roomName={csvUploadRoom.room_name}
-          onClose={() => setCsvUploadRoom(null)}
-        />
-      )}
-    </ListContainer>
+                      Create Your First Room
+                    </Button>
+                  )}
+                </Stack>
+              </CardBody>
+            </Card>
+          ) : viewMode === 'grid' ? (
+            <AnimatePresence mode="wait">
+              <RoomsGrid $isGrid={true}>
+                {filteredRooms.map((room, index) => (
+                  <motion.div
+                    key={room.room_id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <ModernRoomCard
+                      room={room}
+                      onEdit={onEditRoom}
+                      onDelete={onDeleteRoom}
+                      onArchive={onArchiveRoom}
+                    />
+                  </motion.div>
+                ))}
+              </RoomsGrid>
+            </AnimatePresence>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Room Name</TableHeaderCell>
+                  <TableHeaderCell>Room Code</TableHeaderCell>
+                  <TableHeaderCell>Chatbots</TableHeaderCell>
+                  <TableHeaderCell>Status</TableHeaderCell>
+                  <TableHeaderCell>Created</TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRooms.map((room) => (
+                  <TableRow key={room.room_id}>
+                    <TableCell>
+                      <RoomNameLink href={`/teacher-dashboard/rooms/${room.room_id}`}>
+                        {room.room_name}
+                        <FiChevronRight />
+                      </RoomNameLink>
+                    </TableCell>
+                    <TableCell>
+                      <CodeBadge 
+                        $variant="primary" 
+                        $gradient
+                        onClick={() => copyRoomCode(room.room_code)}
+                      >
+                        {room.room_code}
+                      </CodeBadge>
+                    </TableCell>
+                    <TableCell>
+                      {room.room_chatbots?.length || 0} Active
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge 
+                        isActive={room.is_active}
+                        icon={room.is_active ? <FiActivity /> : null}
+                      >
+                        {room.is_active ? 'Active' : 'Inactive'}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(room.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <ActionButtonsCell>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          onClick={() => onEditRoom(room)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          onClick={() => generateJoinUrl(room.room_code)}
+                        >
+                          Join URL
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="small"
+                          onClick={() => setCsvUploadRoom(room)}
+                        >
+                          Import Students
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          onClick={() => onArchiveRoom(room)}
+                        >
+                          Archive
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          onClick={() => onDeleteRoom(room)}
+                        >
+                          Delete
+                        </Button>
+                      </ActionButtonsCell>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          
+          {csvUploadRoom && (
+            <StudentCsvUpload
+              roomId={csvUploadRoom.room_id}
+              roomName={csvUploadRoom.room_name}
+              onClose={() => setCsvUploadRoom(null)}
+            />
+          )}
+        </Stack>
+      </Container>
+    </PageWrapper>
   );
 };

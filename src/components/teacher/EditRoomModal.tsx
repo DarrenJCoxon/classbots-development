@@ -14,34 +14,83 @@ const Overlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: ${({ theme }) => theme.spacing.md};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0;
+    align-items: flex-start;
+  }
 `;
 
 const FormCard = styled.div`
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   border-radius: 20px;
-  padding: 32px;
+  padding: 0;
   border: 1px solid rgba(152, 93, 215, 0.1);
   box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
   width: 100%;
-  max-width: 600px;
+  max-width: 650px;
   margin: 20px;
   position: relative;
+  display: flex;
+  flex-direction: column;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow-y: hidden;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin: 0;
+    width: 100%;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
+const FormContent = styled.div`
+  padding: ${({ theme }) => theme.spacing.lg};
+  overflow-y: auto;
+  flex-grow: 1;
+  max-height: calc(90vh - 140px);
+  overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: ${({ theme }) => theme.colors.borderDark};
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  scrollbar-width: thin;
+  scrollbar-color: ${({ theme }) => theme.colors.borderDark} transparent;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+    max-height: calc(100vh - 140px);
+  }
 `;
 
 const Title = styled.h2`
@@ -58,6 +107,10 @@ const Title = styled.h2`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 20px;
+  }
 `;
 
 const CloseButton = styled.button`
@@ -96,6 +149,10 @@ const ChatbotList = styled.div`
   border-radius: 12px;
   padding: ${({ theme }) => theme.spacing.sm};
   background: rgba(248, 248, 248, 0.5);
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    max-height: 200px;
+  }
 `;
 
 const ChatbotItem = styled.label`
@@ -109,6 +166,11 @@ const ChatbotItem = styled.label`
   &:hover {
     background: rgba(152, 93, 215, 0.05);
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+    min-height: 44px;
+  }
 `;
 
 const Checkbox = styled.input`
@@ -119,9 +181,18 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: ${({ theme }) => theme.spacing.md};
-  margin-top: ${({ theme }) => theme.spacing.xl};
-  padding-top: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+  background-color: ${({ theme }) => theme.colors.background};
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column-reverse;
+    padding: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
 const DirectAccessContainer = styled.div`
@@ -141,6 +212,10 @@ const DirectAccessUrl = styled.input`
   margin-bottom: ${({ theme }) => theme.spacing.sm};
   font-family: ${({ theme }) => theme.fonts.mono};
   font-size: 0.8rem;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 0.75rem;
+  }
 `;
 
 
@@ -235,14 +310,15 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
   };
 
   return (
-    <Overlay>
+    <Overlay onClick={(e) => e.target === e.currentTarget && onClose()}>
       <FormCard>
         <Header>
           <Title>Edit Room: {room.room_name}</Title>
           <CloseButton onClick={onClose}>×</CloseButton>
         </Header>
 
-        {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
+        <FormContent>
+          {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
         <Section>
           <SectionTitle>Select Skolrbots for this Room</SectionTitle>
@@ -296,6 +372,7 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
             </ModernButton>
           </DirectAccessContainer>
         </Section>
+        </FormContent>
 
         <Footer>
           <ModernButton type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>

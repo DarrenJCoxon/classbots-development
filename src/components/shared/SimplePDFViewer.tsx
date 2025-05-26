@@ -13,7 +13,11 @@ const ViewerContainer = styled.div`
   width: 100%;
   background: #f5f5f5;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    min-height: 100%;
+  }
 `;
 
 const StyledIframe = styled.iframe`
@@ -21,6 +25,11 @@ const StyledIframe = styled.iframe`
   height: 100%;
   border: none;
   background: white;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    min-height: 480px; /* Typical PDF page height */
+    height: auto;
+  }
 `;
 
 const LoadingContainer = styled.div`

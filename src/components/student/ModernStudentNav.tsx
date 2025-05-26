@@ -66,6 +66,8 @@ const MobileNavWrapper = styled.div`
     right: 0;
     padding: 20px;
     z-index: 1000;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 `;
 

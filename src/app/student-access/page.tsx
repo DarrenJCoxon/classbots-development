@@ -6,9 +6,10 @@ import { motion } from 'framer-motion';
 import { Container, Alert } from '@/styles/StyledComponents';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { ModernButton } from '@/components/shared/ModernButton';
+import { Button } from '@/components/ui';
 import { FiLogOut, FiArrowRight } from 'react-icons/fi';
 import { ModernStudentNav } from '@/components/student/ModernStudentNav';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 const PageWrapper = styled.div`
   min-height: 100vh;
@@ -408,15 +409,16 @@ export default function DirectStudentAccess() {
                   />
                 </InputGroup>
                 
-                <ModernButton 
+                <Button 
                   type="submit" 
                   disabled={loading}
                   variant="primary"
                   size="large"
                   fullWidth
+                  loading={loading}
                 >
                   {loading ? 'Checking...' : 'Access Rooms'}
-                </ModernButton>
+                </Button>
               </StyledForm>
             </StyledCard>
           </StyledContainer>
@@ -463,15 +465,15 @@ export default function DirectStudentAccess() {
               </div>
             )}
             
-            <ModernButton 
+            <Button 
               variant="ghost" 
               onClick={handleLogout}
               style={{ marginTop: '24px' }}
               fullWidth
+              icon={<FiLogOut />}
             >
-              <FiLogOut />
               Log Out
-            </ModernButton>
+            </Button>
           </StyledCard>
         </StyledContainer>
       </MainContent>

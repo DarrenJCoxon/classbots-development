@@ -25,13 +25,21 @@ const Header = styled.div`
 `;
 
 const BackButton = styled(Button)`
-  /* Add specific styles if BackButton needs to differ from general Button */
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 14px;
+    padding: 8px 16px;
+    white-space: nowrap;
+  }
 `;
 
 const Title = styled.h1`
   color: ${({ theme }) => theme.colors.text};
   margin: 0;
-  font-size: 1.7rem; // Slightly smaller if needed
+  font-size: 1.7rem;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 1.3rem;
+  }
 `;
 
 const LoadingContainer = styled.div`

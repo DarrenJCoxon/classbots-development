@@ -25,6 +25,13 @@ const CardActions = styled.div`
   right: 24px;
   display: flex;
   gap: 8px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    bottom: 12px;
+    left: 20px;
+    right: 20px;
+    gap: 6px;
+  }
 `;
 
 const SubtleButton = styled(Link)`
@@ -55,6 +62,17 @@ const SubtleButton = styled(Link)`
     width: 16px;
     height: 16px;
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 8px;
+    font-size: 12px;
+    gap: 4px;
+    
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
 `;
 
 const EditButton = styled.button`
@@ -83,6 +101,17 @@ const EditButton = styled.button`
   svg {
     width: 16px;
     height: 16px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 8px;
+    font-size: 12px;
+    gap: 4px;
+    
+    svg {
+      width: 14px;
+      height: 14px;
+    }
   }
 `;
 

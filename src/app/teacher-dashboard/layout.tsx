@@ -9,29 +9,37 @@ import type { User } from '@supabase/supabase-js';
 import TeacherProfileCheck from '@/components/auth/teacherProfileCheck';
 import { ModernNav } from '@/components/teacher/ModernNav';
 import { FullPageLoader } from '@/components/shared/AnimatedLoader';
+import Header from '@/components/layout/Header';
 
 const DashboardLayoutContainer = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.background};
   position: relative;
   overflow-x: hidden;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    /* Hide desktop header on mobile */
+    > header:first-child {
+      display: none;
+    }
+  }
 `;
 
 const MainContent = styled.main`
   min-height: 100vh;
   position: relative;
   margin-left: 80px; /* Just the sidebar width */
-  padding: 32px 0 40px 0; /* Reduced top padding from 60px to 32px */
+  padding: 20px 0 40px 0; /* Reduced top padding since header provides space */
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     margin-left: 80px;
-    padding: 24px 0 32px 0;
+    padding: 20px 0 32px 0;
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     margin-left: 0;
-    padding: 80px 0 24px 0; /* Add more top padding to account for mobile header */
+    padding: 100px 0 24px 0; /* Keep increased padding for mobile header */
   }
 `;
 
@@ -133,6 +141,9 @@ export default function TeacherDashboardLayout({
   console.log('[TDL] Rendering dashboard content.');
   return (
     <DashboardLayoutContainer>
+      {/* Desktop header - hidden on mobile */}
+      <Header />
+      
       {/* Add the profile check component that will automatically repair
           teacher profiles if needed */}
       <TeacherProfileCheck />

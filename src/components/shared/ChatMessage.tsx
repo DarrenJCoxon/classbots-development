@@ -4,6 +4,9 @@
 import styled, { css } from 'styled-components'; // Added css import
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { FiVolume2, FiVolumeX, FiLoader } from 'react-icons/fi';
+import { IconButton } from '@/components/ui';
+import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import type { ChatMessage as DbChatMessage } from '@/types/database.types'; // Renamed to avoid conflict
 
 // --- Type Definitions ---\
@@ -36,6 +39,10 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
   justify-content: ${({ $isUser }) => $isUser ? 'flex-end' : 'flex-start'};
   margin-bottom: ${({ theme }) => theme.spacing.lg};
   opacity: ${({ $hasError }) => $hasError ? 0.7 : 1};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin-bottom: ${({ theme }) => theme.spacing.md}; // Reduce margin on mobile
+  }
 `;
 
 interface MessageBubbleProps {
@@ -74,6 +81,11 @@ const MessageBubble = styled.div<MessageBubbleProps>`
   box-shadow: ${({ theme }) => theme.shadows.sm};
   position: relative;
   border: 1px solid transparent; // Default border
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    max-width: 90%; // Increase max-width on mobile for better space usage
+    padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md}; // Reduce padding
+  }
 
   ${({ $hasError, theme }) => $hasError && `
       border-color: ${theme.colors.red};
@@ -146,6 +158,48 @@ const ErrorIndicator = styled.div`
     color: ${({ theme }) => theme.colors.red};
     margin-top: ${({ theme }) => theme.spacing.xs};
     font-style: italic;
+`;
+
+const TTSControls = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-top: ${({ theme }) => theme.spacing.md};
+  padding-top: ${({ theme }) => theme.spacing.sm};
+  border-top: 1px solid ${({ theme }) => theme.colors.border}20;
+`;
+
+const TTSButton = styled(IconButton)<{ $isPlaying?: boolean }>`
+  background: ${({ theme, $isPlaying }) => 
+    $isPlaying ? theme.colors.primary + '20' : 'transparent'
+  };
+  color: ${({ theme, $isPlaying }) => 
+    $isPlaying ? theme.colors.primary : theme.colors.textLight
+  };
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.primary + '20'};
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
+const TTSStatus = styled.span`
+  font-size: 0.75rem;
+  color: ${({ theme }) => theme.colors.textLight};
+  font-style: italic;
 `;
 // --- End Styled Components ---
 
@@ -220,6 +274,7 @@ const markdownComponents: Components = {
 // --- Main Component ---
 function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
     const isUser = message.role === 'user';
+    const { speak, stop, isLoading: isTTSLoading, isPlaying, error: ttsError } = useTextToSpeech();
     
     const metadata = message.metadata as MessageMetadataWithFlags; // Use new type
     const hasError = !!metadata?.error;
@@ -437,6 +492,42 @@ function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
                        ⚠️ Failed to send
                     </ErrorIndicator>
                  )}
+                {/* TTS Controls - Only show for bot messages */}
+                {!isUser && !isOptimistic && !isStreaming && message.content && (
+                    <TTSControls>
+                        <TTSButton
+                            icon={
+                                isTTSLoading ? <FiLoader className="spin" /> :
+                                isPlaying ? <FiVolumeX /> :
+                                <FiVolume2 />
+                            }
+                            size="small"
+                            variant="ghost"
+                            onClick={() => {
+                                if (isPlaying) {
+                                    stop();
+                                } else {
+                                    speak(message.content);
+                                }
+                            }}
+                            disabled={isTTSLoading}
+                            $isPlaying={isPlaying}
+                            title={
+                                isTTSLoading ? 'Loading...' :
+                                isPlaying ? 'Stop reading' :
+                                'Read aloud'
+                            }
+                            aria-label={
+                                isTTSLoading ? 'Loading text-to-speech' :
+                                isPlaying ? 'Stop text-to-speech' :
+                                'Play text-to-speech'
+                            }
+                        />
+                        {isTTSLoading && <TTSStatus>Loading audio...</TTSStatus>}
+                        {isPlaying && <TTSStatus>Reading...</TTSStatus>}
+                        {ttsError && <TTSStatus style={{ color: 'var(--color-danger)' }}>Error: {ttsError}</TTSStatus>}
+                    </TTSControls>
+                )}
             </MessageBubble>
         </MessageWrapper>
     );

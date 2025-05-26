@@ -45,11 +45,29 @@ const HeaderControls = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+  gap: ${({ theme }) => theme.spacing.md};
+  flex-wrap: wrap;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: ${({ theme }) => theme.spacing.sm};
+  }
 `;
 
 const ContentContainer = styled(Container)`
   position: relative;
   z-index: 1;
+`;
+
+const MobileBackButton = styled(ModernButton)`
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 14px;
+    padding: 8px 16px;
+    white-space: nowrap;
+    width: 100%;
+    justify-content: center;
+  }
 `;
 
 const MainTitle = styled.h1`
@@ -555,9 +573,9 @@ export default function ConfigureChatbotPage() {
       <ContentContainer>
         <HeaderControls>
           <MainTitle>{isCreateMode ? `Create New Chatbot` : `Edit Chatbot: ${chatbot.name}`}</MainTitle>
-          <ModernButton variant="ghost" onClick={() => router.push('/teacher-dashboard/chatbots')}>
+          <MobileBackButton variant="ghost" onClick={() => router.push('/teacher-dashboard/chatbots')}>
             {`<`} Back to Chatbots
-          </ModernButton>
+          </MobileBackButton>
         </HeaderControls>
 
         <StyledCard>

@@ -94,13 +94,68 @@ export async function GET() {
     if (studentsResult.error) console.error('[API STATS] Error fetching students count:', studentsResult.error.message);
     if (assessmentsResult.error) console.error('[API STATS] Error fetching assessments count:', assessmentsResult.error.message);
 
+    // Fetch room engagement stats (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    let roomEngagementStats: any[] = [];
+    if (roomIds.length > 0) {
+      // Get room details
+      const { data: rooms } = await supabaseAdmin
+        .from('rooms')
+        .select('room_id, room_name')
+        .eq('teacher_id', user.id)
+        .eq('is_archived', false)
+        .eq('is_active', true);
+      
+      if (rooms) {
+        // Process each room
+        for (const room of rooms) {
+          // Count total students in room
+          const { count: totalStudents } = await supabaseAdmin
+            .from('room_memberships')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', room.room_id)
+            .eq('is_archived', false);
+          
+          // Count active students (who sent messages in last 7 days)
+          const { data: activeMessages } = await supabaseAdmin
+            .from('chat_messages')
+            .select('user_id')
+            .eq('room_id', room.room_id)
+            .gte('created_at', sevenDaysAgo.toISOString())
+            .neq('role', 'assistant')
+            .neq('role', 'system');
+          
+          const uniqueActiveStudents = new Set(activeMessages?.map(msg => msg.user_id) || []);
+          const activeStudents = uniqueActiveStudents.size;
+          
+          if (totalStudents && totalStudents > 0) {
+            roomEngagementStats.push({
+              room_id: room.room_id,
+              room_name: room.room_name,
+              totalStudents: totalStudents,
+              activeStudents,
+              engagementRate: Math.round((activeStudents / totalStudents) * 100)
+            });
+          }
+        }
+        
+        // Sort by engagement rate and take top 5
+        roomEngagementStats = roomEngagementStats
+          .sort((a, b) => b.engagementRate - a.engagementRate)
+          .slice(0, 5);
+      }
+    }
+
     const stats = {
       totalChatbots: chatbotsResult.count || 0,
       totalRooms: roomsResult.count || 0,
       activeRooms: activeRoomsResult.count || 0,
       pendingConcerns: pendingConcernsResult.count || 0,
       totalStudents: studentsResult.count || 0,
-      assessmentsCompleted: assessmentsResult.count || 0
+      assessmentsCompleted: assessmentsResult.count || 0,
+      roomEngagement: roomEngagementStats
     };
     
     console.log('[API STATS] Returning stats:', stats);

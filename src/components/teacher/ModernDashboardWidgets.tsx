@@ -24,13 +24,19 @@ const WidgetContainer = styled(motion.div)<WidgetProps>`
   position: relative;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 24px;
+  border-radius: 16px;
+  padding: 20px;
   border: 1px solid rgba(152, 93, 215, 0.1);
-  box-shadow: 
-    0 10px 40px rgba(152, 93, 215, 0.05),
-    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 40px rgba(152, 93, 215, 0.05);
   overflow: hidden;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 12px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 12px;
+  }
   
   &::before {
     content: '';
@@ -87,12 +93,16 @@ const WidgetHeader = styled.div`
 
 const WidgetTitle = styled.h3`
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.textLight};
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.text};
   font-family: ${({ theme }) => theme.fonts.heading};
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 14px;
+  }
 `;
 
 const IconWrapper = styled.div<{ variant?: WidgetVariant }>`
@@ -401,9 +411,9 @@ export const ActivityWidget: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      style={{ padding: '24px 24px 12px' }}
+      style={{ padding: '20px 20px 12px' }}
     >
-      <WidgetTitle style={{ marginBottom: '20px' }}>{title}</WidgetTitle>
+      <WidgetTitle style={{ marginBottom: '16px' }}>{title}</WidgetTitle>
       
       {activities.length === 0 ? (
         <EmptyActivityState>

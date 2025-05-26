@@ -13,6 +13,7 @@ interface DashboardStats {
   activeRooms: number;
   assessmentsCompleted: number;
   activeConcerns: number;
+  roomEngagement?: any[];
 }
 
 interface Activity {
@@ -224,7 +225,8 @@ export default function TeacherDashboardPage() {
           totalRooms: statsData.totalRooms || 0,
           activeRooms: statsData.activeRooms || 0,
           assessmentsCompleted: statsData.assessmentsCompleted || 0,
-          activeConcerns: statsData.pendingConcerns || 0
+          activeConcerns: statsData.pendingConcerns || 0,
+          roomEngagement: statsData.roomEngagement || []
         });
       }
       

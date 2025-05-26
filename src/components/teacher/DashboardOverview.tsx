@@ -3,14 +3,15 @@
 
 import { useState, useEffect, useCallback } from 'react'; // MODIFIED: Added useCallback
 import styled from 'styled-components';
-import StatsCard from './StatsCard'; 
+import { StatsCard } from '@/components/ui';
 import { Button, Alert, Card } from '@/styles/StyledComponents'; 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // MODIFIED: Added Link for the "Create one now" message
 import LoadingSpinner from '@/components/shared/LoadingSpinner'; 
 import RoomForm from '@/components/teacher/RoomForm'; 
 import ChatbotList from '@/components/teacher/ChatbotList'; // MODIFIED: Make sure this is imported
-import type { Chatbot } from '@/types/database.types'; 
+import type { Chatbot } from '@/types/database.types';
+import { FiMessageSquare, FiUsers, FiActivity, FiAlertTriangle } from 'react-icons/fi'; 
 
 const OverviewWrapper = styled.div`
   /* Add any specific wrapper styles if needed */
@@ -58,11 +59,20 @@ const QuickActionsContainer = styled.div`
   }
 `;
 
+interface RoomEngagement {
+  room_id: string;
+  room_name: string;
+  totalStudents: number;
+  activeStudents: number;
+  engagementRate: number;
+}
+
 interface DashboardStats {
   totalChatbots: number;
   totalRooms: number;
   activeRooms: number;
   pendingConcerns: number;
+  roomEngagement?: RoomEngagement[];
 }
 
 export default function DashboardOverview() {
@@ -258,28 +268,36 @@ export default function DashboardOverview() {
         ) : (
           <>
             <StatsCard
+              icon={<FiAlertTriangle />}
               title="Pending Concerns"
               value={stats?.pendingConcerns ?? 0}
+              subtitle={(stats?.pendingConcerns ?? 0) > 0 ? "Require attention" : "All clear"}
               onClick={() => router.push('/teacher-dashboard/concerns')}
-              variant={(stats?.pendingConcerns ?? 0) > 0 ? 'danger' : 'primary'}
+              accentColor={(stats?.pendingConcerns ?? 0) > 0 ? 'danger' : 'success'}
             />
             <StatsCard
+              icon={<FiActivity />}
               title="Active Rooms"
               value={stats?.activeRooms ?? 0}
+              subtitle="Learning spaces"
               onClick={() => router.push('/teacher-dashboard/rooms')}
-              variant="info" 
+              accentColor="primary" 
             />
             <StatsCard
+              icon={<FiMessageSquare />}
               title="My Skolrbots"
               value={stats?.totalChatbots ?? 0}
+              subtitle="AI assistants"
               onClick={() => router.push('/teacher-dashboard/chatbots')}
-              variant="secondary" 
+              accentColor="secondary" 
             />
             <StatsCard
+              icon={<FiUsers />}
               title="Total Rooms"
               value={stats?.totalRooms ?? 0}
+              subtitle="Created rooms"
               onClick={() => router.push('/teacher-dashboard/rooms')} 
-              variant="accent" 
+              accentColor="success" 
             />
           </>
         )}

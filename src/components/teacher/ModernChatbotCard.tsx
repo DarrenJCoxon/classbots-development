@@ -1,37 +1,33 @@
-// Modern room card component with glassmorphism
+// Modern chatbot card component with glassmorphism matching ModernRoomCard
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  FiUsers, 
   FiMessageSquare, 
-  FiSettings, 
-  FiTrash2, 
-  FiArchive,
+  FiDatabase, 
   FiActivity,
-  FiClock,
-  FiChevronRight,
-  FiBookOpen,
   FiMoreVertical,
   FiEdit,
-  FiCopy,
-  FiLink,
-  FiUpload
+  FiPlay,
+  FiTrash2,
+  FiChevronRight,
+  FiCpu,
+  FiToggleLeft,
+  FiToggleRight,
+  FiBookOpen,
+  FiClipboard
 } from 'react-icons/fi';
 import { GlassCard } from '@/components/shared/GlassCard';
-import { Button, IconButton } from '@/components/ui';
 import Link from 'next/link';
-import type { TeacherRoom } from '@/types/database.types';
-import StudentCsvUpload from './StudentCsvUpload';
+import type { Chatbot } from '@/types/database.types';
 
-interface ModernRoomCardProps {
-  room: TeacherRoom;
-  onEdit: (room: TeacherRoom) => void;
-  onDelete: (room: TeacherRoom) => void;
-  onArchive: (room: TeacherRoom) => void;
+interface ModernChatbotCardProps {
+  chatbot: Chatbot;
+  onEdit: (chatbotId: string) => void;
+  onDelete: (chatbotId: string, chatbotName: string) => void;
 }
 
-const RoomCardContainer = styled(GlassCard)`
+const ChatbotCardContainer = styled(GlassCard)`
   padding: 0;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -46,14 +42,14 @@ const RoomCardContainer = styled(GlassCard)`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     &:hover {
-      transform: none; /* Disable hover effects on mobile */
+      transform: none;
     }
-    min-height: auto; /* Remove any minimum height */
+    min-height: auto;
   }
 `;
 
 const CardHeader = styled.div`
-  padding: 20px 20px 16px;
+  padding: 16px;
   background: linear-gradient(135deg, 
     ${({ theme }) => theme.colors.primary}10, 
     ${({ theme }) => theme.colors.magenta}05
@@ -61,86 +57,50 @@ const CardHeader = styled.div`
   border-bottom: 1px solid rgba(152, 93, 215, 0.1);
   position: relative;
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 16px;
-    padding-right: 50px; /* Space for dropdown button */
-  }
-  
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 12px;
-    padding-right: 50px; /* Space for dropdown button */
+    padding-right: 50px;
   }
 `;
 
-const RoomTitle = styled.h3`
-  margin: 0 0 6px 0;
-  font-size: 18px;
+const ChatbotTitle = styled.h3`
+  margin: 0 0 4px 0;
+  font-size: 16px;
   font-weight: 700;
   font-family: ${({ theme }) => theme.fonts.heading};
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: ${({ theme }) => theme.colors.text};
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    font-size: 16px;
-    margin-bottom: 4px;
-    gap: 8px;
-    letter-spacing: 0.3px;
-  }
+  padding-right: 30px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     font-size: 14px;
     margin-bottom: 0;
-    gap: 6px;
     letter-spacing: 0;
   }
 `;
 
-const RoomCode = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  background: linear-gradient(135deg, 
-    ${({ theme }) => theme.colors.primary}, 
-    ${({ theme }) => theme.colors.magenta}
-  );
-  color: white;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 3px 8px;
-    font-size: 10px;
-  }
-`;
-
-const RoomDescription = styled.p`
+const ChatbotDescription = styled.p`
   margin: 0;
   color: ${({ theme }) => theme.colors.textLight};
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    display: none; /* Hide description on mobile */
+    display: none;
   }
 `;
 
 const CardBody = styled.div`
-  padding: 20px;
+  padding: 16px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 16px;
+    padding: 16px 26px 16px 16px;
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -151,32 +111,27 @@ const CardBody = styled.div`
 const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 0;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    gap: 8px;
-    margin-bottom: 12px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     gap: 6px;
-    margin-bottom: 12px;
+    margin-bottom: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 `;
 
 const StatItem = styled.div`
   text-align: center;
-  padding: 10px;
+  padding: 8px 4px;
   background: rgba(152, 93, 215, 0.05);
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid rgba(152, 93, 215, 0.1);
   min-width: 0;
   overflow: hidden;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 6px 4px;
+    padding: 6px 2px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -186,9 +141,9 @@ const StatItem = styled.div`
 `;
 
 const StatIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  margin: 0 auto 6px;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,8 +154,8 @@ const StatIcon = styled.div`
   border-radius: 50%;
   
   svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     color: ${({ theme }) => theme.colors.primary};
   }
   
@@ -217,8 +172,8 @@ const StatIcon = styled.div`
 `;
 
 const StatValue = styled.div`
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: 2px;
   overflow: hidden;
@@ -228,14 +183,14 @@ const StatValue = styled.div`
   padding: 0 2px;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    font-size: 12px;
+    font-size: 11px;
     margin-bottom: 0;
     font-weight: 600;
   }
 `;
 
 const StatLabel = styled.div`
-  font-size: 11px;
+  font-size: 10px;
   color: ${({ theme }) => theme.colors.textLight};
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -243,58 +198,20 @@ const StatLabel = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     font-size: 9px;
     letter-spacing: 0;
-    line-height: 1;
-  }
-`;
-
-const ChatbotsList = styled.div`
-  margin-bottom: 12px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-bottom: 8px;
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    display: none; /* Hide chatbots list on mobile */
-  }
-`;
-
-const ChatbotChip = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  margin: 0 6px 6px 0;
-  background: rgba(76, 190, 243, 0.1);
-  border: 1px solid rgba(76, 190, 243, 0.3);
-  border-radius: 16px;
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.blue};
-  font-weight: 500;
-  
-  svg {
-    width: 12px;
-    height: 12px;
-    margin-right: 4px;
+    line-height: 1.2;
   }
 `;
 
 const CardFooter = styled.div`
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: rgba(152, 93, 215, 0.03);
   border-top: 1px solid rgba(152, 93, 215, 0.1);
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 12px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 12px 16px;
-    gap: 10px;
-  }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 10px 12px;
-    gap: 8px;
   }
 `;
 
@@ -332,27 +249,7 @@ const StatusBadge = styled.span<{ $isActive: boolean }>`
   }
 `;
 
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 8px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    display: none; /* Hide action buttons on mobile to keep it minimal */
-  }
-`;
-
-const IconButtonStyled = styled(IconButton)`
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 18px;
-  
-  svg {
-    width: 18px;
-    height: 18px;
-  }
-`;
-
-const ViewButton = styled(Link)`
+const TestButton = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -383,11 +280,6 @@ const ViewButton = styled(Link)`
     transform: translateX(4px);
   }
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 6px 12px;
-    font-size: 11px;
-  }
-  
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 6px 12px;
     font-size: 11px;
@@ -405,30 +297,6 @@ const ViewButton = styled(Link)`
   }
 `;
 
-const ActiveBadge = styled.div<{ $isActive: boolean }>`
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: ${({ $isActive, theme }) => 
-    $isActive 
-      ? `linear-gradient(135deg, ${theme.colors.blue}, ${theme.colors.primary})` 
-      : `linear-gradient(135deg, ${theme.colors.pink}, ${theme.colors.magenta})`
-  };
-  color: white;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
 // Dropdown styles
 const DropdownContainer = styled.div`
   position: absolute;
@@ -442,10 +310,14 @@ const DropdownContainer = styled.div`
   }
 `;
 
-const DropdownButton = styled(IconButton)`
+const DropdownButton = styled.button`
   padding: 6px;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
   
   &:hover {
     background: white;
@@ -454,6 +326,7 @@ const DropdownButton = styled(IconButton)`
   svg {
     width: 16px;
     height: 16px;
+    color: ${({ theme }) => theme.colors.text};
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -472,24 +345,24 @@ const DropdownMenu = styled(motion.div)`
   right: 0;
   margin-top: 4px;
   background: white;
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(152, 93, 215, 0.1);
   z-index: 100;
-  min-width: 200px;
+  min-width: 180px;
   overflow: hidden;
 `;
 
 const DropdownItem = styled.button`
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 14px;
   background: none;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 14px;
+  gap: 10px;
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.text};
   transition: all 0.2s ease;
   text-align: left;
@@ -500,8 +373,8 @@ const DropdownItem = styled.button`
   }
   
   svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -511,23 +384,34 @@ const DropdownDivider = styled.div`
   margin: 4px 0;
 `;
 
-export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({ 
-  room, 
+const getModelDisplayName = (model: string | undefined) => {
+  if (!model) return 'Default';
+  const modelNames: Record<string, string> = {
+    'x-ai/grok-3-mini-beta': 'Grok 3 Mini',
+    'qwen/qwen3-235b-a22b': 'Qwen3 235B',
+    'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash',
+    'openai/gpt-4.1-nano': 'GPT 4.1 Nano',
+    'openai/gpt-4.1-mini': 'GPT 4.1 Mini',
+  };
+  // For any model not in the map, format it nicely
+  if (!modelNames[model]) {
+    const cleanName = model?.split('/').pop() || model || 'Unknown';
+    // Replace hyphens with spaces and capitalize properly
+    return cleanName
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
+  }
+  return modelNames[model];
+};
+
+export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({ 
+  chatbot, 
   onEdit, 
-  onDelete, 
-  onArchive 
+  onDelete 
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [showCsvUpload, setShowCsvUpload] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Since TeacherRoom extends Room and doesn't have these fields, we'll use defaults
-  // In a real app, you'd fetch this data from the API
-  const studentCount = 0; // This would come from counting room memberships
-  const chatbotCount = room.room_chatbots?.length || 0;
-  const recentActivity = room.updated_at 
-    ? new Date(room.updated_at).toLocaleDateString() 
-    : 'No activity';
     
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -544,32 +428,9 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isDropdownOpen]);
-  
-  const copyRoomCode = async () => {
-    try {
-      await navigator.clipboard.writeText(room.room_code);
-      alert(`Room code "${room.room_code}" copied to clipboard!`);
-      setIsDropdownOpen(false);
-    } catch (error) {
-      console.error('Failed to copy room code:', error);
-      alert('Failed to copy room code.');
-    }
-  };
-
-  const generateJoinUrl = async () => {
-    try {
-      const joinLink = `${window.location.origin}/join-room?code=${room.room_code}`;
-      await navigator.clipboard.writeText(joinLink);
-      alert(`Student join URL copied to clipboard:\n${joinLink}`);
-      setIsDropdownOpen(false);
-    } catch (error) {
-      console.error('Error generating join link:', error);
-      alert('Failed to generate join link.');
-    }
-  };
 
   return (
-    <RoomCardContainer
+    <ChatbotCardContainer
       as={motion.div}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -578,16 +439,15 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
       variant="light"
     >
       <CardHeader>
-        <DropdownContainer ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
+        <DropdownContainer ref={dropdownRef}>
           <DropdownButton
-            variant="ghost"
-            size="small"
-            aria-label="Room options"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setIsDropdownOpen(!isDropdownOpen);
             }}
-            icon={<FiMoreVertical />}
-          />
+          >
+            <FiMoreVertical />
+          </DropdownButton>
           
           <AnimatePresence>
             {isDropdownOpen && (
@@ -598,53 +458,34 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
                 transition={{ duration: 0.2 }}
               >
                 <DropdownItem onClick={() => {
-                  onEdit(room);
+                  onEdit(chatbot.chatbot_id);
                   setIsDropdownOpen(false);
                 }}>
                   <FiEdit />
-                  Edit Room
+                  Edit Chatbot
                 </DropdownItem>
-                <DropdownItem onClick={copyRoomCode}>
-                  <FiCopy />
-                  Copy Room Code
-                </DropdownItem>
-                <DropdownItem onClick={generateJoinUrl}>
-                  <FiLink />
-                  Copy Join URL
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  setShowCsvUpload(true);
-                  setIsDropdownOpen(false);
-                }}>
-                  <FiUpload />
-                  Import Students
+                <DropdownItem as={Link} href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/knowledge-base`}>
+                  <FiDatabase />
+                  Manage Knowledge Base
                 </DropdownItem>
                 <DropdownDivider />
                 <DropdownItem onClick={() => {
-                  onArchive(room);
-                  setIsDropdownOpen(false);
-                }}>
-                  <FiArchive />
-                  Archive Room
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  onDelete(room);
+                  onDelete(chatbot.chatbot_id, chatbot.name);
                   setIsDropdownOpen(false);
                 }}>
                   <FiTrash2 />
-                  Delete Room
+                  Delete Chatbot
                 </DropdownItem>
               </DropdownMenu>
             )}
           </AnimatePresence>
         </DropdownContainer>
         
-        <RoomTitle>
-          {room.room_name}
-          <RoomCode>{room.room_code}</RoomCode>
-        </RoomTitle>
-        {room.description && (
-          <RoomDescription>{room.description}</RoomDescription>
+        <ChatbotTitle>
+          {chatbot.name}
+        </ChatbotTitle>
+        {chatbot.description && (
+          <ChatbotDescription>{chatbot.description}</ChatbotDescription>
         )}
       </CardHeader>
       
@@ -652,69 +493,40 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
         <StatsGrid>
           <StatItem>
             <StatIcon>
-              <FiUsers />
+              {chatbot.bot_type === 'reading_room' ? <FiBookOpen /> : 
+               chatbot.bot_type === 'assessment' ? <FiClipboard /> : 
+               <FiMessageSquare />}
             </StatIcon>
-            <StatValue>{studentCount}</StatValue>
-            <StatLabel>Students</StatLabel>
+            <StatValue>{chatbot.bot_type === 'reading_room' ? 'Reading' : 
+                       chatbot.bot_type === 'assessment' ? 'Assessment' : 
+                       'Learning'}</StatValue>
+            <StatLabel>Bot Type</StatLabel>
           </StatItem>
           
           <StatItem>
             <StatIcon>
-              <FiMessageSquare />
+              <FiCpu />
             </StatIcon>
-            <StatValue>{chatbotCount}</StatValue>
-            <StatLabel>Chatbots</StatLabel>
+            <StatValue>{getModelDisplayName(chatbot.model)}</StatValue>
+            <StatLabel>AI Model</StatLabel>
           </StatItem>
           
           <StatItem>
             <StatIcon>
-              <FiActivity />
+              {chatbot.enable_rag ? <FiToggleRight /> : <FiToggleLeft />}
             </StatIcon>
-            <StatValue>{recentActivity}</StatValue>
-            <StatLabel>Last Active</StatLabel>
+            <StatValue>{chatbot.enable_rag ? 'On' : 'Off'}</StatValue>
+            <StatLabel>Knowledge</StatLabel>
           </StatItem>
         </StatsGrid>
-        
-        {room.room_chatbots && room.room_chatbots.length > 0 && (
-          <ChatbotsList>
-            {room.room_chatbots.map((rc, index) => (
-              <ChatbotChip key={rc.chatbots?.chatbot_id || index}>
-                <FiBookOpen />
-                {rc.chatbots?.name || 'Unknown Chatbot'}
-              </ChatbotChip>
-            ))}
-          </ChatbotsList>
-        )}
       </CardBody>
       
       <CardFooter>
-        <StatusBadge $isActive={room.is_active}>
-          {room.is_active ? (
-            <>
-              <FiActivity />
-              Active
-            </>
-          ) : (
-            <>
-              <FiClock />
-              Inactive
-            </>
-          )}
-        </StatusBadge>
-        
-        <ViewButton href={`/teacher-dashboard/rooms/${room.room_id}`}>
-          View Details
+        <TestButton href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}>
+          Test Chat
           <FiChevronRight />
-        </ViewButton>
+        </TestButton>
       </CardFooter>
-      
-      {showCsvUpload && (
-        <StudentCsvUpload
-          roomId={room.room_id}
-          roomName={room.room_name}
-          onClose={() => setShowCsvUpload(false)}
-        />
-      )}
-    </RoomCardContainer>
+    </ChatbotCardContainer>
   );
 };

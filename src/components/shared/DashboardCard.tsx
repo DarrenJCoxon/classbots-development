@@ -17,13 +17,13 @@ interface DashboardCardProps {
   hasActions?: boolean;
 }
 
-const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: boolean; $hasActions?: boolean }>`
+const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: boolean; $hasActions?: boolean; $layout?: 'default' | 'compact' }>`
   position: relative;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 24px;
-  min-height: 200px;
+  border-radius: 16px;
+  padding: ${({ $hasActions }) => $hasActions ? '24px 24px 80px' : '20px'};
+  min-height: ${({ $hasActions }) => $hasActions ? '200px' : 'auto'};
   border: 1px solid rgba(152, 93, 215, 0.1);
   box-shadow: 
     0 10px 40px rgba(152, 93, 215, 0.05),
@@ -31,7 +31,21 @@ const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: bo
   overflow: hidden;
   cursor: ${({ $clickable }) => $clickable ? 'pointer' : 'default'};
   display: flex;
-  flex-direction: column;
+  flex-direction: ${({ $hasActions }) => $hasActions ? 'column' : 'row'};
+  align-items: ${({ $hasActions }) => $hasActions ? 'flex-start' : 'center'};
+  gap: 16px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: ${({ $hasActions }) => $hasActions ? '20px 20px 76px' : '12px'};
+    gap: 12px;
+    min-height: ${({ $hasActions }) => $hasActions ? '180px' : 'auto'};
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ $hasActions }) => $hasActions ? '20px 20px 76px' : '12px'};
+    gap: 12px;
+    min-height: ${({ $hasActions }) => $hasActions ? '180px' : 'auto'};
+  }
   
   &::before {
     content: '';
@@ -76,46 +90,80 @@ const CardContainer = styled(motion.div)<{ $variant: CardVariant; $clickable: bo
     pointer-events: none;
   }
   
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: ${({ $hasActions }) => $hasActions ? '20px 20px 75px' : '16px'};
+    gap: 14px;
+    min-height: ${({ $hasActions }) => $hasActions ? '180px' : 'auto'};
+  }
+  
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 20px;
-    min-height: 160px;
+    padding: ${({ $hasActions }) => $hasActions ? '20px 20px 70px' : '12px'};
+    gap: 12px;
+    min-height: ${({ $hasActions }) => $hasActions ? '160px' : 'auto'};
   }
 `;
 
-const CardHeader = styled.div`
+const CardHeader = styled.div<{ $hasActions?: boolean }>`
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: ${({ $hasActions }) => $hasActions ? 'flex-start' : 'center'};
+  justify-content: ${({ $hasActions }) => $hasActions ? 'space-between' : 'flex-start'};
+  gap: 16px;
   position: relative;
   z-index: 1;
   flex: 1;
+  width: 100%;
 `;
 
-const CardContent = styled.div`
+const CardContent = styled.div<{ $hasActions?: boolean }>`
   flex: 1;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: ${({ $hasActions }) => $hasActions ? 'block' : 'flex'};
+    align-items: ${({ $hasActions }) => $hasActions ? 'stretch' : 'center'};
+    justify-content: ${({ $hasActions }) => $hasActions ? 'flex-start' : 'space-between'};
+  }
 `;
 
 const CardTitle = styled.h3<{ $layout?: 'default' | 'compact' }>`
   margin: 0;
-  font-size: ${({ $layout }) => $layout === 'compact' ? '18px' : '14px'};
-  font-weight: ${({ $layout }) => $layout === 'compact' ? '600' : '500'};
+  font-size: ${({ $layout }) => $layout === 'compact' ? '18px' : '13px'};
+  font-weight: ${({ $layout }) => $layout === 'compact' ? '700' : '500'};
   color: ${({ theme, $layout }) => $layout === 'compact' ? theme.colors.text : theme.colors.textLight};
   font-family: ${({ theme }) => theme.fonts.heading};
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: ${({ $layout }) => $layout === 'compact' ? '8px' : '12px'};
+  text-transform: ${({ $layout }) => $layout === 'compact' ? 'none' : 'uppercase'};
+  letter-spacing: ${({ $layout }) => $layout === 'compact' ? '0' : '0.5px'};
+  margin-bottom: ${({ $layout }) => $layout === 'compact' ? '8px' : '4px'};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: ${({ $layout }) => $layout === 'compact' ? '16px' : '12px'};
+    letter-spacing: ${({ $layout }) => $layout === 'compact' ? '0' : '0.3px'};
+    margin-bottom: ${({ $layout }) => $layout === 'compact' ? '6px' : '2px'};
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: ${({ $layout }) => $layout === 'compact' ? '16px' : '11px'};
+    letter-spacing: 0;
+    margin-bottom: ${({ $layout }) => $layout === 'compact' ? '6px' : '0'};
+    order: 1;
+  }
 `;
 
 const CardValue = styled.div<{ $layout?: 'default' | 'compact' }>`
-  font-size: ${({ $layout }) => $layout === 'compact' ? '1.1rem' : '2.2rem'};
-  font-weight: ${({ $layout }) => $layout === 'compact' ? '500' : '600'};
+  font-size: ${({ $layout }) => $layout === 'compact' ? '14px' : '24px'};
+  font-weight: ${({ $layout }) => $layout === 'compact' ? '400' : '700'};
   color: ${({ theme, $layout }) => $layout === 'compact' ? theme.colors.textLight : theme.colors.text};
-  line-height: 1.2;
+  line-height: ${({ $layout }) => $layout === 'compact' ? '1.4' : '1.2'};
   margin-bottom: 4px;
-  font-family: ${({ theme, $layout }) => $layout === 'compact' ? theme.fonts.mono : 'inherit'};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    font-size: ${({ $layout }) => $layout === 'compact' ? '13px' : '18px'};
+    margin-bottom: 0;
+  }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: ${({ $layout }) => $layout === 'compact' ? '1rem' : '1.8rem'};
+    font-size: ${({ $layout }) => $layout === 'compact' ? '13px' : '18px'};
+    margin-bottom: 0;
+    order: ${({ $layout }) => $layout === 'compact' ? '1' : '2'};
   }
 `;
 
@@ -123,6 +171,10 @@ const CardSubtitle = styled.p`
   margin: 0;
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textMuted};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: none;
+  }
 `;
 
 const IconWrapper = styled.div<{ $variant: CardVariant }>`
@@ -132,6 +184,7 @@ const IconWrapper = styled.div<{ $variant: CardVariant }>`
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   background: ${({ $variant, theme }) => {
     const colors = {
       primary: `${theme.colors.primary}15`,
@@ -142,6 +195,18 @@ const IconWrapper = styled.div<{ $variant: CardVariant }>`
     };
     return colors[$variant];
   }};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
   
   svg {
     width: 24px;
@@ -156,6 +221,16 @@ const IconWrapper = styled.div<{ $variant: CardVariant }>`
       };
       return colors[$variant];
     }};
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+      width: 18px;
+      height: 18px;
+    }
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      width: 18px;
+      height: 18px;
+    }
   }
 `;
 
@@ -175,20 +250,21 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
       $variant={variant}
       $clickable={!!onClick}
       $hasActions={hasActions}
+      $layout={layout}
       onClick={onClick}
       className={className}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      whileHover={onClick ? { y: -4, boxShadow: '0 20px 60px rgba(152, 93, 215, 0.15)' } : undefined}
+      whileHover={onClick ? { y: -2, boxShadow: '0 8px 24px rgba(152, 93, 215, 0.1)' } : undefined}
     >
-      <CardHeader>
-        <CardContent>
+      <CardHeader $hasActions={hasActions}>
+        <CardContent $hasActions={hasActions}>
           <CardTitle $layout={layout}>{title}</CardTitle>
           <CardValue $layout={layout}>{typeof value === 'number' ? value.toLocaleString() : value}</CardValue>
           {subtitle && <CardSubtitle>{subtitle}</CardSubtitle>}
         </CardContent>
-        {!hasActions && (
+        {!hasActions && icon && (
           <IconWrapper $variant={variant}>
             {icon}
           </IconWrapper>

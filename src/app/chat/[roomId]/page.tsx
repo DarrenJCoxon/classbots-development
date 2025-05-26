@@ -92,9 +92,10 @@ const DocumentSection = styled.div`
   background: ${({ theme }) => theme.colors.backgroundCard};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   padding: ${({ theme }) => theme.spacing.sm};
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 `;
 
 const ChatSection = styled.div`
@@ -119,12 +120,52 @@ const SplitScreenContainer = styled.div`
     height: auto;
     
     ${DocumentSection} {
-      min-height: 400px;
-      max-height: 50vh;
+      height: 70vh; /* Large enough for most PDF pages */
+      overflow: auto;
     }
     
     ${ChatSection} {
       min-height: 400px;
+    }
+  }
+`;
+
+const OrientationMessage = styled.div`
+  display: none;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) and (min-width: ${({ theme }) => theme.breakpoints.mobile}) and (orientation: portrait) {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    z-index: 9999;
+    text-align: center;
+    padding: 32px;
+    
+    h2 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+    }
+    
+    p {
+      font-size: 18px;
+      opacity: 0.9;
+      margin: 0;
+    }
+    
+    svg {
+      width: 80px;
+      height: 80px;
+      opacity: 0.8;
     }
   }
 `;
@@ -471,17 +512,26 @@ export default function ChatPage() {
           </Header>
           
           {chatbot.bot_type === 'reading_room' ? (
-            <SplitScreenContainer>
-              <DocumentSection>
-                <ReadingDocumentViewer 
-                  chatbotId={chatbot.chatbot_id} 
-                  userId={uidFromUrl || undefined}
-                />
-              </DocumentSection>
-              <ChatSection>
-                {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
-              </ChatSection>
-            </SplitScreenContainer>
+            <>
+              <SplitScreenContainer>
+                <DocumentSection>
+                  <ReadingDocumentViewer 
+                    chatbotId={chatbot.chatbot_id} 
+                    userId={uidFromUrl || undefined}
+                  />
+                </DocumentSection>
+                <ChatSection>
+                  {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
+                </ChatSection>
+              </SplitScreenContainer>
+              <OrientationMessage>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8h7a2 2 0 002-2V5a2 2 0 00-2-2h-7m-2 9v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5m-2 0h7a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <h2>Please Rotate Your Device</h2>
+                <p>For the best reading experience, please turn your iPad to landscape mode.</p>
+              </OrientationMessage>
+            </>
           ) : (
             roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />
           )}

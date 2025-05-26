@@ -35,6 +35,19 @@ const Header = styled.div<{ $isReadingRoom?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
+  flex-wrap: wrap;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: ${({ theme }) => theme.spacing.sm};
+    
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 
 const ChatbotInfo = styled.div`
@@ -42,11 +55,19 @@ const ChatbotInfo = styled.div`
     color: ${({ theme }) => theme.colors.text};
     margin-bottom: ${({ theme }) => theme.spacing.xs};
     font-size: 1.75rem;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 1.3rem;
+    }
   }
   p {
     color: ${({ theme }) => theme.colors.textLight};
     font-size: 0.9rem;
     margin: 0;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 0.85rem;
+    }
   }
 `;
 

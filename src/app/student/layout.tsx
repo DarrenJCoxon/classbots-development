@@ -33,12 +33,20 @@ const ContentArea = styled.div`
   }
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding-top: 60px; /* Add top padding for mobile header */
+    padding-top: 80px; /* Increased top padding for mobile header */
   }
 `;
 
 const MainContent = styled.main`
-  padding: ${({ theme }) => theme.spacing.xl} 0;
+  padding: 60px 0 40px 0;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 48px 0 32px 0;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 40px 0 24px 0;
+  }
 `;
 
 const LoadingOverlay = styled.div`

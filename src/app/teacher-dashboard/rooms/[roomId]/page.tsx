@@ -55,17 +55,31 @@ const ModalContent = styled.div`
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   text-align: center;
   
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 24px;
+    margin: 16px;
+  }
+  
   h3 {
     margin-bottom: 16px;
     font-size: 24px;
     font-weight: 700;
     color: ${({ theme }) => theme.colors.text};
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 20px;
+    }
   }
   
   p {
     margin-bottom: 24px;
     color: ${({ theme }) => theme.colors.textLight};
     line-height: 1.5;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
   }
 `;
 
@@ -74,6 +88,15 @@ const ModalActions = styled.div`
   gap: 16px;
   justify-content: center;
   margin-top: 24px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column-reverse;
+    gap: 12px;
+    
+    button {
+      width: 100%;
+    }
+  }
 `;
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.lg} 0;
@@ -139,6 +162,12 @@ const Section = styled.div`
   border: 1px solid rgba(152, 93, 215, 0.1);
   box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: ${({ theme }) => theme.spacing.lg};
+  }
 `;
 
 const SectionTitle = styled.h2`
@@ -147,6 +176,11 @@ const SectionTitle = styled.h2`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
   padding-bottom: ${({ theme }) => theme.spacing.sm};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 1.25rem;
+    margin-bottom: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
 // Chatbots Section
@@ -154,6 +188,11 @@ const ChatbotGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: ${({ theme }) => theme.spacing.lg};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    gap: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
 const ChatbotCard = styled.div`
@@ -169,12 +208,20 @@ const ChatbotCard = styled.div`
     transform: translateY(-2px);
     box-shadow: 0 12px 40px rgba(152, 93, 215, 0.1);
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 16px;
+  }
 
   h3 {
     color: ${({ theme }) => theme.colors.text};
     margin-bottom: ${({ theme }) => theme.spacing.sm};
     font-size: 1.3rem;
     font-weight: 600;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 1.1rem;
+    }
   }
   
   p {
@@ -183,6 +230,11 @@ const ChatbotCard = styled.div`
     margin-bottom: ${({ theme }) => theme.spacing.md};
     min-height: 45px;
     line-height: 1.5;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 0.875rem;
+      min-height: auto;
+    }
   }
 `;
 
@@ -229,17 +281,16 @@ const StudentCard = styled.div`
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(20px);
   border-radius: 16px;
-  padding: 20px;
   border: 1px solid rgba(152, 93, 215, 0.1);
   box-shadow: 0 4px 16px rgba(152, 93, 215, 0.05);
   transition: all 0.3s ease;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.md};
   
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
   }
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  padding: ${({ theme }) => theme.spacing.md};
 
   .student-name-link { // Use a class for the Link component itself
     font-weight: 600;
@@ -535,22 +586,23 @@ export default function TeacherRoomDetailPage() {
 
 
         <Section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionTitle>Enrolled Students ({students.length})</SectionTitle>
-            <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <SectionTitle style={{ marginBottom: 0 }}>Enrolled Students ({students.length})</SectionTitle>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <ModernButton
                 variant="ghost"
                 size="small"
                 onClick={() => setShowArchivedStudents(!showArchivedStudents)}
+                style={{ whiteSpace: 'nowrap' }}
               >
-                {showArchivedStudents ? 'Hide Archived Students' : 'View Archived Students'}
+                {showArchivedStudents ? 'Hide Archived' : 'View Archived'}
               </ModernButton>
               <ModernButton 
                 variant="primary" 
                 size="small"
                 onClick={() => setShowCsvUpload(true)}
               >
-                Import from CSV
+                Import CSV
               </ModernButton>
             </div>
           </div>
@@ -629,43 +681,45 @@ export default function TeacherRoomDetailPage() {
                     </Link>
                     <p className="student-email">Username: {student.username || 'N/A'}</p>
                     <p className="joined-at">Joined: {formatDate(student.joined_at)}</p>
-                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
+                     <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
                         <ModernButton 
                           size="small"
                           onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}/students/${student.user_id}`)}
                           variant="ghost"
-                          style={{flex: 1}}
+                          style={{flex: '1 1 100%'}}
                         >
                           View Details
                         </ModernButton>
-                        {archivingStudents[student.user_id] ? (
-                          <ModernButton size="small" disabled style={{flex: 1}}>
-                            <LoadingSpinner size="small" /> Archiving...
-                          </ModernButton>
-                        ) : (
-                          <ModernButton
-                            size="small"
-                            variant="secondary"
-                            onClick={() => openArchiveModal(student)}
-                            style={{flex: 1}}
-                          >
-                            Archive
-                          </ModernButton>
-                        )}
-                        {deletingStudents[student.user_id] ? (
-                          <ModernButton size="small" disabled style={{flex: 1}}>
-                            <LoadingSpinner size="small" /> Deleting...
-                          </ModernButton>
-                        ) : (
-                          <ModernButton
-                            size="small"
-                            variant="danger"
-                            onClick={() => openDeleteModal(student)}
-                            style={{flex: 1, backgroundColor: '#dc3545', color: 'white'}}
-                          >
-                            Delete
-                          </ModernButton>
-                        )}
+                        <div style={{ display: 'flex', gap: '8px', flex: '1 1 100%' }}>
+                          {archivingStudents[student.user_id] ? (
+                            <ModernButton size="small" disabled style={{flex: 1}}>
+                              Archiving...
+                            </ModernButton>
+                          ) : (
+                            <ModernButton
+                              size="small"
+                              variant="secondary"
+                              onClick={() => openArchiveModal(student)}
+                              style={{flex: 1}}
+                            >
+                              Archive
+                            </ModernButton>
+                          )}
+                          {deletingStudents[student.user_id] ? (
+                            <ModernButton size="small" disabled style={{flex: 1}}>
+                              Deleting...
+                            </ModernButton>
+                          ) : (
+                            <ModernButton
+                              size="small"
+                              variant="danger"
+                              onClick={() => openDeleteModal(student)}
+                              style={{flex: 1, backgroundColor: '#dc3545', color: 'white'}}
+                            >
+                              Delete
+                            </ModernButton>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Magic link functionality removed */}

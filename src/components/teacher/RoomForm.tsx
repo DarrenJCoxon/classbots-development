@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import styled from 'styled-components';
-import { Card, Button, FormGroup, Label, Input, Alert } from '@/styles/StyledComponents';
+import { FiX } from 'react-icons/fi';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { Input, Label, FormGroup, FormText, Checkbox } from '@/components/ui/Form';
+import { Text } from '@/components/ui/Typography';
+import { Alert } from '@/styles/StyledComponents';
 import type { Chatbot } from '@/types/database.types';
 
 const Overlay = styled.div`
@@ -11,32 +15,43 @@ const Overlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
   padding: ${({ theme }) => theme.spacing.md};
-  
+
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 0;
     align-items: flex-start;
-    overflow-y: auto;
   }
 `;
 
-const FormCard = styled(Card)`
+const FormCard = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 0;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
   width: 100%;
-  max-width: 600px;
+  max-width: 650px;
   margin: 20px;
   position: relative;
-  
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: hidden;
+
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     margin: 0;
-    max-height: 100%;
+    width: 100%;
     min-height: 100vh;
+    max-height: 100vh;
     border-radius: 0;
-    overflow-y: auto;
+    box-shadow: none;
   }
 `;
 
@@ -44,31 +59,74 @@ const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    position: sticky;
-    top: 0;
-    background: ${({ theme }) => theme.colors.backgroundCard};
-    padding: ${({ theme }) => theme.spacing.sm} 0;
-    z-index: 5;
+    padding: ${({ theme }) => theme.spacing.md};
   }
 `;
 
 const Title = styled.h2`
   margin: 0;
-  color: ${({ theme }) => theme.colors.text};
+  font-size: 24px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const CloseButton = styled.button`
-  background: none;
+  background: rgba(152, 93, 215, 0.1);
   border: none;
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.primary};
   cursor: pointer;
   font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
   
   &:hover {
-    color: ${({ theme }) => theme.colors.text};
+    background: rgba(152, 93, 215, 0.2);
+    transform: scale(1.1);
+  }
+`;
+
+const FormContent = styled.div`
+  padding: ${({ theme }) => theme.spacing.lg};
+  overflow-y: auto;
+  flex-grow: 1;
+  max-height: calc(90vh - 140px);
+  overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: ${({ theme }) => theme.colors.borderDark};
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  scrollbar-width: thin;
+  scrollbar-color: ${({ theme }) => theme.colors.borderDark} transparent;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+    max-height: calc(100vh - 140px);
   }
 `;
 
@@ -76,12 +134,17 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: ${({ theme }) => theme.spacing.md};
-  margin-top: ${({ theme }) => theme.spacing.xl};
-  padding-top: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
-  
+  flex-shrink: 0;
+  background-color: ${({ theme }) => theme.colors.background};
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-direction: column-reverse;
+    padding: ${({ theme }) => theme.spacing.md};
   }
 `;
 
@@ -92,6 +155,7 @@ const ChatbotList = styled.div`
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   padding: ${({ theme }) => theme.spacing.sm};
   margin-top: ${({ theme }) => theme.spacing.sm};
+  background: ${({ theme }) => theme.colors.background};
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     max-height: 200px;
@@ -101,8 +165,11 @@ const ChatbotList = styled.div`
 const ChatbotItem = styled.label`
   display: flex;
   align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.sm};
   cursor: pointer;
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  transition: background 0.2s ease;
   
   &:hover {
     background: ${({ theme }) => theme.colors.backgroundDark};
@@ -110,38 +177,15 @@ const ChatbotItem = styled.label`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.md};
-    min-height: 44px; // Better for touch inputs
+    min-height: 44px;
   }
 `;
 
-const Checkbox = styled.input`
-  margin-right: ${({ theme }) => theme.spacing.md};
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 20px;
-    height: 20px;
-  }
-`;
-
-const ChatbotName = styled.span`
+const ChatbotInfo = styled.div`
   flex: 1;
-`;
-
-const ChatbotDescription = styled.span`
-  margin-left: ${({ theme }) => theme.spacing.sm};
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 0.875rem;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    display: none;
-  }
-`;
-
-const ActionButton = styled(Button)`
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 100%;
-    min-height: 48px; // Better for touch inputs
-  }
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.xs};
 `;
 
 interface RoomFormProps {
@@ -202,16 +246,19 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
   };
 
   return (
-    <Overlay>
+    <Overlay onClick={(e) => e.target === e.currentTarget && onClose()}>
       <FormCard>
         <Header>
           <Title>Create Classroom Room</Title>
-          <CloseButton onClick={onClose}>&times;</CloseButton>
+          <CloseButton onClick={onClose}>
+            ×
+          </CloseButton>
         </Header>
 
-        {error && <Alert variant="error">{error}</Alert>}
+        <FormContent>
+          {error && <Alert variant="error">{error}</Alert>}
 
-        <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit}>
           <FormGroup>
             <Label htmlFor="room_name">Room Name</Label>
             <Input
@@ -235,34 +282,44 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
                 {chatbots.map(chatbot => (
                   <ChatbotItem key={chatbot.chatbot_id}>
                     <Checkbox
-                      type="checkbox"
+                      id={`chatbot-${chatbot.chatbot_id}`}
                       checked={formData.chatbot_ids.includes(chatbot.chatbot_id)}
                       onChange={() => handleToggleChatbot(chatbot.chatbot_id)}
                     />
-                    <ChatbotName>{chatbot.name}</ChatbotName>
-                    {chatbot.description && (
-                      <ChatbotDescription>
-                        - {chatbot.description}
-                      </ChatbotDescription>
-                    )}
+                    <ChatbotInfo>
+                      <Text weight="medium">{chatbot.name}</Text>
+                      {chatbot.description && (
+                        <Text variant="caption" color="muted">
+                          {chatbot.description}
+                        </Text>
+                      )}
+                    </ChatbotInfo>
                   </ChatbotItem>
                 ))}
               </ChatbotList>
             )}
           </FormGroup>
 
-          <Footer>
-            <ActionButton type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </ActionButton>
-            <ActionButton 
-              type="submit" 
-              disabled={isSubmitting || chatbots.length === 0 || formData.chatbot_ids.length === 0}
-            >
-              {isSubmitting ? 'Creating...' : 'Create Room'}
-            </ActionButton>
-          </Footer>
-        </form>
+          </form>
+        </FormContent>
+        
+        <Footer>
+          <ModernButton 
+            type="button" 
+            variant="ghost" 
+            onClick={onClose}
+          >
+            Cancel
+          </ModernButton>
+          <ModernButton 
+            type="submit" 
+            variant="primary"
+            disabled={isSubmitting || chatbots.length === 0 || formData.chatbot_ids.length === 0}
+            onClick={handleSubmit}
+          >
+            {isSubmitting ? 'Creating...' : 'Create Room'}
+          </ModernButton>
+        </Footer>
       </FormCard>
     </Overlay>
   );

@@ -5,11 +5,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Alert } from '@/styles/StyledComponents';
-import { ModernButton, IconButton } from '@/components/shared/ModernButton';
+import { Button, IconButton } from '@/components/ui';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { ChatMessage, Chatbot } from '@/types/database.types';
 
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -73,6 +74,8 @@ const MessagesList = styled.div`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     max-height: calc(100vh - 250px); // Account for mobile browser chrome
+    padding: 0.5rem; // Reduced padding on mobile
+    gap: 0.75rem; // Slightly smaller gap between messages
   }
 `;
 
@@ -80,7 +83,12 @@ const StyledChatInputContainer = styled.div`
   padding: 1rem;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.background};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0.75rem 0.5rem; // Reduced padding on mobile
+  }
 `;
+
 
 const EmptyState = styled.div`
   display: flex;
@@ -111,11 +119,6 @@ const LoadingIndicator = styled.div`
   color: ${({ theme }) => theme.colors.textLight};
 `;
 
-const ClearChatButtonWrapper = styled.div`
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-`;
 const SubmitAssessmentButtonWrapper = styled.div`
   margin-top: 1rem;
   width: 100%;
@@ -1404,21 +1407,6 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
   
   return (
     <ChatContainer>
-      {/* Add the clear chat button */}
-      {messages.length > 0 && (
-        <ClearChatButtonWrapper>
-          <IconButton 
-            onClick={handleClearChat} 
-            title="Clear chat"
-            aria-label="Clear chat"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </IconButton>
-        </ClearChatButtonWrapper>
-      )}
-      
       {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <ModernButton onClick={() => fetchMessages()} size="small" variant="ghost">Retry</ModernButton> </ErrorContainer> )}
       <MessagesList ref={messagesListRef}>
         {isFetchingMessages && messages.length === 0 ? ( 
@@ -1484,17 +1472,24 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
         <div ref={messagesEndRef} />
       </MessagesList>
       <StyledChatInputContainer>
-        <ChatInput onSend={handleSendMessage} isLoading={isLoading} error={error} onClearError={() => setError(null)} />
+        <ChatInput 
+          onSend={handleSendMessage} 
+          isLoading={isLoading} 
+          error={error} 
+          onClearError={() => setError(null)}
+          onClear={messages.length > 0 ? handleClearChat : undefined}
+        />
         {chatbot.bot_type === 'assessment' && (
           <SubmitAssessmentButtonWrapper>
-            <ModernButton 
+            <Button 
               onClick={handleSubmitAssessment} 
               disabled={isLoading || isSubmittingAssessment}
               variant="primary"
               fullWidth
+              loading={isSubmittingAssessment}
             >
               {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit Assessment'}
-            </ModernButton>
+            </Button>
           </SubmitAssessmentButtonWrapper>
         )}
       </StyledChatInputContainer>

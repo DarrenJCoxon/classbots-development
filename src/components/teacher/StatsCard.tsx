@@ -35,12 +35,24 @@ const getVariantColor = (theme: DefaultTheme, variant: StatsCardProps['variant']
 
 // Make sure the $variant prop passed from the component is correctly typed here
 const StyledStatsCard = styled(GlassCard)<{ $clickable: boolean; $variant: StatsCardProps['variant'] }>`
-  text-align: center;
-  padding: ${({ theme }) => theme.spacing.lg};
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'default')};
   transition: all ${({ theme }) => theme.transitions.normal};
   position: relative;
   overflow: hidden;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 12px;
+    gap: 12px;
+  }
   
   /* Gradient border effect */
   &::before {
@@ -58,27 +70,89 @@ const StyledStatsCard = styled(GlassCard)<{ $clickable: boolean; $variant: Stats
     height: ${({ $clickable }) => ($clickable ? '8px' : '5px')};
   }
 
+  .icon-wrapper {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${({ theme, $variant }) => `${getVariantColor(theme, $variant)}15`};
+    border-radius: 12px;
+    flex-shrink: 0;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+  }
+
   .icon {
-    font-size: 1.8rem;
-    margin-bottom: ${({ theme }) => theme.spacing.sm};
+    font-size: 24px;
     color: ${({ theme, $variant }) => getVariantColor(theme, $variant)};
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+      font-size: 18px;
+    }
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 18px;
+    }
+  }
+  
+  .content {
+    flex: 1;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
   }
   
   h3 { // Title
-    color: ${({ theme }) => theme.colors.textMuted};
-    font-size: 0.875rem;
+    color: ${({ theme }) => theme.colors.textLight};
+    font-size: 13px;
     font-family: ${({ theme }) => theme.fonts.heading};
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: ${({ theme }) => theme.spacing.xs};
+    letter-spacing: 0.5px;
+    margin: 0 0 4px 0;
     font-weight: 500;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+      font-size: 11px;
+      letter-spacing: 0;
+    }
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 11px;
+      letter-spacing: 0;
+      margin: 0;
+      order: 1;
+    }
   }
 
   .value {
-    font-size: 2.2rem;
-    font-weight: 600;
-    color: ${({ theme, $variant }) => getVariantColor(theme, $variant)};
+    font-size: 24px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
     line-height: 1.2;
+    margin: 0;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+      font-size: 18px;
+    }
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 18px;
+      order: 2;
+    }
   }
 `;
 
@@ -96,9 +170,15 @@ export default function StatsCard({ title, value, onClick, icon, variant = 'prim
       whileHover={onClick ? "hover" : undefined}
       variants={glassCardVariants}
     >
-      {icon && <div className="icon">{icon}</div>}
-      <h3>{title}</h3>
-      <div className="value">{value}</div>
+      {icon && (
+        <div className="icon-wrapper">
+          <div className="icon">{icon}</div>
+        </div>
+      )}
+      <div className="content">
+        <h3>{title}</h3>
+        <div className="value">{value}</div>
+      </div>
     </StyledStatsCard>
   );
 }

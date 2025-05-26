@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { APP_NAME, APP_DESCRIPTION } from '@/lib/utils/constants';
-import { ModernButton } from '@/components/shared/ModernButton';
+import { Button } from '@/components/ui';
 import Footer from '@/components/layout/Footer';
 import { FiUsers, FiBookOpen, FiArrowRight, FiUser, FiLogIn } from 'react-icons/fi';
 
@@ -472,22 +472,22 @@ export default function Home() {
             
             {!user && (
               <CTAButtons>
-                <ModernButton
+                <Button
                   variant="primary"
                   size="large"
                   onClick={() => router.push('/auth?type=teacher_signup')}
+                  icon={<FiUser />}
                 >
-                  <FiUser />
                   Teacher Sign Up
-                </ModernButton>
-                <ModernButton
+                </Button>
+                <Button
                   variant="secondary"
                   size="large"
                   onClick={() => router.push('/student-access')}
+                  icon={<FiLogIn />}
                 >
-                  <FiLogIn />
                   Student Login
-                </ModernButton>
+                </Button>
               </CTAButtons>
             )}
           </Container>
@@ -580,7 +580,7 @@ export default function Home() {
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                 maxLength={8}
               />
-              <ModernButton
+              <Button
                 type="submit"
                 variant="primary"
                 size="medium"
@@ -588,7 +588,7 @@ export default function Home() {
                 disabled={!roomCode.trim()}
               >
                 Join Room
-              </ModernButton>
+              </Button>
             </form>
           </QuickJoinCard>
         </Container>
