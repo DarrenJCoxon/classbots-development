@@ -73,10 +73,18 @@ const FilterControls = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing.md};
   align-items: center;
+  flex-wrap: wrap;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: ${({ theme }) => theme.spacing.sm};
+  }
   
   label {
     font-weight: 500;
     color: ${({ theme }) => theme.colors.text};
+    flex-shrink: 0;
   }
 `;
 
@@ -88,6 +96,12 @@ const StyledSelect = styled.select`
   font-size: 14px;
   font-family: ${({ theme }) => theme.fonts.body};
   transition: all 0.2s ease;
+  flex: 1;
+  min-width: 0;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+  }
   
   &:hover {
     border-color: rgba(152, 93, 215, 0.4);

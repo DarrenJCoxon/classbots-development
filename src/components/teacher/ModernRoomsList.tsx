@@ -37,6 +37,7 @@ interface ModernRoomsListProps {
 
 const ListContainer = styled.div`
   width: 100%;
+  overflow-x: hidden;
 `;
 
 const ListHeader = styled.div`

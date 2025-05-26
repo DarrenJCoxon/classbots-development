@@ -157,6 +157,7 @@ const MobileLogo = styled.img`
   height: 40px;
   width: auto;
   object-fit: contain;
+  display: block;
 `;
 
 const MenuToggle = styled(motion.button)`

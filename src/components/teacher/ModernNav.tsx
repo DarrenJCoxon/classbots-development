@@ -66,10 +66,25 @@ const MobileNavWrapper = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     display: block;
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
     z-index: 1000;
   }
+`;
+
+const MobileNavHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const MobileLogo = styled.img`
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  display: block;
 `;
 
 const BurgerButton = styled.button`
@@ -573,9 +588,12 @@ export const ModernNav: React.FC = () => {
 
     {/* Mobile Navigation */}
     <MobileNavWrapper ref={mobileMenuRef}>
-      <BurgerButton onClick={() => setIsOpen(!isOpen)}>
-        {isOpen ? <FiX /> : <FiMenu />}
-      </BurgerButton>
+      <MobileNavHeader>
+        <MobileLogo src="/images/skolr_new.png" alt="Skolr" />
+        <BurgerButton onClick={() => setIsOpen(!isOpen)}>
+          {isOpen ? <FiX /> : <FiMenu />}
+        </BurgerButton>
+      </MobileNavHeader>
       
       <MobileDropdownMenu $isOpen={isOpen}>
         {navItems.map((item) => {
