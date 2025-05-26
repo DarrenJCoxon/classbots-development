@@ -377,7 +377,7 @@ export default function StudentDashboardPage() {
       }
       
       // Build API URL
-      const apiUrl = `/api/student/direct-dashboard?userId=${studentId}`;
+      const apiUrl = `/api/student/dashboard-data?user_id=${studentId}&direct=1&_t=${Date.now()}`;
       
       // Fetch dashboard data
       const response = await fetch(apiUrl, {
@@ -398,28 +398,18 @@ export default function StudentDashboardPage() {
       const response_data = await response.json();
       console.log('Dashboard data loaded:', response_data);
       
-      // Handle standardized response format
-      let data;
-      if (response_data.success && response_data.data) {
-        data = response_data.data;
-      } else if (response_data.profile || response_data.rooms || response_data.recentAssessments) {
-        // Fallback for old format
-        data = response_data;
-      } else {
-        throw new Error(response_data.error || 'Invalid response format');
-      }
+      // Handle API response format
+      // The API returns { studentProfile, joinedRooms, recentAssessments }
       
       // Set student profile
-      if (data.profile) {
-        setStudentProfile(data.profile);
-        setIsAnonymousUser(!data.profile.pin_code || !data.profile.username);
+      if (response_data.studentProfile) {
+        setStudentProfile(response_data.studentProfile);
+        setIsAnonymousUser(!response_data.studentProfile.pin_code || !response_data.studentProfile.username);
       }
       
-      // Set rooms
-      if (data.rooms) {
-        setRooms(data.rooms);
-      } else if (data.joinedRooms) {
-        setRooms(data.joinedRooms.map((room: any) => ({
+      // Set rooms - API returns joinedRooms
+      if (response_data.joinedRooms) {
+        setRooms(response_data.joinedRooms.map((room: any) => ({
           ...room,
           is_active: true,
           teacher_id: '',
@@ -430,9 +420,9 @@ export default function StudentDashboardPage() {
       }
       
       // Set assessments
-      if (data.recentAssessments && Array.isArray(data.recentAssessments)) {
-        setAssessments(data.recentAssessments);
-        console.log(`Loaded ${data.recentAssessments.length} assessments:`, data.recentAssessments);
+      if (response_data.recentAssessments && Array.isArray(response_data.recentAssessments)) {
+        setAssessments(response_data.recentAssessments);
+        console.log(`Loaded ${response_data.recentAssessments.length} assessments:`, response_data.recentAssessments);
       } else {
         console.log('No assessments found in response');
         setAssessments([]);
