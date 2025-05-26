@@ -1,5 +1,5 @@
 // Modern animated navigation component
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -54,6 +54,62 @@ const NavContainer = styled(motion.nav)<{ $isOpen: boolean }>`
     width: ${({ $isOpen }) => $isOpen ? '100%' : '0'};
     box-shadow: ${({ $isOpen }) => $isOpen ? '0 0 40px rgba(0, 0, 0, 0.1)' : 'none'};
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: none;
+  }
+`;
+
+const MobileNavWrapper = styled.div`
+  display: none;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: block;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+  }
+`;
+
+const BurgerButton = styled.button`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(152, 93, 215, 0.1);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(152, 93, 215, 0.15);
+  }
+  
+  svg {
+    width: 24px;
+    height: 24px;
+    color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const MobileDropdownMenu = styled(motion.div)<{ $isOpen: boolean }>`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 12px;
+  min-width: 280px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(152, 93, 215, 0.15);
+  display: ${({ $isOpen }) => $isOpen ? 'block' : 'none'};
+  overflow: hidden;
 `;
 
 const LogoSection = styled.div<{ $isOpen: boolean }>`
@@ -309,6 +365,33 @@ const UserDetails = styled.div<{ $isOpen: boolean }>`
   }
 `;
 
+const MobileNavLink = styled(Link)<{ $isActive: boolean }>`
+  display: block;
+  padding: 16px 24px;
+  text-decoration: none;
+  color: ${({ $isActive, theme }) => $isActive ? theme.colors.primary : theme.colors.text};
+  background: ${({ $isActive }) => $isActive ? 'rgba(152, 93, 215, 0.05)' : 'transparent'};
+  font-weight: 500;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(152, 93, 215, 0.1);
+  
+  &:hover {
+    background: rgba(152, 93, 215, 0.05);
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const MobileUserSection = styled.div`
+  padding: 20px 24px;
+  border-top: 1px solid rgba(152, 93, 215, 0.1);
+  background: rgba(152, 93, 215, 0.02);
+`;
+
 export const ModernNav: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -319,6 +402,7 @@ export const ModernNav: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   
   // Check if we're on mobile
   const [isMobile, setIsMobile] = useState(false);
@@ -332,6 +416,20 @@ export const ModernNav: React.FC = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+  
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isMobile && isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isMobile, isOpen]);
   
   // Always collapse sidebar when pathname changes
   useEffect(() => {
@@ -372,12 +470,13 @@ export const ModernNav: React.FC = () => {
   const concernsCount = 3;
 
   return (
-    <NavContainer
-      $isOpen={isOpen}
-      initial={{ x: -280 }}
-      animate={{ x: 0 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-    >
+    <>
+      <NavContainer
+        $isOpen={isOpen}
+        initial={{ x: -280 }}
+        animate={{ x: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      >
       <LogoSection $isOpen={isOpen}>
         <AnimatePresence>
           {isOpen && (
@@ -471,5 +570,50 @@ export const ModernNav: React.FC = () => {
         </SignOutButton>
       </BottomSection>
     </NavContainer>
+
+    {/* Mobile Navigation */}
+    <MobileNavWrapper ref={mobileMenuRef}>
+      <BurgerButton onClick={() => setIsOpen(!isOpen)}>
+        {isOpen ? <FiX /> : <FiMenu />}
+      </BurgerButton>
+      
+      <MobileDropdownMenu $isOpen={isOpen}>
+        {navItems.map((item) => {
+          const isActive = pathname === item.href || 
+            (item.href !== '/teacher-dashboard' && pathname.startsWith(item.href));
+          
+          return (
+            <MobileNavLink
+              key={item.href}
+              href={item.href}
+              $isActive={isActive}
+              onClick={() => setIsOpen(false)}
+            >
+              {item.label}
+            </MobileNavLink>
+          );
+        })}
+        
+        <MobileUserSection>
+          <UserInfo href="/teacher-dashboard/profile" $isOpen={true} style={{ marginBottom: '12px' }}>
+            <Avatar $isOpen={true}>{getInitials(teacherProfile.full_name)}</Avatar>
+            <UserDetails $isOpen={true}>
+              <h4>{teacherProfile.full_name || 'Teacher'}</h4>
+              <p>{teacherProfile.email || 'Loading...'}</p>
+            </UserDetails>
+          </UserInfo>
+          
+          <SignOutButton 
+            onClick={handleSignOut}
+            $isOpen={true}
+            style={{ justifyContent: 'center' }}
+          >
+            <FiLogOut />
+            <span>Sign Out</span>
+          </SignOutButton>
+        </MobileUserSection>
+      </MobileDropdownMenu>
+    </MobileNavWrapper>
+    </>
   );
 };

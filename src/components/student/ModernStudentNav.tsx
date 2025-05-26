@@ -1,5 +1,5 @@
 // Modern animated navigation component for students
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -49,6 +49,87 @@ const NavContainer = styled(motion.nav)<{ $isOpen: boolean }>`
     width: ${({ $isOpen }) => $isOpen ? '100%' : '0'};
     box-shadow: ${({ $isOpen }) => $isOpen ? '0 0 40px rgba(0, 0, 0, 0.1)' : 'none'};
   }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: none;
+  }
+`;
+
+const MobileNavWrapper = styled.div`
+  display: none;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    z-index: 1000;
+  }
+`;
+
+const MobileNavHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const BurgerButton = styled.button`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(76, 190, 243, 0.1);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: 0 4px 20px rgba(76, 190, 243, 0.1);
+  transition: all 0.2s ease;
+  width: 48px;
+  height: 48px;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(76, 190, 243, 0.15);
+  }
+`;
+
+const BurgerLine = styled.span<{ $isOpen: boolean }>`
+  width: 24px;
+  height: 2px;
+  background: ${({ theme }) => theme.colors.blue};
+  transition: all 0.3s ease;
+  transform-origin: center;
+  
+  &:nth-child(1) {
+    transform: ${({ $isOpen }) => $isOpen ? 'rotate(45deg) translateY(6px)' : 'none'};
+  }
+  
+  &:nth-child(2) {
+    opacity: ${({ $isOpen }) => $isOpen ? '0' : '1'};
+  }
+  
+  &:nth-child(3) {
+    transform: ${({ $isOpen }) => $isOpen ? 'rotate(-45deg) translateY(-6px)' : 'none'};
+  }
+`;
+
+const MobileDropdownMenu = styled(motion.div)`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 12px;
+  min-width: 280px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(76, 190, 243, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(76, 190, 243, 0.15);
+  overflow: hidden;
 `;
 
 const LogoSection = styled.div<{ $isOpen: boolean }>`
@@ -70,6 +151,12 @@ const Logo = styled(motion.div)`
   background-clip: text;
   letter-spacing: 2px;
   text-transform: uppercase;
+`;
+
+const MobileLogo = styled.img`
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 `;
 
 const MenuToggle = styled(motion.button)`
@@ -305,6 +392,65 @@ const UserDetails = styled.div<{ $isOpen: boolean }>`
   }
 `;
 
+const MobileNavLink = styled(Link)<{ $isActive: boolean }>`
+  display: block;
+  padding: 16px 24px;
+  text-decoration: none;
+  color: ${({ $isActive, theme }) => $isActive ? theme.colors.blue : theme.colors.text};
+  background: ${({ $isActive }) => $isActive ? 'rgba(76, 190, 243, 0.05)' : 'transparent'};
+  font-weight: 500;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(76, 190, 243, 0.1);
+  
+  &:hover {
+    background: rgba(76, 190, 243, 0.05);
+    color: ${({ theme }) => theme.colors.blue};
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const MobileUserSection = styled.div`
+  padding: 20px 24px;
+  border-top: 1px solid rgba(76, 190, 243, 0.1);
+  background: rgba(76, 190, 243, 0.02);
+`;
+
+const UserName = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: 4px;
+`;
+
+const UserEmail = styled.div`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textLight};
+  margin-bottom: 16px;
+`;
+
+const MobileSignOutButton = styled.button`
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  border: 1px solid rgba(76, 190, 243, 0.2);
+  border-radius: 8px;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(76, 190, 243, 0.05);
+    border-color: rgba(76, 190, 243, 0.3);
+  }
+`;
+
 export const ModernStudentNav: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -315,6 +461,34 @@ export const ModernStudentNav: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Check if we're on mobile
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 480);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isMobile && isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isMobile, isOpen]);
   
   // Always collapse sidebar when pathname changes
   useEffect(() => {
@@ -375,6 +549,7 @@ export const ModernStudentNav: React.FC = () => {
   };
   
   return (
+    <>
     <NavContainer
       $isOpen={isOpen}
       initial={{ x: -280 }}
@@ -483,5 +658,55 @@ export const ModernStudentNav: React.FC = () => {
         </SignOutButton>
       </BottomSection>
     </NavContainer>
+
+    {/* Mobile Navigation */}
+    <MobileNavWrapper>
+      <MobileNavHeader>
+        <MobileLogo src="/images/skolr_new.png" alt="Skolr" />
+        <BurgerButton onClick={() => setIsOpen(!isOpen)}>
+          <BurgerLine $isOpen={isOpen} />
+          <BurgerLine $isOpen={isOpen} />
+          <BurgerLine $isOpen={isOpen} />
+        </BurgerButton>
+      </MobileNavHeader>
+
+      <AnimatePresence>
+        {isOpen && (
+          <MobileDropdownMenu
+            ref={mobileMenuRef}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <MobileNavLink href="/student/dashboard" $isActive={pathname === '/student/dashboard'}>
+              Dashboard
+            </MobileNavLink>
+            <MobileNavLink href="/student/dashboard#classrooms" $isActive={pathname === '/student/dashboard#classrooms'}>
+              My Classrooms
+            </MobileNavLink>
+            <MobileNavLink href="/student/dashboard#assessments" $isActive={pathname === '/student/dashboard#assessments'}>
+              Assessments
+            </MobileNavLink>
+            <MobileNavLink href="/student/account-setup" $isActive={pathname === '/student/account-setup'}>
+              Profile
+            </MobileNavLink>
+            
+            <MobileUserSection>
+              {studentProfile.full_name && (
+                <>
+                  <UserName>{studentProfile.full_name}</UserName>
+                  <UserEmail>{studentProfile.username || 'Guest User'}</UserEmail>
+                </>
+              )}
+              <MobileSignOutButton onClick={handleSignOut}>
+                Sign Out
+              </MobileSignOutButton>
+            </MobileUserSection>
+          </MobileDropdownMenu>
+        )}
+      </AnimatePresence>
+    </MobileNavWrapper>
+    </>
   );
 };
