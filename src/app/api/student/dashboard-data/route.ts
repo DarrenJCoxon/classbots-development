@@ -26,7 +26,7 @@ interface AssessmentSummaryForDashboard extends Pick<StudentAssessment, 'assessm
 interface StudentDashboardDataResponse {
   joinedRooms: JoinedRoomForDashboard[];
   recentAssessments: AssessmentSummaryForDashboard[];
-  studentProfile: Pick<Profile, 'user_id' | 'full_name' | 'email' | 'pin_code' | 'username'> | null;
+  studentProfile: Pick<Profile, 'user_id' | 'full_name' | 'pin_code' | 'username'> | null;
 }
 
 // Helper type for Supabase query for joined rooms

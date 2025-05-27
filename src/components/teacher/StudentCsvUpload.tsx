@@ -177,7 +177,7 @@ const ResultsContainer = styled.div`
   text-align: left;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
   
   &::-webkit-scrollbar {
     width: 8px;
@@ -203,8 +203,8 @@ const MagicLinkItem = styled.div`
 `;
 
 const ExpiryWarning = styled.div`
-  background-color: ${({ theme }) => theme.colors.warningBackground || '#FFF3CD'};
-  color: ${({ theme }) => theme.colors.warningText || '#856404'};
+  background-color: #FFF3CD;
+  color: #856404;
   padding: ${({ theme }) => theme.spacing.md};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   margin-bottom: ${({ theme }) => theme.spacing.md};
@@ -419,10 +419,12 @@ const ModalBody = styled.div`
         </Header>
         
         <FormContent>
-          <Text style={{ marginBottom: '16px' }}>
-            Upload a CSV file with student information to bulk add them to {roomName}. 
-            Each student will receive a unique magic link for passwordless access.
-          </Text>
+          <div style={{ marginBottom: '16px' }}>
+            <Text>
+              Upload a CSV file with student information to bulk add them to {roomName}. 
+              Each student will receive a unique magic link for passwordless access.
+            </Text>
+          </div>
           
           <FormGroup>
             <Label>Required CSV format</Label>

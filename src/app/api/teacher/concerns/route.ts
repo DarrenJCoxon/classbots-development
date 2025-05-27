@@ -42,11 +42,11 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
         const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
+            .from('teacher_profiles')
+            .select('user_id')
             .eq('user_id', user.id)
             .single();
-        if (profileError || !profile || profile.role !== 'teacher') {
+        if (profileError || !profile) {
             console.warn('[API GET /concerns] User profile/role issue.');
             return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
         }
@@ -108,21 +108,21 @@ export async function GET(request: NextRequest) {
 
         // Get unique student IDs from the fetched flags
         const studentIds = [...new Set(rawFlagsData.map(flag => flag.student_id).filter(id => id != null))] as string[];
-        const studentProfilesMap: Map<string, Pick<Profile, 'full_name' | 'email'>> = new Map();
+        const studentProfilesMap: Map<string, Pick<Profile, 'full_name'>> = new Map();
 
         if (studentIds.length > 0) {
             console.log('[API GET /concerns] Fetching profiles for student IDs:', studentIds);
             const adminSupabase = createAdminClient();
             const { data: profilesData, error: profilesError } = await adminSupabase
-                .from('profiles')
-                .select('user_id, full_name, email')
+                .from('student_profiles')
+                .select('user_id, full_name')
                 .in('user_id', studentIds);
 
             if (profilesError) {
                 console.error('[API GET /concerns] Admin client error fetching student profiles:', profilesError.message);
                 // Proceed without student names if this fails, or handle error more gracefully
             } else if (profilesData) {
-                profilesData.forEach(p => studentProfilesMap.set(p.user_id, { full_name: p.full_name, email: p.email }));
+                profilesData.forEach(p => studentProfilesMap.set(p.user_id, { full_name: p.full_name }));
             }
         }
 
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
             return {
                 ...flag,
                 student_name: studentProfile?.full_name || 'Unknown Student',
-                student_email: studentProfile?.email || null,
+                student_email: null,
                 room_name: flag.room?.room_name || 'Unknown Room',
                 message_content: flag.message?.content || '[Message Content Unavailable]',
             };
@@ -200,15 +200,15 @@ async function getSingleConcernDetails_V2(
         if (typedFlag.student_id) {
             const adminSupabase = createAdminClient();
             const { data: studentProfileData, error: studentProfileError } = await adminSupabase
-                .from('profiles')
-                .select('full_name, email')
+                .from('student_profiles')
+                .select('full_name')
                 .eq('user_id', typedFlag.student_id)
                 .single();
             if (studentProfileError) {
                 console.warn(`[API getSingleConcernDetails_V2] Admin client error fetching student profile ${typedFlag.student_id}:`, studentProfileError.message);
             } else if (studentProfileData) {
                 studentName = studentProfileData.full_name || studentName;
-                studentEmail = studentProfileData.email || studentEmail;
+                studentEmail = null; // student_profiles doesn't have email
             }
         }
 

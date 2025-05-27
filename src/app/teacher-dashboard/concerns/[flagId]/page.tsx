@@ -16,7 +16,8 @@ import {
   Button,
   Badge,
   FormField,
-  Label
+  Label,
+  type BadgeVariant
 } from '@/components/ui';
 import { TextArea, Select, Alert } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
@@ -220,7 +221,7 @@ function getConcernLevelText(level: number | undefined): string {
   return 'Low';
 }
 
-function getConcernLevelColor(level: number): string {
+function getConcernLevelColor(level: number): BadgeVariant {
   if (level >= 4) return 'danger';
   if (level >= 3) return 'warning';
   return 'info';
@@ -327,7 +328,7 @@ export default function ConcernDetailPage() {
     return (
       <PageWrapper>
         <Container>
-          <Card variant="elevated">
+          <Card variant="default">
             <CardBody>
               <Flex align="center" justify="center" gap="md">
                 <LoadingSpinner />
@@ -361,7 +362,7 @@ export default function ConcernDetailPage() {
     return (
       <PageWrapper>
         <Container>
-          <Card variant="elevated">
+          <Card variant="default">
             <CardBody>
               <Text align="center">Concern not found or permission denied.</Text>
             </CardBody>
@@ -395,9 +396,9 @@ export default function ConcernDetailPage() {
 
         <Grid>
           {/* Conversation Context */}
-          <ConversationCard variant="elevated">
+          <ConversationCard variant="default">
             <CardHeader>
-              <Text size="lg" weight="semibold">Conversation Context</Text>
+              <Text weight="semibold">Conversation Context</Text>
             </CardHeader>
             <MessagesList>
               {concern.surroundingMessages?.length > 0 ? (
@@ -461,18 +462,18 @@ export default function ConcernDetailPage() {
           </ConversationCard>
 
           {/* Details & Actions */}
-          <DetailsCard variant="elevated">
+          <DetailsCard variant="default">
             <CardHeader>
-              <Text size="lg" weight="semibold">Concern Details</Text>
+              <Text weight="semibold">Concern Details</Text>
             </CardHeader>
             <CardBody>
-              <Stack spacing="none">
+              <Stack spacing="xs">
                 <DetailItem>
                   <DetailLabel>Student</DetailLabel>
                   <DetailValue>
                     {concern.student_name || 'N/A'}
                     {concern.student_email && (
-                      <Text size="sm" color="light"> ({concern.student_email})</Text>
+                      <Text variant="caption" color="light"> ({concern.student_email})</Text>
                     )}
                   </DetailValue>
                 </DetailItem>

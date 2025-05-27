@@ -37,7 +37,7 @@ async function getSingleDetailedAssessment(
         assessedConversation = (messagesData || []) as DbChatMessage[];
     }
     const responseData: DetailedAssessmentResponse = {
-        ...(assessment as StudentAssessment), student_name: studentProfile?.full_name || null, student_email: studentProfile?.email || null,
+        ...(assessment as StudentAssessment), student_name: studentProfile?.full_name || null, student_email: null,
         chatbot_name: chatbotOwner?.name || null, assessed_conversation: assessedConversation,
     };
     return NextResponse.json(responseData);
