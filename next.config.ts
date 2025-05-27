@@ -23,8 +23,18 @@ const nextConfig: NextConfig = {
   },
   // Add experimental optimizations to help with module resolution
   experimental: {
-    optimizePackageImports: ['styled-components'],
+    optimizePackageImports: ['styled-components', 'react-icons', 'framer-motion'],
     webpackBuildWorker: true, // Use worker for webpack builds
+  },
+  
+  // Optimize production builds
+  compress: true,
+  poweredByHeader: false,
+  
+  // Optimize images
+  images: {
+    domains: ['your-supabase-url.supabase.co'], // Add your Supabase domain
+    formats: ['image/avif', 'image/webp'],
   },
   // Configure webpack for react-pdf (client-side PDF viewing)
   webpack: (config) => {
@@ -48,6 +58,36 @@ const nextConfig: NextConfig = {
   // Add headers for better PDF handling
   async headers() {
     return [
+      // Cache static assets aggressively
+      {
+        source: '/:all*(js|css|jpg|jpeg|png|gif|ico|woff|woff2)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Cache Next.js static files
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // API routes - no cache by default
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, must-revalidate',
+          },
+        ],
+      },
       {
         source: '/pdf-worker/:path*',
         headers: [
