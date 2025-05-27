@@ -56,7 +56,7 @@ export default function TeacherDashboardPage() {
             student_id,
             room_id,
             created_at,
-            profiles!room_student_associations_student_id_fkey (
+            student_profiles!room_student_associations_student_id_fkey (
               full_name,
               username
             )
@@ -68,7 +68,7 @@ export default function TeacherDashboardPage() {
           
         // Add student join activities
         recentJoins?.forEach((join: any) => {
-          const profile = Array.isArray(join.profiles) ? join.profiles[0] : join.profiles;
+          const profile = Array.isArray(join.student_profiles) ? join.student_profiles[0] : join.student_profiles;
           const studentName = profile?.full_name || profile?.username || 'A student';
           const roomName = roomMap.get(join.room_id) || 'a room';
           activities.push({
@@ -87,7 +87,7 @@ export default function TeacherDashboardPage() {
             room_id,
             created_at,
             status,
-            profiles!assessment_results_student_id_fkey (
+            student_profiles!assessment_results_student_id_fkey (
               full_name,
               username
             ),
@@ -102,7 +102,7 @@ export default function TeacherDashboardPage() {
           
         // Add assessment activities
         recentAssessments?.forEach((assessment: any) => {
-          const profile = Array.isArray(assessment.profiles) ? assessment.profiles[0] : assessment.profiles;
+          const profile = Array.isArray(assessment.student_profiles) ? assessment.student_profiles[0] : assessment.student_profiles;
           const chatbot = Array.isArray(assessment.chatbots) ? assessment.chatbots[0] : assessment.chatbots;
           const studentName = profile?.full_name || profile?.username || 'A student';
           const chatbotName = chatbot?.chatbot_name || 'assessment';
@@ -124,7 +124,7 @@ export default function TeacherDashboardPage() {
             rooms!flagged_messages_room_id_fkey (
               room_name
             ),
-            profiles!flagged_messages_student_id_fkey (
+            student_profiles!flagged_messages_student_id_fkey (
               full_name,
               username
             )
@@ -205,7 +205,7 @@ export default function TeacherDashboardPage() {
       
       if (session?.user?.id) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('teacher_profiles')
           .select('full_name')
           .eq('user_id', session.user.id)
           .single();

@@ -16,18 +16,14 @@ export async function GET() {
     console.log('[API STATS] User authenticated:', user.id);
 
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
     if (profileError || !profile) {
       console.error('[API STATS] Profile fetch failed or not found:', profileError?.message);
       return NextResponse.json({ error: `Profile fetch issue: ${profileError?.message || 'Not found'}` }, { status: 500 });
-    }
-    if (profile.role !== 'teacher') {
-      console.warn('[API STATS] User is not a teacher. Role:', profile.role);
-      return NextResponse.json({ error: 'Not authorized (not a teacher)' }, { status: 403 });
     }
     console.log('[API STATS] User is teacher. Proceeding with stats.');
     
