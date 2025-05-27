@@ -392,13 +392,13 @@ export default function ChatPage() {
         throw new Error('No data returned for room/chatbot. Check IDs and permissions.');
       }
 
-      if (profile.role === 'student') {
+      if (userRole === 'student') {
         const { data: membership } = await supabase.from('room_memberships').select('room_id').eq('room_id', roomId).eq('student_id', user.id).single();
         if (!membership) {
             initialFetchDoneRef.current = false;
             throw new Error('You do not have access to this room');
         }
-      } else if (profile.role === 'teacher') {
+      } else if (userRole === 'teacher') {
         const typedRoomData = roomData as RoomQueryResult;
         if (typedRoomData.teacher_id !== user.id) {
             initialFetchDoneRef.current = false;
