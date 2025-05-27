@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Get the student details
     const { data: student, error: studentError } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .select('full_name')
       .eq('user_id', studentId)
       .single();
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // Get the student details
     const { data: student, error: studentError } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .select('full_name')
       .eq('user_id', studentId)
       .single();

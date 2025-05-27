@@ -788,8 +788,10 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
     if (userId && chatbot?.chatbot_id && roomId) {
       console.log('[Chat] Initial fetchMessages call from useEffect');
       fetchMessages();
+      // Also check for any existing safety messages on mount
+      fetchSafetyMessages();
     }
-  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
+  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages, fetchSafetyMessages]);
   
   // Also subscribe to regular chat message inserts for real-time chat
   useEffect(() => {
@@ -934,12 +936,13 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
       }
     };
     
-    // Check immediately and then every 5 seconds
-    checkSafetyMessages();
-    const interval = setInterval(checkSafetyMessages, 5000);
+    // DISABLED: This was causing duplicate API calls
+    // The safety message check is already handled by fetchSafetyMessages
+    // checkSafetyMessages();
+    // const interval = setInterval(checkSafetyMessages, 5000);
     
     return () => {
-      clearInterval(interval);
+      // clearInterval(interval);
     };
   }, [roomId, userId]);
   

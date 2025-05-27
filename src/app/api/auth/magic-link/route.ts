@@ -94,12 +94,11 @@ export async function POST(request: NextRequest) {
     
     // Create or update profile
     const { error: profileError } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .insert({
         user_id: userId,
         email: tempUser.user.email || '',
         full_name: studentName,
-        role: 'student',
         is_anonymous: true
       });
       

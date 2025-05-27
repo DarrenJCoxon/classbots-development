@@ -31,8 +31,8 @@ export default function StudentProfileCheck() {
 
         // Check if we already have a profile
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_id, role')
+          .from('student_profiles')
+          .select('user_id')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -42,15 +42,6 @@ export default function StudentProfileCheck() {
         if (profileError || !profile) {
           console.log('[StudentProfileCheck] No profile found, needs repair');
           profileRepairNeeded = true;
-        } else if (profile.role !== 'student') {
-          // This shouldn't happen but let's check anyway
-          const isStudent = user.user_metadata?.role === 'student' ||
-                          user.app_metadata?.role === 'student';
-          
-          if (isStudent && profile.role !== 'student') {
-            console.log('[StudentProfileCheck] User is student but profile role is:', profile.role);
-            profileRepairNeeded = true;
-          }
         }
 
         if (profileRepairNeeded) {

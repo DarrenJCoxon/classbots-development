@@ -119,42 +119,37 @@ export default function StudentLayoutWrapper({
           return;
         }
 
-        // Fetch user profile to check role
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('role, username, pin_code')
+        // Check if user is a student
+        const { data: studentProfile, error } = await supabase
+          .from('student_profiles')
+          .select('user_id, username, pin_code')
           .eq('user_id', user.id)
           .single();
 
-        console.log('User has authenticated, checking profile:', { 
+        console.log('User has authenticated, checking student profile:', { 
           userId: user.id, 
-          hasProfile: !!profile, 
-          role: profile?.role,
+          hasProfile: !!studentProfile, 
           error: error?.message
         });
 
-        // If there's no profile or the user is not a student, redirect to home
-        if (!profile) {
-          console.log('No profile found, creating one for user:', user.id);
+        // If there's no student profile, redirect to home
+        if (!studentProfile) {
+          console.log('No student profile found for user:', user.id);
           
-          // Instead of redirecting, attempt to create a basic profile
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: user.id,
-              role: 'student',
-              full_name: user.user_metadata?.full_name || 'Student',
-              email: user.email
-            });
+          // Check if they're a teacher instead
+          const { data: teacherProfile } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .single();
             
-          if (insertError) {
-            console.error('Error creating profile:', insertError);
+          if (teacherProfile) {
+            console.log('User is a teacher, redirecting to teacher dashboard');
+            router.push('/teacher-dashboard');
+          } else {
+            console.log('No profile found, redirecting to home');
             router.push('/');
-            return;
           }
-        } else if (profile.role !== 'student') {
-          console.log('User is not a student, redirecting to home');
-          router.push('/');
           return;
         }
 

@@ -15,7 +15,6 @@ interface TeacherProfile {
   user_id: string;
   full_name: string | null;
   email: string | null;
-  role: string;
   country_code: string | null;
   created_at: string;
   updated_at: string;
@@ -235,20 +234,15 @@ export default function TeacherProfilePage() {
         
         setUser(currentUser);
         
-        // Load profile
+        // Load teacher profile
         const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
+          .from('teacher_profiles')
           .select('*')
           .eq('user_id', currentUser.id)
           .single();
           
         if (profileError) {
-          throw new Error('Failed to load profile');
-        }
-        
-        if (profileData.role !== 'teacher') {
-          router.push('/');
-          return;
+          throw new Error('Failed to load teacher profile');
         }
         
         setProfile(profileData);
@@ -296,9 +290,9 @@ export default function TeacherProfilePage() {
     setSuccess(null);
     
     try {
-      // Update profile in database
+      // Update teacher profile in database
       const { error: updateError } = await supabase
-        .from('profiles')
+        .from('teacher_profiles')
         .update({ 
           full_name: fullName.trim(),
           country_code: countryCode || null

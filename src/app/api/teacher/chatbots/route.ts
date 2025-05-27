@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
     const supabaseAdmin = createAdminClient();
     
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'teacher') {
+    if (!profile) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 

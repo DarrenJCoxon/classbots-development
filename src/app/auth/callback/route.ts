@@ -57,11 +57,21 @@ export async function GET(request: Request) {
       // This delay might still be needed if your trigger isn't instant
       await new Promise(resolve => setTimeout(resolve, 500)); 
       
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
+      // Check both student and teacher profiles to determine role
+      const { data: studentProfile } = await supabase
+        .from('student_profiles')
+        .select('user_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+      
+      const { data: teacherProfile } = await supabase
+        .from('teacher_profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      const profile = teacherProfile ? { role: 'teacher' } : studentProfile ? { role: 'student' } : null;
+      const profileError = !profile ? new Error('No profile found') : null;
       
       // Get redirect URL from query params or use role-based default
       const redirectToParam = searchParams.get('redirect');
@@ -104,17 +114,28 @@ export async function GET(request: Request) {
               const email = user.email || `${user.id}@example.com`;
               console.log(`[Auth Callback] Repairing profile for user ${user.id}, email ${email}, role ${metadataRole}`);
               
-              // For teachers especially, ensure they have a valid profile
-              await supabaseAdmin.from('profiles').upsert({
-                user_id: user.id,
-                email: email,  // Email is marked NOT NULL in the schema, must provide it
-                role: metadataRole,
-                full_name: user.user_metadata?.full_name || 'User',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }, {
-                onConflict: 'user_id'
-              });
+              // Create profile in the appropriate table based on role
+              if (metadataRole === 'teacher') {
+                await supabaseAdmin.from('teacher_profiles').upsert({
+                  user_id: user.id,
+                  email: email,
+                  full_name: user.user_metadata?.full_name || 'Teacher',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'user_id'
+                });
+              } else if (metadataRole === 'student') {
+                await supabaseAdmin.from('student_profiles').upsert({
+                  user_id: user.id,
+                  email: email,
+                  full_name: user.user_metadata?.full_name || 'Student',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'user_id'
+                });
+              }
               console.log(`[Auth Callback] Fixed profile for user ${user.id} with role ${metadataRole}`);
             } catch (fixError) {
               console.error('[Auth Callback] Failed to fix profile:', fixError);

@@ -181,23 +181,23 @@ export default function Header() {
       
       if (currentUser) {
         // Check student_profiles first
-        const { data: studentProfile } = await supabase
+        const { data: studentProfile, error: studentError } = await supabase
           .from('student_profiles')
           .select('user_id')
           .eq('user_id', currentUser.id)
-          .single();
+          .maybeSingle();
         
-        if (studentProfile) {
+        if (studentProfile && !studentError) {
           setUserRole('student');
         } else {
           // Check teacher_profiles
-          const { data: teacherProfile } = await supabase
+          const { data: teacherProfile, error: teacherError } = await supabase
             .from('teacher_profiles')
             .select('user_id')
             .eq('user_id', currentUser.id)
-            .single();
+            .maybeSingle();
             
-          if (teacherProfile) {
+          if (teacherProfile && !teacherError) {
             setUserRole('teacher');
           } else {
             setUserRole(null);
@@ -220,8 +220,8 @@ export default function Header() {
           .from('student_profiles')
           .select('user_id')
           .eq('user_id', sessionUser.id)
-          .single()
-          .then(({ data: studentData }) => {
+          .maybeSingle()
+          .then(({ data: studentData, error: studentError }) => {
             if (studentData) {
               setUserRole('student');
             } else {
@@ -230,7 +230,7 @@ export default function Header() {
                 .from('teacher_profiles')
                 .select('user_id')
                 .eq('user_id', sessionUser.id)
-                .single()
+                .maybeSingle()
                 .then(({ data: teacherData, error: profileError }) => {
                   if (profileError) {
                     console.warn("Error fetching profile on auth state change:", profileError.message);

@@ -263,7 +263,6 @@ export async function POST(request: Request) {
             user_id: currentUserId,
             email: tempEmail,
             full_name: student_name,
-            role: 'student',
             is_anonymous: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -284,7 +283,6 @@ export async function POST(request: Request) {
                 user_id: currentUserId,
                 email: tempEmail,
                 full_name: student_name,
-                role: 'student',
                 is_anonymous: true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()

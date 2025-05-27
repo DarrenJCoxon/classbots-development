@@ -105,24 +105,18 @@ export default function StudentChatPage() {
         return;
       }
       
-      // Get student info - handle missing columns gracefully
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
+      // Get student info from student_profiles table
+      const { data: studentProfile } = await supabase
+        .from('student_profiles')
+        .select('full_name')
         .eq('user_id', studentId)
         .single();
         
-      if (profile) {
-        // Try different fields that might contain the name
-        // The error suggests profiles.name doesn't exist, so check other fields
-        if (profile.full_name) {
-          setStudentName(profile.full_name);
-        } else if (profile.email) {
-          setStudentName(profile.email.split('@')[0]);
-        } else if (profile.user_id) {
-          // Last resort - use a generic label
-          setStudentName('Student');
-        }
+      if (studentProfile && studentProfile.full_name) {
+        setStudentName(studentProfile.full_name);
+      } else {
+        // If no profile or name, use a generic label
+        setStudentName('Student');
       }
       
       // Get chatbots in this room

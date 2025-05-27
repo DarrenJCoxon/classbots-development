@@ -139,14 +139,14 @@ export default function StudentAccountSetup() {
         throw updateError;
       }
 
-      // Update the profile email as well
+      // Update the student profile as well
       const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ email: email, is_anonymous: false })
+        .from('student_profiles')
+        .update({ is_anonymous: false })
         .eq('user_id', userData.user.id);
 
       if (profileError) {
-        console.error('Error updating profile:', profileError);
+        console.error('Error updating student profile:', profileError);
       }
 
       setSuccess(true);

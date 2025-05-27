@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
             file_path: uniqueFilePath, // Store the URL with timestamp to make it unique
             file_type: 'webpage' as DocumentType,
             file_size: fileSizeForDb,
-            status: 'fetched' as DocumentStatus, // New status for successfully fetched URL content
+            status: 'uploaded' as DocumentStatus, // Set to uploaded so it can be vectorized
         };
         
         // Check if the original_url column exists in the table schema

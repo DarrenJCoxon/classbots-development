@@ -236,7 +236,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
     setError(null);
     setSuccessMessage(null);
     setProgress(0);
-    setStatus('Uploading file...');
+    setStatus('Preparing upload...');
     
     try {
       // Create form data for the file upload
@@ -244,22 +244,62 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
       formData.append('file', file);
       formData.append('chatbotId', chatbotId);
       
-      // Upload the file
-      const uploadResponse = await fetch('/api/teacher/documents', {
-        method: 'POST',
-        body: formData,
+      // Use XMLHttpRequest for progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      // Create a promise to handle the async operation
+      const uploadPromise = new Promise<any>((resolve, reject) => {
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setProgress(percentComplete * 0.8); // 80% for upload
+            setStatus(`Uploading... ${percentComplete}%`);
+          }
+        });
+        
+        // Handle completion
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || `Upload failed (Status: ${xhr.status})`));
+            } catch (e) {
+              reject(new Error(`Upload failed (Status: ${xhr.status})`));
+            }
+          }
+        });
+        
+        // Handle errors
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelled'));
+        });
+        
+        // Start the upload
+        xhr.open('POST', '/api/teacher/documents');
+        xhr.send(formData);
       });
       
-      if (!uploadResponse.ok) {
-        const data = await uploadResponse.json().catch(() => ({}));
-        console.error('Upload error response:', data);
-        throw new Error(data.error || `Failed to upload document (Status: ${uploadResponse.status})`);
-      }
-      
-      const uploadData = await uploadResponse.json();
+      // Wait for upload to complete
+      const uploadData = await uploadPromise;
       console.log('Upload response data:', uploadData);
       
-      // Get document ID from the response - could be in different formats based on API
+      // Update progress for processing phase
+      setProgress(85);
+      setStatus('Processing document...');
+      
+      // Get document ID from the response
       const uploadedDocumentId = 
         uploadData.documentId || 
         (uploadData.document && uploadData.document.document_id);
@@ -269,22 +309,25 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
         throw new Error('No document ID returned from upload');
       }
       
-      // Store documentId for vectorization
-      const documentIdForProcessing = uploadedDocumentId;
-      setProgress(50);
-      setStatus('Document uploaded successfully!');
-      setSuccessMessage('Document uploaded! Processing will start automatically.');
+      setProgress(95);
+      setStatus('Finalizing...');
       
       // No need to manually process - auto-processing is enabled
       console.log(`Document ${uploadedDocumentId} uploaded. Auto-processing will handle it.`);
       
       setProgress(100);
+      setStatus('Upload complete!');
+      setSuccessMessage('Document uploaded! Processing will start automatically.');
       
-      // Clear the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      setFile(null);
+      // Clear the file input after a short delay
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        setFile(null);
+        setProgress(0);
+        setStatus('');
+      }, 1500);
       
       // Notify parent with the document data
       if (onUploadSuccess) {
@@ -294,6 +337,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
       console.error('Error uploading document:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload document');
       setStatus('Error occurred');
+      setProgress(0);
     } finally {
       setUploading(false);
     }

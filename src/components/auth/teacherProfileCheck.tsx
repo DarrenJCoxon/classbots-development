@@ -72,10 +72,10 @@ export default function TeacherProfileCheck() {
           return;
         }
         
-        // Check if the user has a profile in the profiles table
+        // Check if the user has a profile in the teacher_profiles table
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_id, role, email')
+          .from('teacher_profiles')
+          .select('user_id, email')
           .eq('user_id', user.id)
           .maybeSingle();
           
@@ -86,9 +86,9 @@ export default function TeacherProfileCheck() {
           return;
         }
         
-        // If there's no profile or the role isn't set to teacher, we need to repair it
-        if (!profile || profile.role !== 'teacher') {
-          console.log('User needs profile repair:', profile ? 'Role mismatch' : 'No profile');
+        // If there's no profile, we need to create it
+        if (!profile) {
+          console.log('User needs profile creation: No profile');
           setNeedsRepair(true);
         } else {
           console.log('User has a valid teacher profile, no repair needed');
@@ -118,13 +118,12 @@ export default function TeacherProfileCheck() {
         throw new Error('Could not retrieve user information');
       }
       
-      // Create or update the profile with the teacher role
+      // Create or update the profile in teacher_profiles table
       const { error: upsertError } = await supabase
-        .from('profiles')
+        .from('teacher_profiles')
         .upsert({
           user_id: user.id,
           email: user.email || `${user.id}@example.com`,
-          role: 'teacher',
           full_name: user.user_metadata?.full_name || 'Teacher',
           updated_at: new Date().toISOString()
         }, {

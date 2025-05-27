@@ -22,10 +22,10 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
     
-    // Verify PIN matches in profiles table
+    // Verify PIN matches in student_profiles table
     const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id, pin_code, email, full_name, role')
+      .from('student_profiles')
+      .select('user_id, pin_code, full_name, first_name, surname')
       .eq('user_id', user_id)
       .single();
       
@@ -59,8 +59,8 @@ export async function POST(request: Request) {
     // First, make sure we have the user data
     const userObject = userData.user || {
       id: user_id,
-      email: profile.email,
-      role: profile.role || 'student',
+      email: '', // No email in student_profiles
+      role: 'student',
       app_metadata: {
         provider: 'pin',
       },
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       user: {
         id: user_id,
         name: profile.full_name,
-        role: profile.role || 'student',
+        role: 'student',
       }
     });
     

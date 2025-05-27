@@ -51,12 +51,11 @@ export default function ProfileCompletion({ onComplete }: { onComplete: () => vo
       
       // Update profile with name information
       const { error: updateError } = await supabase
-        .from('profiles')
+        .from('student_profiles')
         .update({
-          name: `${firstName} ${lastName}`.trim(),
-          // We could also add these fields if the database schema supports them
-          // first_name: firstName,
-          // last_name: lastName,
+          full_name: `${firstName} ${lastName}`.trim(),
+          first_name: firstName,
+          surname: lastName,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id);

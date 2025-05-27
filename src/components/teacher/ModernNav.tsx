@@ -459,7 +459,7 @@ export const ModernNav: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('teacher_profiles')
           .select('full_name, email')
           .eq('user_id', user.id)
           .single();

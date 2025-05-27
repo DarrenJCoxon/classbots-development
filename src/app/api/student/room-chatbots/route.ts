@@ -23,12 +23,12 @@ export async function GET(request: NextRequest) {
     if (userId) {
       // Direct access mode - validate the user exists
       const { data: userProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('user_id, role')
+        .from('student_profiles')
+        .select('user_id')
         .eq('user_id', userId)
         .single();
         
-      if (userProfile && userProfile.role === 'student') {
+      if (userProfile) {
         studentId = userProfile.user_id;
         console.log('[API GET /student/room-chatbots] Using direct access user ID:', studentId);
       }

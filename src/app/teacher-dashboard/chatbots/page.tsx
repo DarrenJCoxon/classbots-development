@@ -478,19 +478,32 @@ export default function ManageSkolrbotsPage() {
     setEditChatbot(null);
   }, []);
   
-  const handleFormSuccess = useCallback((chatbotId: string) => {
+  const handleFormSuccess = useCallback(async (chatbotId: string) => {
     setShowEditModal(false);
     setEditChatbot(null);
-    fetchChatbots();
     
-    // If creating a new Reading Room bot, redirect to edit page to upload document
-    if (isCreating) {
-      const newBot = chatbots.find(bot => bot.chatbot_id === chatbotId);
-      // Since the bot was just created, it might not be in the list yet
-      // For Reading Room bots, always redirect to edit page
-      router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
+    // Fetch the newly created bot to check its type
+    if (isCreating && chatbotId) {
+      try {
+        // Fetch the specific chatbot to get its type
+        const response = await fetch(`/api/teacher/chatbots/${chatbotId}`);
+        if (response.ok) {
+          const newBot = await response.json();
+          
+          // For Reading Room bots, redirect to edit page to upload documents
+          if (newBot.bot_type === 'reading_room') {
+            router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
+            return; // Don't refresh the list since we're navigating away
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching new chatbot details:', error);
+      }
     }
-  }, [fetchChatbots, isCreating, chatbots, router]);
+    
+    // For other bot types or edit mode, just refresh the list
+    fetchChatbots();
+  }, [fetchChatbots, isCreating, router]);
 
   // Calculate stats
   const totalChatbots = chatbots.length;

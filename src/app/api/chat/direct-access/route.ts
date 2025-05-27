@@ -40,15 +40,15 @@ export async function GET(request: NextRequest) {
     }
     
     if (!userExists) {
-      // Method 2: Fall back to checking the profiles table
+      // Method 2: Fall back to checking the student_profiles table
       const { data: userProfile, error: profileError } = await supabaseAdmin
-        .from('profiles')
+        .from('student_profiles')
         .select('user_id')
         .eq('user_id', userId)
         .maybeSingle();
       
       if (profileError || !userProfile) {
-        console.error('[API GET /chat/direct-access] User not found in profiles:', userId);
+        console.error('[API GET /chat/direct-access] User not found in student_profiles:', userId);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       
@@ -203,15 +203,15 @@ export async function POST(request: NextRequest) {
     }
     
     if (!userExists) {
-      // Method 2: Fall back to checking the profiles table
+      // Method 2: Fall back to checking the student_profiles table
       const { data: userProfile, error: profileError } = await supabaseAdmin
-        .from('profiles')
+        .from('student_profiles')
         .select('user_id')
         .eq('user_id', userId)
         .maybeSingle();
       
       if (profileError || !userProfile) {
-        console.error('[API POST /chat/direct-access] User not found in profiles:', userId);
+        console.error('[API POST /chat/direct-access] User not found in student_profiles:', userId);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       

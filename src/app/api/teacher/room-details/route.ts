@@ -24,17 +24,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: teacherProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
     if (profileError || !teacherProfile) {
-      console.warn(`[API GET /teacher/room-details] Profile not found or error for user ${user.id}:`, profileError?.message);
-      return NextResponse.json({ error: 'User profile not found or error fetching it.' }, { status: 403 });
-    }
-    if (teacherProfile.role !== 'teacher') {
-      console.warn(`[API GET /teacher/room-details] User ${user.id} is not a teacher. Role: ${teacherProfile.role}`);
+      console.warn(`[API GET /teacher/room-details] Teacher profile not found for user ${user.id}:`, profileError?.message);
       return NextResponse.json({ error: 'Not authorized (user is not a teacher)' }, { status: 403 });
     }
     console.log(`[API GET /teacher/room-details] User ${user.id} authenticated as teacher.`);
@@ -109,8 +105,8 @@ export async function GET(request: NextRequest) {
 
       const adminSupabase = createAdminClient();
       const { data: profilesData, error: profilesError } = await adminSupabase
-        .from('profiles')
-        .select('user_id, full_name, email, username')
+        .from('student_profiles')
+        .select('user_id, full_name, first_name, surname, username')
         .in('user_id', studentIds);
 
       if (profilesError) {
@@ -123,7 +119,7 @@ export async function GET(request: NextRequest) {
         return {
           user_id: membership.student_id,
           full_name: profile?.full_name || 'Student', // Fallback name
-          email: profile?.email || 'No email',       // Fallback email
+          email: '',       // Email not in student_profiles
           username: profile?.username || undefined,    // Include username
           joined_at: membership.joined_at,
           is_archived: membership.is_archived || false

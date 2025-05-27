@@ -33,12 +33,12 @@ export async function GET(request: NextRequest) {
     
     // Check if user is a teacher
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
     
-    if (profileError || !profile || profile.role !== 'teacher') {
+    if (profileError || !profile) {
       return NextResponse.json(
         { error: 'Unauthorized - Teacher role required' },
         { status: 403 }
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     
     // Use admin client to fetch student info to ensure we can find them
     const { data: student, error: studentError } = await supabaseAdmin
-      .from('profiles')
+      .from('student_profiles')
       .select('full_name, pin_code, username')
       .eq('user_id', studentId)
       .maybeSingle(); // Use maybeSingle instead of single to avoid the error
@@ -66,17 +66,15 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      // Student exists in auth but not in profiles, create profile
+      // Student exists in auth but not in student_profiles, create profile
       const newUsername = authUser.user.email?.split('@')[0] || `student${Math.floor(Math.random() * 10000)}`;
       const newPin = Math.floor(1000 + Math.random() * 9000).toString();
       
       const { data: newProfile, error: insertError } = await supabaseAdmin
-        .from('profiles')
+        .from('student_profiles')
         .insert({
           user_id: studentId,
           full_name: authUser.user.user_metadata?.full_name || 'Student',
-          email: authUser.user.email,
-          role: 'student',
           pin_code: newPin,
           username: newUsername.toLowerCase().replace(/[^a-z0-9]/g, ''),
           last_pin_change: new Date().toISOString(),
@@ -146,12 +144,12 @@ export async function POST(request: NextRequest) {
     
     // Check if user is a teacher
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
     
-    if (profileError || !profile || profile.role !== 'teacher') {
+    if (profileError || !profile) {
       return NextResponse.json(
         { error: 'Unauthorized - Teacher role required' },
         { status: 403 }
@@ -163,7 +161,7 @@ export async function POST(request: NextRequest) {
     
     // Get student's current info - use admin client to ensure we find them
     const { data: student } = await supabaseAdmin
-      .from('profiles')
+      .from('student_profiles')
       .select('full_name, username')
       .eq('user_id', studentId)
       .maybeSingle(); // Use maybeSingle to avoid errors
@@ -188,12 +186,10 @@ export async function POST(request: NextRequest) {
       
       // Create profile
       const { data: newProfile, error: insertError } = await supabaseAdmin
-        .from('profiles')
+        .from('student_profiles')
         .insert({
           user_id: studentId,
           full_name: authUser.user.user_metadata?.full_name || 'Student',
-          email: authUser.user.email,
-          role: 'student',
           pin_code: newPin,
           username: username,
           last_pin_change: new Date().toISOString(),
@@ -233,9 +229,9 @@ export async function POST(request: NextRequest) {
       username = `${username}${randomSuffix}`;
     }
     
-    // Update PIN in profiles table
+    // Update PIN in student_profiles table
     const { error: updateError } = await supabaseAdmin
-      .from('profiles')
+      .from('student_profiles')
       .update({
         pin_code: newPin,
         username: username,

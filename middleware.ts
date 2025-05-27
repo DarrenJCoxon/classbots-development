@@ -154,15 +154,15 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(new URL('/teacher-dashboard', request.url));
         }
         
-        // If not, check their profile as well
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
+        // If not, check teacher_profiles table
+        const { data: teacherProfile } = await supabase
+          .from('teacher_profiles')
+          .select('user_id')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
         
-        if (profile?.role === 'teacher') {
-          console.log(`[Middleware] Teacher detected from profile, redirecting away from student dashboard`);
+        if (teacherProfile) {
+          console.log(`[Middleware] Teacher detected from teacher_profiles, redirecting away from student dashboard`);
           return NextResponse.redirect(new URL('/teacher-dashboard', request.url));
         }
       }

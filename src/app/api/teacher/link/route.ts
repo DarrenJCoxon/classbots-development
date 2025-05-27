@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
 
     // Get the student details
     const { data: profile, error: studentError } = await supabase
-      .from('profiles')
-      .select('full_name, email')
+      .from('student_profiles')
+      .select('full_name')
       .eq('user_id', studentId)
       .single();
 
@@ -101,8 +101,7 @@ export async function GET(request: NextRequest) {
       studentName: profile.full_name,
       code: simpleLinkCode,
       roomCode: room.room_code,
-      roomName: room.room_name,
-      email: profile.email
+      roomName: room.room_name
     });
   } catch (error) {
     console.error('[Magic Link API] Error generating magic link:', error);
@@ -151,8 +150,8 @@ export async function POST(request: NextRequest) {
 
     // Get the student details
     const { data: profile, error: studentError } = await supabase
-      .from('profiles')
-      .select('full_name, email')
+      .from('student_profiles')
+      .select('full_name')
       .eq('user_id', studentId)
       .single();
 
@@ -200,7 +199,6 @@ export async function POST(request: NextRequest) {
       code: simpleLinkCode,
       roomCode: room.room_code,
       roomName: room.room_name,
-      email: profile.email,
       regenerated: true
     });
   } catch (error) {

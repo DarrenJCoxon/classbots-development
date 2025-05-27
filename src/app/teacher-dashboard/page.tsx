@@ -55,20 +55,30 @@ export default function TeacherDashboardPage() {
           .select(`
             student_id,
             room_id,
-            created_at,
-            student_profiles (
-              full_name,
-              username
-            )
+            created_at
           `)
           .in('room_id', roomIds)
           .gte('created_at', sevenDaysAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5);
           
+        // Get student profiles separately
+        let studentProfiles = new Map();
+        if (recentJoins && recentJoins.length > 0) {
+          const studentIds = recentJoins.map(j => j.student_id);
+          const { data: profiles } = await supabase
+            .from('student_profiles')
+            .select('user_id, full_name, username')
+            .in('user_id', studentIds);
+            
+          profiles?.forEach(p => {
+            studentProfiles.set(p.user_id, p);
+          });
+        }
+          
         // Add student join activities
         recentJoins?.forEach((join: any) => {
-          const profile = Array.isArray(join.student_profiles) ? join.student_profiles[0] : join.student_profiles;
+          const profile = studentProfiles.get(join.student_id);
           const studentName = profile?.full_name || profile?.username || 'A student';
           const roomName = roomMap.get(join.room_id) || 'a room';
           activities.push({
@@ -87,25 +97,45 @@ export default function TeacherDashboardPage() {
             room_id,
             assessed_at,
             status,
-            student_profiles (
-              full_name,
-              username
-            ),
-            chatbots (
-              name
-            )
+            student_id,
+            chatbot_id
           `)
           .in('room_id', roomIds)
           .gte('assessed_at', sevenDaysAgo.toISOString())
           .order('assessed_at', { ascending: false })
           .limit(5);
           
+        // Get student profiles and chatbot names for assessments
+        let assessmentStudentProfiles = new Map();
+        let chatbotNames = new Map();
+        if (recentAssessments && recentAssessments.length > 0) {
+          const assessmentStudentIds = recentAssessments.map(a => a.student_id);
+          const chatbotIds = recentAssessments.map(a => a.chatbot_id);
+          
+          const { data: profiles } = await supabase
+            .from('student_profiles')
+            .select('user_id, full_name, username')
+            .in('user_id', assessmentStudentIds);
+            
+          profiles?.forEach(p => {
+            assessmentStudentProfiles.set(p.user_id, p);
+          });
+          
+          const { data: chatbots } = await supabase
+            .from('chatbots')
+            .select('chatbot_id, name')
+            .in('chatbot_id', chatbotIds);
+            
+          chatbots?.forEach(c => {
+            chatbotNames.set(c.chatbot_id, c.name);
+          });
+        }
+          
         // Add assessment activities
         recentAssessments?.forEach((assessment: any) => {
-          const profile = Array.isArray(assessment.student_profiles) ? assessment.student_profiles[0] : assessment.student_profiles;
-          const chatbot = Array.isArray(assessment.chatbots) ? assessment.chatbots[0] : assessment.chatbots;
+          const profile = assessmentStudentProfiles.get(assessment.student_id);
           const studentName = profile?.full_name || profile?.username || 'A student';
-          const chatbotName = chatbot?.name || 'assessment';
+          const chatbotName = chatbotNames.get(assessment.chatbot_id) || 'assessment';
           const roomName = roomMap.get(assessment.room_id) || 'a room';
           activities.push({
             id: `assessment-${assessment.assessment_id}`,
@@ -121,23 +151,31 @@ export default function TeacherDashboardPage() {
           .select(`
             flag_id,
             created_at,
-            rooms (
-              room_name
-            ),
-            student_profiles (
-              full_name,
-              username
-            )
+            room_id,
+            student_id
           `)
           .eq('teacher_id', userId)
           .gte('created_at', sevenDaysAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5);
           
+        // Get room names for concerns
+        let concernRoomNames = new Map();
+        if (recentConcerns && recentConcerns.length > 0) {
+          const concernRoomIds = recentConcerns.map(c => c.room_id);
+          const { data: concernRooms } = await supabase
+            .from('rooms')
+            .select('room_id, room_name')
+            .in('room_id', concernRoomIds);
+            
+          concernRooms?.forEach(r => {
+            concernRoomNames.set(r.room_id, r.room_name);
+          });
+        }
+          
         // Add concern activities
         recentConcerns?.forEach((concern: any) => {
-          const room = Array.isArray(concern.rooms) ? concern.rooms[0] : concern.rooms;
-          const roomName = room?.room_name || 'a room';
+          const roomName = concernRoomNames.get(concern.room_id) || 'a room';
           activities.push({
             id: `concern-${concern.flag_id}`,
             type: 'concern',

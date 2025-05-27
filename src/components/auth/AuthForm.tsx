@@ -232,13 +232,21 @@ export default function AuthForm({ type }: AuthFormProps) {
         
         if (userId) {
           // Check user's role to force specific redirect
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('role')
+          // Try student_profiles first
+          const { data: studentProfile } = await supabase
+            .from('student_profiles')
+            .select('user_id')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
+          
+          // Then try teacher_profiles
+          const { data: teacherProfile } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .maybeSingle();
             
-          const role = profileData?.role || data.user?.user_metadata?.role;
+          const role = teacherProfile ? 'teacher' : studentProfile ? 'student' : data.user?.user_metadata?.role;
           console.log(`[AuthForm] User logged in with role: ${role}`);
           
           if (role === 'teacher') {

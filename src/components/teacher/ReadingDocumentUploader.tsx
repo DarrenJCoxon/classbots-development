@@ -3,27 +3,36 @@
 
 import { useState, useRef, ChangeEvent, DragEvent, useEffect } from 'react';
 import styled from 'styled-components';
-import { Button, Alert } from '@/styles/StyledComponents';
+import { Button } from '@/styles/StyledComponents';
 
 const UploaderContainer = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 32px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
 `;
 
 const UploadArea = styled.div<{ $isDragging: boolean }>`
-  border: 2px dashed ${({ theme, $isDragging }) => 
-    $isDragging ? theme.colors.primary : theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  border: 2px dashed rgba(152, 93, 215, 0.3);
+  border-radius: 20px;
   padding: ${({ theme }) => theme.spacing.xl};
   text-align: center;
-  transition: all ${({ theme }) => theme.transitions.fast};
-  background-color: ${({ theme, $isDragging }) => 
-    $isDragging ? `${theme.colors.primary}10` : theme.colors.backgroundCard};
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  background: ${({ $isDragging }) => 
+    $isDragging ? 'rgba(152, 93, 215, 0.1)' : 'rgba(255, 255, 255, 0.8)'};
+  backdrop-filter: blur(10px);
   
   &:hover {
     border-color: ${({ theme }) => theme.colors.primary};
-    background-color: ${({ theme }) => `${theme.colors.primary}05`};
+    background: rgba(152, 93, 215, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.1);
   }
-  cursor: pointer;
 `;
 
 const FileInput = styled.input`
@@ -33,26 +42,36 @@ const FileInput = styled.input`
 const UploadIcon = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.md};
   font-size: 3rem;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 `;
 
 const UploadText = styled.p`
   margin-bottom: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.text};
-  font-weight: 500;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  font-size: 1.1rem;
 `;
 
 const FileTypeInfo = styled.p`
   color: ${({ theme }) => theme.colors.textMuted};
   font-size: 0.875rem;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+  font-family: ${({ theme }) => theme.fonts.body};
 `;
 
 const CurrentDocumentContainer = styled.div`
   margin-top: ${({ theme }) => theme.spacing.lg};
   padding: ${({ theme }) => theme.spacing.lg};
-  background-color: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: rgba(152, 93, 215, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
 `;
 
 const DocumentInfo = styled.div`
@@ -78,6 +97,108 @@ const PreviewButton = styled(Button)`
   margin-right: ${({ theme }) => theme.spacing.sm};
 `;
 
+const SelectedFileContainer = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.md};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.md};
+  background: rgba(152, 93, 215, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(152, 93, 215, 0.2);
+`;
+
+const FileName = styled.span`
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  font-family: ${({ theme }) => theme.fonts.body};
+`;
+
+const FileSize = styled.span`
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.body};
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 12px;
+  background: rgba(152, 93, 215, 0.1);
+  border-radius: 20px;
+  margin-top: ${({ theme }) => theme.spacing.md};
+  overflow: hidden;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+`;
+
+const ProgressFill = styled.div<{ progress: number }>`
+  height: 100%;
+  width: ${props => props.progress}%;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(152, 93, 215, 0.3);
+`;
+
+const StatusText = styled.div`
+  font-size: 0.875rem;
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.body};
+  font-weight: 600;
+`;
+
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' | 'info' }>`
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: 12px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
+  animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(76, 190, 243, 0.1);
+          color: ${theme.colors.success};
+          border: 1px solid rgba(76, 190, 243, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(254, 67, 114, 0.1);
+          color: ${theme.colors.danger};
+          border: 1px solid rgba(254, 67, 114, 0.2);
+        `;
+      case 'info':
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
+    }
+  }}
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 interface ReadingDocument {
   id: string;
   file_name: string;
@@ -100,6 +221,8 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch current reading document on mount
@@ -175,28 +298,80 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
     setIsUploading(true);
     setError(null);
     setSuccessMessage(null);
+    setUploadProgress(0);
+    setUploadStatus('Preparing upload...');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
 
     try {
-      const response = await fetch(`/api/teacher/chatbots/${chatbotId}/reading-document`, {
-        method: 'POST',
-        body: formData,
+      // Use XMLHttpRequest for progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      // Create a promise to handle the async operation
+      const uploadPromise = new Promise<any>((resolve, reject) => {
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete * 0.9); // 90% for upload
+            setUploadStatus(`Uploading... ${percentComplete}%`);
+          }
+        });
+        
+        // Handle completion
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || `Upload failed (Status: ${xhr.status})`));
+            } catch (e) {
+              reject(new Error(`Upload failed (Status: ${xhr.status})`));
+            }
+          }
+        });
+        
+        // Handle errors
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelled'));
+        });
+        
+        // Start the upload
+        xhr.open('POST', `/api/teacher/chatbots/${chatbotId}/reading-document`);
+        xhr.send(formData);
       });
-
-      const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload reading document');
-      }
+      // Wait for upload to complete
+      const data = await uploadPromise;
+      console.log('Upload response data:', data);
       
+      setUploadProgress(95);
+      setUploadStatus('Finalizing...');
+      
+      setUploadProgress(100);
+      setUploadStatus('Upload complete!');
       setSuccessMessage('Reading document uploaded successfully!');
-      setSelectedFile(null);
       
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      // Clear the file input after a short delay
+      setTimeout(() => {
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        setUploadProgress(0);
+        setUploadStatus('');
+      }, 1500);
       
       // Refresh the current document
       await fetchCurrentDocument();
@@ -206,6 +381,8 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during upload.');
+      setUploadProgress(0);
+      setUploadStatus('');
     } finally {
       setIsUploading(false);
     }
@@ -256,15 +433,15 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
   if (isLoading) {
     return (
       <UploaderContainer>
-        <Alert variant="info">Loading reading document...</Alert>
+        <ModernAlert $variant="info">Loading reading document...</ModernAlert>
       </UploaderContainer>
     );
   }
 
   return (
     <UploaderContainer>
-      {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
-      {successMessage && <Alert variant="success" style={{ marginBottom: '16px' }}>{successMessage}</Alert>}
+      {error && <ModernAlert $variant="error">{error}</ModernAlert>}
+      {successMessage && <ModernAlert $variant="success">{successMessage}</ModernAlert>}
       
       {currentDocument ? (
         <CurrentDocumentContainer>
@@ -294,9 +471,9 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
             </Button>
           </div>
           
-          <Alert variant="info" style={{ marginTop: '16px' }}>
+          <ModernAlert $variant="info" style={{ marginTop: '16px' }}>
             To replace this document, upload a new PDF file below.
-          </Alert>
+          </ModernAlert>
         </CurrentDocumentContainer>
       ) : null}
       
@@ -339,21 +516,9 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
 
       {selectedFile && (
         <>
-          <div style={{
-            marginTop: '16px',
-            padding: '16px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
-            <div>
-              <strong>{selectedFile.name}</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.875rem', color: '#666' }}>
-                {formatFileSize(selectedFile.size)}
-              </p>
-            </div>
+          <SelectedFileContainer>
+            <FileName title={selectedFile.name}>{selectedFile.name}</FileName>
+            <FileSize>{formatFileSize(selectedFile.size)}</FileSize>
             <Button
               size="small"
               variant="outline"
@@ -363,10 +528,11 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
                 setError(null);
               }}
               type="button"
+              disabled={isUploading}
             >
               Remove
             </Button>
-          </div>
+          </SelectedFileContainer>
           
           <Button
             onClick={handleUpload}
@@ -376,6 +542,15 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
           >
             {isUploading ? 'Uploading...' : `Upload ${selectedFile.name}`}
           </Button>
+          
+          {isUploading && (
+            <>
+              <ProgressBar>
+                <ProgressFill progress={uploadProgress} />
+              </ProgressBar>
+              <StatusText>{uploadStatus}</StatusText>
+            </>
+          )}
         </>
       )}
     </UploaderContainer>

@@ -72,21 +72,37 @@ export default function TeacherDashboardLayout({
       if (sessionUser) {
         console.log('[TDL] User found. Fetching profile for user_id:', sessionUser.id);
         try {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
+          // Check if user is a teacher
+          const { data: teacherProfile, error: profileError } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
             .eq('user_id', sessionUser.id)
             .single();
 
           if (profileError) {
-            console.error('[TDL] Profile fetch error:', profileError.message, 'Redirecting to /auth.');
-            setAuthStatus('unauthorized');
-            router.push('/auth');
-          } else if (profile && profile.role === 'teacher') {
+            console.error('[TDL] Teacher profile fetch error:', profileError.message);
+            
+            // Check if they're a student instead
+            const { data: studentProfile } = await supabase
+              .from('student_profiles')
+              .select('user_id')
+              .eq('user_id', sessionUser.id)
+              .single();
+              
+            if (studentProfile) {
+              console.log('[TDL] User is a student. Redirecting to student dashboard.');
+              setAuthStatus('unauthorized');
+              router.push('/student/dashboard');
+            } else {
+              console.log('[TDL] No profile found. Redirecting to /auth.');
+              setAuthStatus('unauthorized');
+              router.push('/auth');
+            }
+          } else if (teacherProfile) {
             console.log('[TDL] User is teacher. Authorized.');
             setAuthStatus('authorized');
           } else {
-            console.log('[TDL] User is not teacher or profile missing. Unauthorized. Redirecting to /.');
+            console.log('[TDL] No teacher profile found. Unauthorized. Redirecting to /.');
             setAuthStatus('unauthorized');
             router.push('/');
           }

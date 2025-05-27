@@ -87,8 +87,8 @@ interface Room {
 interface Student {
   user_id: string;
   full_name: string;
-  email: string;
-  role: string;
+  first_name?: string;
+  surname?: string;
 }
 
 export default function DirectRoomAccess() {
@@ -121,17 +121,13 @@ export default function DirectRoomAccess() {
       try {
         // First, check if the student exists
         const { data: studentData, error: studentError } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, email, role')
+          .from('student_profiles')
+          .select('user_id, full_name, first_name, surname')
           .eq('user_id', studentId)
           .single();
           
         if (studentError || !studentData) {
           throw new Error('Student not found');
-        }
-        
-        if (studentData.role !== 'student') {
-          throw new Error('User is not a student');
         }
         
         setStudent(studentData);

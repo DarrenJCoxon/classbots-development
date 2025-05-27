@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     const adminSupabase = createAdminClient(); 
 
     const { data: profilesData, error: profilesError } = await adminSupabase
-      .from('profiles')
+      .from('student_profiles')
       .select('user_id, full_name, email') // Select only necessary fields
       .in('user_id', studentIds);
 

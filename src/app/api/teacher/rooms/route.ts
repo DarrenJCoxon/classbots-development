@@ -30,30 +30,25 @@ export async function GET(request: NextRequest) {
         role: user.role
     });
 
-    console.log('[API GET /rooms] Attempting to fetch profile for user_id:', user.id);
+    console.log('[API GET /rooms] Attempting to fetch teacher profile for user_id:', user.id);
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, school_id')
+      .from('teacher_profiles')
+      .select('user_id, school_id')
       .eq('user_id', user.id)
       .single();
 
     if (profileError) {
       console.error('[API GET /rooms] PROFILE FETCH ERROR OBJECT:', JSON.stringify(profileError, null, 2));
-      console.warn('[API GET /rooms] Profile fetch failed for user:', user.id, 'Error message:', profileError.message);
-      return NextResponse.json({ error: `User profile not found or error fetching it. Details: ${profileError.message}` }, { status: 403 });
+      console.warn('[API GET /rooms] Teacher profile fetch failed for user:', user.id, 'Error message:', profileError.message);
+      return NextResponse.json({ error: `Teacher profile not found or error fetching it. Details: ${profileError.message}` }, { status: 403 });
     }
 
     if (!profile) {
-      console.warn('[API GET /rooms] Profile data is null (but no error reported by Supabase) for user:', user.id);
-      return NextResponse.json({ error: 'User profile not found (no data returned but no DB error).' }, { status: 403 });
+      console.warn('[API GET /rooms] Teacher profile data is null (but no error reported by Supabase) for user:', user.id);
+      return NextResponse.json({ error: 'Teacher profile not found (no data returned but no DB error).' }, { status: 403 });
     }
 
-    console.log('[API GET /rooms] Profile fetched successfully:', profile);
-
-    if (profile.role !== 'teacher') {
-      console.warn('[API GET /rooms] User is not a teacher. Profile Role:', profile.role);
-      return NextResponse.json({ error: 'Not authorized (user role is not teacher)' }, { status: 403 });
-    }
+    console.log('[API GET /rooms] Teacher profile fetched successfully:', profile);
 
     console.log('[API GET /rooms] User is confirmed teacher. Fetching rooms.');
     
@@ -156,18 +151,14 @@ export async function POST(request: Request) {
     console.log('[API POST /rooms] V-ROBUST - User authenticated:', user.id);
 
     const { data: profile, error: profileFetchError } = await supabase
-      .from('profiles')
-      .select('role, school_id')
+      .from('teacher_profiles')
+      .select('user_id, school_id')
       .eq('user_id', user.id)
       .single();
 
     if (profileFetchError || !profile) {
         console.error('[API POST /rooms] V-ROBUST - Profile fetch error or no profile:', profileFetchError);
         return NextResponse.json({ error: 'Profile error or profile not found while creating room.' }, { status: 500 });
-    }
-    if (profile.role !== 'teacher') {
-        console.warn('[API POST /rooms] V-ROBUST - User not a teacher');
-        return NextResponse.json({ error: 'Not authorized (user role is not teacher)' }, { status: 403 });
     }
     console.log('[API POST /rooms] V-ROBUST - Profile fetched:', profile);
 

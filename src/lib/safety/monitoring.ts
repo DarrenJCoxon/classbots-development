@@ -1061,8 +1061,8 @@ export async function checkMessageSafety(
                     roomCodeExists: !!room.room_code
                 });
                 
-                const { data: teacherProfile } = await adminClient.from('profiles').select('email').eq('user_id', room.teacher_id).single();
-                const { data: studentProfile } = await adminClient.from('profiles').select('full_name').eq('user_id', studentId).single();
+                const { data: teacherProfile } = await adminClient.from('teacher_profiles').select('email').eq('user_id', room.teacher_id).single();
+                const { data: studentProfile } = await adminClient.from('student_profiles').select('full_name').eq('user_id', studentId).single();
                 const studentName = studentProfile?.full_name || `Student (ID: ${studentId.substring(0, 6)}...)`;
                 
                 console.log(`[Safety Check] Attempting to insert flag with data:`, {

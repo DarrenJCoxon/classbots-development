@@ -401,26 +401,32 @@ export default function Home() {
         if (currentUser) {
           setIsRedirecting(true);
           
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
+          // Check if user is a teacher
+          const { data: teacherProfile } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
             .eq('user_id', currentUser.id)
             .single();
 
-          if (profileError) {
-            console.error('Error fetching profile on homepage:', profileError.message);
-            setIsRedirecting(false);
-            setLoading(false);
+          if (teacherProfile) {
+            router.push('/teacher-dashboard');
             return;
           }
-          
-          if (profile?.role === 'teacher') {
-            router.push('/teacher-dashboard');
-          } else if (profile?.role === 'student') {
+
+          // Check if user is a student
+          const { data: studentProfile } = await supabase
+            .from('student_profiles')
+            .select('user_id')
+            .eq('user_id', currentUser.id)
+            .single();
+
+          if (studentProfile) {
             router.push('/student/dashboard');
-          } else {
-            setIsRedirecting(false);
+            return;
           }
+
+          // No profile found
+          setIsRedirecting(false);
         }
       } catch (error) {
         console.error('Error in checkUserAndRedirect on homepage:', error);

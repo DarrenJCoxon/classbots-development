@@ -224,14 +224,12 @@ function ProfileContent() {
         throw signInError;
       }
 
-      // 5. Create a profile entry
+      // 5. Create a student profile entry
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from('student_profiles')
         .insert({
           user_id: signUpData.user.id,
-          email: tempEmail,
           full_name: fullName,
-          role: 'student',
           is_anonymous: true
         });
 

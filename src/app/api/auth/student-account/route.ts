@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     
     // Check if email is already registered
     const { data: existingUser } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .select('user_id')
       .eq('email', email)
       .maybeSingle();
@@ -76,12 +76,11 @@ export async function POST(request: NextRequest) {
     
     // Create profile for the user
     const { error: profileError } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .insert({
         user_id: signUpData.user.id,
         email,
-        full_name,
-        role: 'student'
+        full_name
       });
       
     if (profileError) {

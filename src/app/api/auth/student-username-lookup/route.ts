@@ -23,9 +23,8 @@ export async function POST(request: NextRequest) {
     
     // First, try to match by username (most specific)
     const { data: usernameProfiles } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id, full_name, email, pin_code, username, role')
-      .eq('role', 'student')
+      .from('student_profiles')
+      .select('user_id, full_name, email, pin_code, username')
       .ilike('username', cleanIdentifier)
       .limit(5);
       
@@ -35,9 +34,8 @@ export async function POST(request: NextRequest) {
     if (!profiles || profiles.length === 0) {
       console.log(`Not found by username, trying name: ${cleanIdentifier}`);
       const { data: nameProfiles } = await supabaseAdmin
-        .from('profiles')
-        .select('user_id, full_name, email, pin_code, username, role')
-        .eq('role', 'student')
+        .from('student_profiles')
+        .select('user_id, full_name, email, pin_code, username')
         .ilike('full_name', cleanIdentifier)
         .limit(5);
         
@@ -50,9 +48,8 @@ export async function POST(request: NextRequest) {
     if (!profiles || profiles.length === 0) {
       console.log(`Not found by name, trying email: ${cleanIdentifier}`);
       const { data: emailProfiles } = await supabaseAdmin
-        .from('profiles')
-        .select('user_id, full_name, email, pin_code, username, role')
-        .eq('role', 'student')
+        .from('student_profiles')
+        .select('user_id, full_name, email, pin_code, username')
         .ilike('email', cleanIdentifier)
         .limit(5);
         
@@ -67,9 +64,8 @@ export async function POST(request: NextRequest) {
       
       // Get all student profiles
       const { data: allStudents } = await supabaseAdmin
-        .from('profiles')
-        .select('user_id, full_name, email, pin_code, username, role')
-        .eq('role', 'student')
+        .from('student_profiles')
+        .select('user_id, full_name, email, pin_code, username')
         .limit(30);
       
       if (allStudents && allStudents.length > 0) {

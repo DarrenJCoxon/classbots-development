@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { Profile, StudentAssessment, FlaggedMessage } from '@/types/database.types';
+import type { StudentAssessment, FlaggedMessage } from '@/types/database.types';
 
 // Simplified types for summaries
 interface AssessmentSummaryForStudent extends Pick<StudentAssessment, 'assessment_id' | 'chatbot_id' | 'assessed_at' | 'ai_grade_raw' | 'teacher_override_grade' | 'status'> {
@@ -13,8 +13,13 @@ interface ConcernSummaryForStudent extends Pick<FlaggedMessage, 'flag_id' | 'con
   message_preview?: string | null;
 }
 
+interface StudentProfile {
+  user_id: string;
+  full_name: string;
+}
+
 interface StudentRoomDetailsResponse {
-  student: Pick<Profile, 'user_id' | 'full_name' | 'email'> | null;
+  student: StudentProfile | null;
   assessments: AssessmentSummaryForStudent[];
   concerns: ConcernSummaryForStudent[];
   // We could add a flag like hasChatHistory: boolean;
@@ -43,12 +48,12 @@ export async function GET(request: NextRequest) {
 
     // Verify teacher role
     const { data: teacherProfile, error: teacherProfileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
-    if (teacherProfileError || !teacherProfile || teacherProfile.role !== 'teacher') {
+    if (teacherProfileError || !teacherProfile) {
       console.warn(`[API GET /student-room-details] User ${user.id} not a teacher or profile error.`);
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
@@ -88,10 +93,10 @@ export async function GET(request: NextRequest) {
     let studentProfileFetchError = null;
     
     try {
-      // First attempt: Try standard profile lookup
+      // First attempt: Try standard student profile lookup
       const { data, error } = await adminSupabase
-        .from('profiles')
-        .select('user_id, full_name, email')
+        .from('student_profiles')
+        .select('user_id, full_name')
         .eq('user_id', studentId)
         .single();
         
@@ -112,11 +117,10 @@ export async function GET(request: NextRequest) {
         
         // Create a placeholder profile as a backup
         const { error: upsertError } = await adminSupabase
-          .from('profiles')
+          .from('student_profiles')
           .upsert({
             user_id: studentId,
             full_name: 'Student',
-            role: 'student',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }, {
@@ -130,8 +134,8 @@ export async function GET(request: NextRequest) {
           
           // Try to fetch the profile again
           const { data: retryData } = await adminSupabase
-            .from('profiles')
-            .select('user_id, full_name, email')
+            .from('student_profiles')
+            .select('user_id, full_name')
             .eq('user_id', studentId)
             .single();
             
@@ -145,16 +149,14 @@ export async function GET(request: NextRequest) {
     }
     
     // Create a profile object even if we couldn't fetch one - at least provide the ID
-    const studentInfo: Pick<Profile, 'user_id' | 'full_name' | 'email'> = studentProfileData 
+    const studentInfo: StudentProfile = studentProfileData 
         ? { 
             user_id: studentProfileData.user_id, 
-            full_name: studentProfileData.full_name || 'Student', 
-            email: studentProfileData.email || 'No email' 
+            full_name: studentProfileData.full_name || 'Student'
           } 
         : { 
             user_id: studentId, 
-            full_name: 'Student', 
-            email: 'No email'
+            full_name: 'Student'
           };
 
     // Fetch assessments for this student in this room (limit for summary, e.g., last 10)

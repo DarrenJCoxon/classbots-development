@@ -24,10 +24,9 @@ export async function GET(request: NextRequest) {
 
     // Verify student exists
     const { data: studentProfile, error: studentError } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id, full_name, role')
+      .from('student_profiles')
+      .select('user_id, full_name')
       .eq('user_id', studentId)
-      .eq('role', 'student')
       .single();
 
     if (studentError || !studentProfile) {

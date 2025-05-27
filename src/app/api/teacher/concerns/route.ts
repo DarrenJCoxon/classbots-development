@@ -300,8 +300,8 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
 
-        const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
-        if (!profile || profile.role !== 'teacher') {
+        const { data: profile } = await supabase.from('teacher_profiles').select('user_id').eq('user_id', user.id).single();
+        if (!profile) {
             console.warn('[API PATCH /concerns] User not a teacher or profile error.');
             return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
         }

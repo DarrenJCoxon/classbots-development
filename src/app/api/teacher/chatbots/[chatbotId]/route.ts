@@ -25,12 +25,12 @@ export async function GET(request: NextRequest, { params }: any) {
 
     // Verify user is a teacher using admin client to bypass RLS
     const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'teacher') {
+    if (!profile) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
@@ -78,12 +78,12 @@ export async function PUT(request: NextRequest, { params }: any) {
 
     // Verify user is a teacher using admin client to bypass RLS
     const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'teacher') {
+    if (!profile) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 

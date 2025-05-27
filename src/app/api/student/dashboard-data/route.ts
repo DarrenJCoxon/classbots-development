@@ -26,7 +26,7 @@ interface AssessmentSummaryForDashboard extends Pick<StudentAssessment, 'assessm
 interface StudentDashboardDataResponse {
   joinedRooms: JoinedRoomForDashboard[];
   recentAssessments: AssessmentSummaryForDashboard[];
-  studentProfile: Pick<Profile, 'user_id' | 'full_name' | 'pin_code' | 'username'> | null;
+  studentProfile: Pick<Profile, 'user_id' | 'full_name'> & { pin_code: string | null; username: string | null } | null;
 }
 
 // Helper type for Supabase query for joined rooms
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
       // Let's try to be extra careful about database connections
       const { data: profileData, error: profileError } = await supabase
         .from('student_profiles')
-        .select('user_id, role, full_name') // Fetch full_name too
+        .select('user_id, full_name') // Fetch full_name too
         .eq('user_id', effectiveUserId)
         .single();
       
@@ -158,7 +158,6 @@ export async function GET(request: NextRequest) {
         // Generate a dummy profile since we already verified the PIN but DB lookup failed
         const tempProfile = {
           user_id: effectiveUserId,
-          role: 'student',
           full_name: 'Student',
           email: null
         };
@@ -181,7 +180,6 @@ export async function GET(request: NextRequest) {
             .from('student_profiles')
             .insert({
               user_id: effectiveUserId,
-              role: 'student',
               full_name: 'Student',
               pin_code: pinCode,
               username: username,
@@ -197,7 +195,7 @@ export async function GET(request: NextRequest) {
             // Try to get the profile again
             const { data: newProfile } = await supabase
               .from('student_profiles')
-              .select('user_id, role, full_name')
+              .select('user_id, full_name')
               .eq('user_id', effectiveUserId)
               .single();
               
@@ -218,10 +216,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    if (profile && profile.role !== 'student') {
-      console.warn(`[API GET /student/dashboard-data] User ${effectiveUserId} is not a student. Role: ${profile.role}`);
-      return NextResponse.json({ error: 'Not authorized (user is not a student)' }, { status: 403 });
-    }
+    // Profile exists in student_profiles table, so they are a student
     } catch (err) {
       console.error('[API GET /student/dashboard-data] Error checking user profile:', err);
       
@@ -229,7 +224,6 @@ export async function GET(request: NextRequest) {
       if (pinVerified || (isDirect && hasTimestamp)) {
         const tempProfile = {
           user_id: effectiveUserId,
-          role: 'student',
           full_name: 'Student',
           email: null
         };

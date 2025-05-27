@@ -10,7 +10,8 @@ import {
 } from '@/styles/StyledComponents';
 import { createClient } from '@/lib/supabase/client';
 import { ModernButton } from '@/components/shared/ModernButton';
-import DocumentUploader from '@/components/teacher/DocumentUploader';
+import EnhancedRagUploader from '@/components/teacher/EnhancedRagUploader';
+import EnhancedRagScraper from '@/components/teacher/EnhancedRagScraper';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
 import ReadingDocumentUploader from '@/components/teacher/ReadingDocumentUploader';
@@ -201,28 +202,10 @@ const LoadingStateContainer = styled.div`
 `;
 
 // MODIFIED: Styled component for URL input section
-const UrlInputSection = styled.div`
-  margin-top: ${({ theme }) => theme.spacing.lg};
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  padding: ${({ theme }) => theme.spacing.lg};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  background-color: ${({ theme }) => theme.colors.background}; // Slightly different background
-`;
-
-const UrlInputForm = styled.form`
-  display: flex;
-  gap: ${({ theme }) => theme.spacing.md};
-  align-items: flex-start; // Align items to the start for better layout with potential error messages
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    flex-direction: column;
-  }
-`;
-
-const UrlInput = styled(Input)`
-  flex-grow: 1;
-`;
+// Removed - now using EnhancedRagScraper component
+// const UrlInputSection = styled.div`...`;
+// const UrlInputForm = styled.form`...`;
+// const UrlInput = styled(Input)`...`;
 
 
 const initialChatbotState: Chatbot = {
@@ -256,9 +239,10 @@ export default function ConfigureChatbotPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // MODIFIED: Added states for URL input
-  const [webpageUrl, setWebpageUrl] = useState('');
-  const [isAddingUrl, setIsAddingUrl] = useState(false);
-  const [urlError, setUrlError] = useState<string | null>(null);
+  // Removed - now using EnhancedRagScraper component
+  // const [webpageUrl, setWebpageUrl] = useState('');
+  // const [isAddingUrl, setIsAddingUrl] = useState(false);
+  // const [urlError, setUrlError] = useState<string | null>(null);
 
 
   const params = useParams();
@@ -510,53 +494,12 @@ export default function ConfigureChatbotPage() {
     };
   };
 
-  // MODIFIED: Function to handle adding a webpage URL
+  // Removed - now using EnhancedRagScraper component
+  /*
   const handleAddWebpage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!webpageUrl.trim() || !chatbot.chatbot_id) {
-      setUrlError('Please enter a valid URL.');
-      return;
-    }
-    if (!/^https?:\/\//i.test(webpageUrl)) {
-      setUrlError('URL must start with http:// or https://');
-      return;
-    }
-
-    setIsAddingUrl(true);
-    setUrlError(null);
-    setSuccessMessage(null);
-    setDocsError(null);
-
-    const formData = new FormData();
-    formData.append('url', webpageUrl);
-    formData.append('chatbotId', chatbot.chatbot_id);
-
-    try {
-      const response = await fetch('/api/teacher/documents', { // Uses the same POST endpoint
-        method: 'POST',
-        body: formData, // API will detect it's a URL based on form data
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add webpage');
-      }
-      setSuccessMessage(data.message || 'Webpage added successfully!');
-      setWebpageUrl(''); // Clear input
-      
-      // Immediately add the new document to the list for better UX
-      if (data.document) {
-        setDocuments(prev => [data.document, ...prev]);
-      }
-      
-      // Also refresh the full list to ensure consistency
-      fetchDocumentsData(chatbot.chatbot_id);
-    } catch (err) {
-      setUrlError(err instanceof Error ? err.message : 'Could not add webpage.');
-      console.error("Error adding webpage:", err);
-    } finally {
-      setIsAddingUrl(false);
-    }
+    // Function body removed - using EnhancedRagScraper instead
   };
+  */
 
 
   if (pageLoading) {
@@ -653,17 +596,26 @@ export default function ConfigureChatbotPage() {
               <Input id="temperature" name="temperature" type="number" value={chatbot.temperature === null || chatbot.temperature === undefined ? `` : chatbot.temperature} onChange={handleChange} min="0" max="2" step="0.1" placeholder="e.g., 0.7"/>
                <HelpText>{`0.0 = most deterministic, 2.0 = most creative. Default is 0.7.`}</HelpText>
             </FormGroup>
-            {displayBotType === 'learning' && (
+            {(displayBotType === 'learning' || displayBotType === 'reading_room') && (
                 <FormGroup>
-                <Label htmlFor="enable_rag">Knowledge Base (RAG)</Label>
+                <Label htmlFor="enable_rag">
+                  {displayBotType === 'reading_room' ? 'Knowledge Base (Optional)' : 'Knowledge Base (RAG)'}
+                </Label>
                 <CheckboxGroup>
                     <input id="enable_rag" name="enable_rag" type="checkbox" checked={!!chatbot.enable_rag} onChange={handleCheckboxChange} />
-                    <span>Enable RAG: Allow chatbot to use uploaded documents to answer questions.</span>
+                    <span>
+                      {displayBotType === 'reading_room' 
+                        ? 'Enable Knowledge Base: Allow the AI to use supplementary materials for better support.'
+                        : 'Enable RAG: Allow chatbot to use uploaded documents to answer questions.'}
+                    </span>
                 </CheckboxGroup>
-                <HelpText>If enabled, this learning bot can use documents you upload below. (Save first to enable uploads if creating a new bot).</HelpText>
+                <HelpText>
+                  {displayBotType === 'reading_room'
+                    ? 'If enabled, you can add reference materials like teacher guides or answer keys below.'
+                    : 'If enabled, this learning bot can use documents you upload below. (Save first to enable uploads if creating a new bot).'}
+                </HelpText>
                 </FormGroup>
             )}
-            {/* Hide RAG settings for reading_room bots - they don't need this UI element */}
             <ModernButton type="submit" variant="primary" disabled={saving || pageLoading} style={{ width: `100%`, marginTop: `16px` }}>
               {saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create & Configure Chatbot' : 'Save Changes')}
             </ModernButton>
@@ -678,11 +630,7 @@ export default function ConfigureChatbotPage() {
                 <strong>This is the main PDF that students will read.</strong> It appears on the left side of their screen.
               </Alert>
               
-              <StyledCard style={{ 
-                border: '2px solid #3b82f6', 
-                background: 'rgba(240, 249, 255, 0.9)',
-                padding: '1.5rem'
-              }}>
+              <StyledCard>
                 <ReadingDocumentUploader
                   chatbotId={chatbot.chatbot_id}
                   onUploadSuccess={() => {
@@ -694,11 +642,19 @@ export default function ConfigureChatbotPage() {
             </>
           )}
 
-          {/* Knowledge Base Section */}
-          {!isCreateMode && displayBotType === 'learning' && chatbot.enable_rag && chatbot.chatbot_id && (
+          {/* Knowledge Base Section - for both Learning and Reading Room bots */}
+          {!isCreateMode && (displayBotType === 'learning' || displayBotType === 'reading_room') && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
                 <Divider />
-                <SectionTitle>Knowledge Base Documents</SectionTitle>
+                <SectionTitle>
+                  {displayBotType === 'reading_room' ? '📚 Knowledge Base (Optional)' : 'Knowledge Base Documents'}
+                </SectionTitle>
+                
+                {displayBotType === 'reading_room' && (
+                  <HelpText style={{ marginBottom: '16px' }}>
+                    Add supplementary materials like teacher guides, answer keys, or background information to help the AI provide better support for the reading document.
+                  </HelpText>
+                )}
                 
                 {/* Knowledge Base Summary */}
                 {!docsLoading && documents.length > 0 && (
@@ -736,43 +692,24 @@ export default function ConfigureChatbotPage() {
                   </KnowledgeBaseSummary>
                 )}
                 
-                {/* URL Input Section */}
-                <UrlInputSection>
-                    <Label htmlFor="webpageUrl">Add Webpage by URL</Label>
-                    <UrlInputForm onSubmit={handleAddWebpage}>
-                        <UrlInput
-                            type="url"
-                            id="webpageUrl"
-                            name="webpageUrl"
-                            value={webpageUrl}
-                            onChange={(e) => { setWebpageUrl(e.target.value); setUrlError(null); }}
-                            placeholder="https://example.com/your-article-here"
-                            disabled={isAddingUrl}
-                        />
-                        <ModernButton type="submit" variant="secondary" disabled={isAddingUrl || !webpageUrl.trim()} style={{ minWidth: '120px' }}>
-                            {isAddingUrl ? 'Adding...' : 'Add URL'}
-                        </ModernButton>
-                    </UrlInputForm>
-                    {urlError && <Alert variant="error" style={{ marginTop: '8px' }}>{urlError}</Alert>}
-                    <HelpText style={{marginTop: '8px'}}>
-                        The system will attempt to extract the main content from the provided URL.
-                    </HelpText>
-                </UrlInputSection>
-
-                {/* Existing Document Uploader */}
-                <HelpText>{`Alternatively, upload PDF, Word, or TXT files directly.`}</HelpText>
-                {docsError && <Alert variant="error">{docsError}</Alert>}
-                <DocumentUploader 
-                    chatbotId={chatbot.chatbot_id} 
-                    onUploadSuccess={(newDocument) => { 
-                        setSuccessMessage("Document uploaded successfully!"); 
-                        // Immediately add the new document to the list for better UX
+                {/* Enhanced upload components */}
+                <EnhancedRagUploader
+                    chatbotId={chatbot.chatbot_id}
+                    onUploadSuccess={(newDocument) => {
                         if (newDocument) {
                             setDocuments(prev => [newDocument, ...prev]);
                         }
-                        // Also refresh the full list to ensure consistency
-                        fetchDocumentsData(chatbot.chatbot_id!); 
-                    }} 
+                        fetchDocumentsData(chatbot.chatbot_id!);
+                    }}
+                />
+                <EnhancedRagScraper
+                    chatbotId={chatbot.chatbot_id}
+                    onScrapeSuccess={(newDocument) => {
+                        if (newDocument) {
+                            setDocuments(prev => [newDocument, ...prev]);
+                        }
+                        fetchDocumentsData(chatbot.chatbot_id!);
+                    }}
                 />
                 
                 {/* Document List and Status */}

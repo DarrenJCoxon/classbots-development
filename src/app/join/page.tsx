@@ -65,14 +65,26 @@ function JoinPageContent() {
         if (user) {
           setIsAuthenticated(true);
           
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
+          // Check if user is a student
+          const { data: studentProfile } = await supabase
+            .from('student_profiles')
+            .select('user_id')
             .eq('user_id', user.id)
             .single();
           
-          if (profile) {
-            setUserRole(profile.role);
+          if (studentProfile) {
+            setUserRole('student');
+          } else {
+            // Check if user is a teacher
+            const { data: teacherProfile } = await supabase
+              .from('teacher_profiles')
+              .select('user_id')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (teacherProfile) {
+              setUserRole('teacher');
+            }
           }
         } else {
             setIsAuthenticated(false);

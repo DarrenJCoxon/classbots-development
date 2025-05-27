@@ -31,12 +31,12 @@ export async function DELETE(request: NextRequest) {
 
     // Verify the user is a teacher
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+      .from('teacher_profiles')
+      .select('user_id')
       .eq('user_id', user.id)
       .single();
 
-    if (profileError || profile?.role !== 'teacher') {
+    if (profileError || !profile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can delete their accounts through this endpoint' },
         { status: 403 }
@@ -126,15 +126,15 @@ export async function DELETE(request: NextRequest) {
       console.warn('[DELETE ACCOUNT] Error deleting documents:', documentsError);
     }
 
-    // Step 5: Delete the profile
+    // Step 5: Delete the teacher profile
     const { error: profileDeleteError } = await supabaseAdmin
-      .from('profiles')
+      .from('teacher_profiles')
       .delete()
       .eq('user_id', user.id);
 
     if (profileDeleteError) {
-      console.error('[DELETE ACCOUNT] Error deleting profile:', profileDeleteError);
-      throw new Error('Failed to delete profile');
+      console.error('[DELETE ACCOUNT] Error deleting teacher profile:', profileDeleteError);
+      throw new Error('Failed to delete teacher profile');
     }
 
     // Step 6: Delete the auth user (this should be last)

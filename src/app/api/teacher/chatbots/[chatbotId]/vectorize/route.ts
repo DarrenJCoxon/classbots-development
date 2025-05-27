@@ -92,9 +92,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
+    // Check if document is stuck in processing state (more than 10 minutes)
     if (document.status === 'processing') {
-      console.log(`[API vectorize POST] Document ${documentId} is already being processed`);
-      return NextResponse.json({ error: 'Document is already being processed' }, { status: 400 });
+      const updatedAt = new Date(document.updated_at);
+      const minutesSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate > 10) {
+        console.log(`[API vectorize POST] Document ${documentId} appears stuck (processing for ${minutesSinceUpdate.toFixed(1)} minutes). Resetting...`);
+        // Reset to pending so it can be reprocessed
+        await adminSupabase
+          .from('documents')
+          .update({
+            status: 'pending',
+            updated_at: new Date().toISOString(),
+            error_message: null
+          })
+          .eq('document_id', documentId);
+      } else {
+        console.log(`[API vectorize POST] Document ${documentId} is already being processed (${minutesSinceUpdate.toFixed(1)} minutes ago)`);
+        return NextResponse.json({ 
+          error: 'Document is already being processed. Please wait a few minutes and try again.',
+          minutesSinceUpdate: minutesSinceUpdate.toFixed(1)
+        }, { status: 400 });
+      }
     }
 
     console.log(`[API vectorize POST] Updating document ${documentId} status to 'processing'`);

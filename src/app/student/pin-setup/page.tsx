@@ -148,9 +148,9 @@ export default function StudentPinSetup() {
           return;
         }
 
-        // Get their profile details
+        // Get their student profile details
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('student_profiles')
           .select('full_name')
           .eq('user_id', user.id)
           .single();
@@ -220,9 +220,9 @@ export default function StudentPinSetup() {
         throw updateError;
       }
 
-      // Update the profile with the PIN as well
+      // Update the student profile with the PIN as well
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from('student_profiles')
         .update({ 
           pin_code: pin, 
           username: currentUsername,
@@ -231,7 +231,7 @@ export default function StudentPinSetup() {
         .eq('user_id', userData.user.id);
 
       if (profileError) {
-        console.error('Error updating profile:', profileError);
+        console.error('Error updating student profile:', profileError);
         throw new Error('Error updating profile');
       }
 

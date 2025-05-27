@@ -16,9 +16,9 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
     
-    // Verify PIN matches in profiles table
+    // Verify PIN matches in student_profiles table
     const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
+      .from('student_profiles')
       .select('user_id, pin_code')
       .eq('user_id', user_id)
       .single();
@@ -142,9 +142,9 @@ export async function POST(request: Request) {
       else {
         console.log('Using direct student lookup for sign-in');
         
-        // Get the student's email from the profiles and auth.users table
+        // Get the student's email from the student_profiles and auth.users table
         const { data: userData, error: userError } = await supabaseAdmin
-          .from('profiles')
+          .from('student_profiles')
           .select('user_id, email, full_name')
           .eq('user_id', user_id)
           .single();

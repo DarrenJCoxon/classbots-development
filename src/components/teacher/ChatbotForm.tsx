@@ -17,7 +17,6 @@ import { ModernButton } from '@/components/shared/ModernButton';
 import EnhancedRagUploader from './EnhancedRagUploader';
 import EnhancedRagScraper from './EnhancedRagScraper';
 import DocumentList from './DocumentList';
-import DocumentUploader from './DocumentUploader';
 import ReadingDocumentUploader from './ReadingDocumentUploader';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 // No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
@@ -769,7 +768,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
 
             {(formData.bot_type === 'learning' || formData.bot_type === 'reading_room') && (
               <FormGroup>
-                  <Label htmlFor="enable_rag">Knowledge Base (RAG)</Label>
+                  <Label htmlFor="enable_rag">
+                    {formData.bot_type === 'reading_room' ? 'Knowledge Base (Optional)' : 'Knowledge Base (RAG)'}
+                  </Label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px'}}>
                       <input
                           id="enable_rag"
@@ -779,10 +780,16 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                           onChange={handleChange}
                           style={{ width: '1.15em', height: '1.15em', cursor: 'pointer' }}
                       />
-                      <span>Enable RAG: Allow chatbot to use uploaded documents to answer questions.</span>
+                      <span>
+                        {formData.bot_type === 'reading_room' 
+                          ? 'Enable Knowledge Base: Allow the AI to use additional reference materials for context.'
+                          : 'Enable RAG: Allow chatbot to use uploaded documents to answer questions.'}
+                      </span>
                   </div>
                   <HelpText>
-                      If enabled, you can upload documents to this chatbot&apos;s knowledge base after creation (on the chatbot&apos;s configuration page).
+                      {formData.bot_type === 'reading_room'
+                        ? 'Add supplementary materials like teacher guides, answer keys, or background information to help the AI provide better support.'
+                        : 'If enabled, you can upload documents to this chatbot\'s knowledge base after creation (on the chatbot\'s configuration page).'}
                   </HelpText>
                   
                   {formData.enable_rag && (
@@ -841,7 +848,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                         </>
                       ) : (
                         <Alert variant="info" style={{ marginTop: '12px', marginBottom: '12px' }}>
-                          After creating your chatbot, you&apos;ll be able to upload documents and scrape webpages for the knowledge base.
+                          {formData.bot_type === 'reading_room' 
+                            ? '💡 Step 2 (Optional): After uploading the reading document, you can add supplementary materials here like teacher guides or answer keys.'
+                            : 'After creating your chatbot, you\'ll be able to upload documents and scrape webpages for the knowledge base.'}
                         </Alert>
                       )}
                     </>
@@ -850,128 +859,26 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
             )}
 
             {formData.bot_type === 'reading_room' && (
-              <>
-                {/* Reading Document Upload Section */}
-                <FormGroup style={{ 
-                  border: '2px solid #3b82f6', 
-                  padding: '1.5rem', 
-                  borderRadius: '8px',
-                  background: '#f0f9ff',
-                  marginBottom: '2rem'
-                }}>
-                  <Label htmlFor="reading_document" style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'block' }}>📖 Reading Document</Label>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <strong style={{ color: '#1e40af' }}>This is the main document students will read:</strong>
-                    <ul style={{ marginTop: '0.5rem', marginBottom: '1rem', paddingLeft: '1.5rem', color: '#64748b' }}>
-                      <li>Students see this PDF on the left side of their screen</li>
-                      <li>The AI helps explain and answer questions about this document</li>
-                      <li>Perfect for: textbooks, articles, stories, or any reading material</li>
-                    </ul>
-                  </div>
-                  
-                  {editMode && initialData?.chatbot_id ? (
-                    <>
-                      <ReadingDocumentUploader
-                        chatbotId={initialData.chatbot_id}
-                        onUploadSuccess={() => {
-                          setSuccessMessage('Reading document updated successfully!');
-                          setTimeout(() => setSuccessMessage(null), 5000);
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <Alert variant="info">
-                      After creating your Reading Room bot, you'll upload the reading document here.
-                    </Alert>
-                  )}
-                </FormGroup>
-
-                {/* Knowledge Base Section for Reading Room */}
-                <FormGroup style={{ 
-                  border: '2px dashed #10b981', 
-                  padding: '1.5rem', 
-                  borderRadius: '8px',
-                  background: '#f0fdf4'
-                }}>
-                  <Label style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'block' }}>📚 Reference Materials (Optional)</Label>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <strong style={{ color: '#059669' }}>Add supplementary materials to help the AI:</strong>
-                    <ul style={{ marginTop: '0.5rem', marginBottom: '1rem', paddingLeft: '1.5rem', color: '#64748b' }}>
-                      <li>Teacher guides, answer keys, or study notes</li>
-                      <li>Background information or context about the reading</li>
-                      <li>Related articles or additional resources</li>
-                    </ul>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                    <input
-                      id="enable_rag_reading"
-                      name="enable_rag"
-                      type="checkbox"
-                      checked={formData.enable_rag}
-                      onChange={handleChange}
-                      style={{ width: '1.15em', height: '1.15em', cursor: 'pointer' }}
-                    />
-                    <span>Enable Reference Materials: Allow the AI to use additional documents for context</span>
-                  </div>
-                  
-                  {formData.enable_rag && (
-                    <>
-                      {editMode && initialData?.chatbot_id ? (
-                        <>
-                          <EnhancedRagUploader
-                            chatbotId={initialData.chatbot_id}
-                            onUploadSuccess={(newDocument) => {
-                              if (newDocument) {
-                                setDocuments(prev => [newDocument, ...prev]);
-                              }
-                              setRefreshTrigger(prev => prev + 1);
-                            }}
-                          />
-                          <EnhancedRagScraper
-                            chatbotId={initialData.chatbot_id}
-                            onScrapeSuccess={(newDocument) => {
-                              if (newDocument) {
-                                setDocuments(prev => [newDocument, ...prev]);
-                              }
-                              setRefreshTrigger(prev => prev + 1);
-                            }}
-                          />
-                          
-                          {docsError && <Alert variant="error" style={{ marginTop: '16px' }}>{docsError}</Alert>}
-                          
-                          <div style={{ marginTop: '24px' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Reference Documents</h3>
-                            
-                            {docsLoading && documents.length === 0 ? (
-                              <div style={{ textAlign: 'center', padding: '20px' }}>
-                                <p>Loading documents...</p>
-                              </div>
-                            ) : (
-                              <DocumentList
-                                documents={documents}
-                                onProcessDocument={handleProcessDocument}
-                                onDeleteDocument={handleDeleteDocument}
-                                onViewStatus={() => {}}
-                              />
-                            )}
-                            
-                            {!docsLoading && documents.length === 0 && (
-                              <Alert variant="info" style={{ marginTop: '12px' }}>
-                                No reference materials added yet. These are optional but can help the AI provide better assistance.
-                              </Alert>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <Alert variant="info">
-                          After creating your Reading Room bot, you can add reference materials here.
-                        </Alert>
-                      )}
-                    </>
-                  )}
-                </FormGroup>
-              </>
+              <FormGroup>
+                <Label htmlFor="reading_document">📖 Reading Document</Label>
+                <HelpText>
+                  This is the main document students will read. It appears on the left side of their screen while they chat with the AI.
+                </HelpText>
+                
+                {editMode && initialData?.chatbot_id ? (
+                  <ReadingDocumentUploader
+                    chatbotId={initialData.chatbot_id}
+                    onUploadSuccess={() => {
+                      setSuccessMessage('Reading document updated successfully!');
+                      setTimeout(() => setSuccessMessage(null), 5000);
+                    }}
+                  />
+                ) : (
+                  <Alert variant="info">
+                    💡 Step 1: Create your Reading Room bot first. After clicking "Create Skolrbot", you'll be automatically redirected to upload the reading document.
+                  </Alert>
+                )}
+              </FormGroup>
             )}
 
             <FormGroup>

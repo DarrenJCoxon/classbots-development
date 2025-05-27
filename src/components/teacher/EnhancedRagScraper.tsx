@@ -235,6 +235,13 @@ export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: Enhan
       
       if (!processResponse.ok) {
         const data = await processResponse.json().catch(() => ({}));
+        
+        // If document is already being processed, show a more helpful message
+        if (data.error && data.error.includes('already being processed')) {
+          const minutes = data.minutesSinceUpdate ? ` (started ${data.minutesSinceUpdate} minutes ago)` : '';
+          throw new Error(`This webpage is already being processed${minutes}. Please wait a few minutes and try again.`);
+        }
+        
         throw new Error(data.error || 'Failed to process webpage content');
       }
       

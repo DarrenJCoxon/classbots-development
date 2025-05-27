@@ -5,14 +5,19 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Button, Alert } from '@/styles/StyledComponents';
+import { Container, Card, Button } from '@/styles/StyledComponents';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
+import { GlassCard } from '@/components/shared/GlassCard';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { PageTransition } from '@/components/shared/PageTransition';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types'; // Ensure path
 
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.xl} 0;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  min-height: 100vh;
 `;
 
 const Header = styled.div`
@@ -20,11 +25,17 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: ${({ theme }) => theme.spacing.xl};
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.05);
 `;
 
-const BackButton = styled(Button)`
+const BackButton = styled(ModernButton)`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     font-size: 14px;
     padding: 8px 16px;
@@ -33,12 +44,19 @@ const BackButton = styled(Button)`
 `;
 
 const Title = styled.h1`
-  color: ${({ theme }) => theme.colors.text};
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin: 0;
-  font-size: 1.7rem;
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
   }
 `;
 
@@ -46,21 +64,82 @@ const LoadingContainer = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
-  text-align: center; // Center text if using p tag
+  min-height: 400px;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.body};
+  font-size: 1.1rem;
 `;
 
-const Section = styled(Card)` // Use Card as base for sections
-    margin-bottom: ${({ theme }) => theme.spacing.xl};
-    h2 {
-        margin-top: 0;
-        margin-bottom: ${({ theme }) => theme.spacing.sm};
+const Section = styled(GlassCard)`
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  padding: ${({ theme }) => theme.spacing.xl};
+  
+  h2 {
+    margin-top: 0;
+    margin-bottom: ${({ theme }) => theme.spacing.md};
+    color: ${({ theme }) => theme.colors.text};
+    font-family: ${({ theme }) => theme.fonts.heading};
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  
+  p {
+    color: ${({ theme }) => theme.colors.textMuted};
+    font-size: 0.95rem;
+    margin-bottom: ${({ theme }) => theme.spacing.lg};
+    line-height: 1.6;
+    font-family: ${({ theme }) => theme.fonts.body};
+  }
+`;
+
+const ModernAlert = styled.div<{ $variant?: 'success' | 'error' | 'warning' }>`
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  font-family: ${({ theme }) => theme.fonts.body};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  animation: fadeIn 0.3s ease-in-out;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'success':
+        return `
+          background: rgba(76, 190, 243, 0.1);
+          color: ${theme.colors.success};
+          border: 1px solid rgba(76, 190, 243, 0.2);
+        `;
+      case 'error':
+        return `
+          background: rgba(254, 67, 114, 0.1);
+          color: ${theme.colors.danger};
+          border: 1px solid rgba(254, 67, 114, 0.2);
+        `;
+      case 'warning':
+        return `
+          background: rgba(200, 72, 175, 0.1);
+          color: ${theme.colors.warning};
+          border: 1px solid rgba(200, 72, 175, 0.2);
+        `;
+      default:
+        return `
+          background: rgba(152, 93, 215, 0.1);
+          color: ${theme.colors.primary};
+          border: 1px solid rgba(152, 93, 215, 0.2);
+        `;
     }
-    p {
-        color: ${({ theme }) => theme.colors.textLight};
-        font-size: 0.9rem;
-        margin-bottom: ${({ theme }) => theme.spacing.lg};
+  }}
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
     }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 `;
 
 
@@ -73,6 +152,7 @@ export default function KnowledgeBasePage() {
   const [docsError, setDocsError] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Removed grid view - list only
   
   const params = useParams();
   const router = useRouter();
@@ -222,7 +302,7 @@ export default function KnowledgeBasePage() {
     return (
         <PageWrapper>
             <Container>
-                <Alert variant="error" style={{marginTop: '20px'}}>{pageError}</Alert>
+                <ModernAlert $variant="error" style={{marginTop: '20px'}}>{pageError}</ModernAlert>
                 <Button onClick={() => router.push('/teacher-dashboard/chatbots')} style={{marginTop: '16px'}}>
                     Back to Chatbots
                 </Button>
@@ -233,21 +313,23 @@ export default function KnowledgeBasePage() {
 
   return (
     <PageWrapper>
-      <Container>
+      <PageTransition>
+        <Container>
         <Header>
           <Title>Knowledge Base: {chatbotName || "Chatbot"}</Title>
           <BackButton 
-            variant="outline" 
-            onClick={() => router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`)} // Link back to edit page
+            variant="ghost" 
+            size="medium"
+            onClick={() => router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`)}
           >
             ← Back to Chatbot Config
           </BackButton>
         </Header>
         
-        {successMessage && <Alert variant="success" style={{marginBottom: '16px'}}>{successMessage}</Alert>}
-        {docsError && <Alert variant="error" style={{marginBottom: '16px'}}>{docsError}</Alert>}
+        {successMessage && <ModernAlert $variant="success">{successMessage}</ModernAlert>}
+        {docsError && <ModernAlert $variant="error">{docsError}</ModernAlert>}
         
-        <Section>
+        <Section variant="light" hoverable={undefined}>
           <h2>Add Documents</h2>
           <p>Upload PDF, Word, or TXT files. These will be processed and made available for your chatbot to use when RAG is enabled.</p>
           <DocumentUploader 
@@ -264,7 +346,7 @@ export default function KnowledgeBasePage() {
           />
         </Section>
         
-        <Section>
+        <Section variant="light" hoverable={undefined}>
             <h2>Uploaded Documents</h2>
             {getViewingDocument() && (
               <EmbeddingStatus 
@@ -289,6 +371,7 @@ export default function KnowledgeBasePage() {
             )}
         </Section>
       </Container>
+      </PageTransition>
     </PageWrapper>
   );
 }

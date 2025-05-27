@@ -58,15 +58,29 @@ export async function verifyUserMatchesUrlParam(request: NextRequest): Promise<{
     // 4. Get user's role to determine appropriate redirect
     let userRole = user.user_metadata?.role || null;
     
-    // If role not in metadata, check profiles table
+    // If role not in metadata, check the appropriate profiles table
     if (!userRole) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
+      // Try student_profiles first
+      const { data: studentProfile } = await supabase
+        .from('student_profiles')
+        .select('user_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       
-      userRole = profile?.role;
+      if (studentProfile) {
+        userRole = 'student';
+      } else {
+        // Check teacher_profiles
+        const { data: teacherProfile } = await supabase
+          .from('teacher_profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (teacherProfile) {
+          userRole = 'teacher';
+        }
+      }
     }
     
     // 5. If they are a teacher, they can access student resources (authorized)

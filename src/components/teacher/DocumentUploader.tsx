@@ -91,6 +91,35 @@ const FileSize = styled.span`
   font-family: ${({ theme }) => theme.fonts.body};
 `;
 
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 12px;
+  background: rgba(152, 93, 215, 0.1);
+  border-radius: 20px;
+  margin-top: ${({ theme }) => theme.spacing.md};
+  overflow: hidden;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+`;
+
+const ProgressFill = styled.div<{ progress: number }>`
+  height: 100%;
+  width: ${props => props.progress}%;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(152, 93, 215, 0.3);
+`;
+
+const StatusText = styled.div`
+  font-size: 0.875rem;
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  color: ${({ theme }) => theme.colors.primary};
+  font-family: ${({ theme }) => theme.fonts.body};
+  font-weight: 600;
+`;
+
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 
 const ModernAlert = styled.div<{ $variant?: 'success' | 'error' }>`
@@ -147,6 +176,8 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -200,22 +231,36 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
     setIsUploading(true);
     setError(null);
     setSuccessMessage(null);
+    setUploadProgress(0);
+    setUploadStatus('Preparing upload...');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('chatbotId', chatbotId); // << MODIFICATION: Add chatbotId to FormData
 
     try {
+      // Simulate progress for file preparation
+      setUploadProgress(10);
+      setUploadStatus('Uploading file...');
+      
       // << MODIFICATION: Change API endpoint >>
       const response = await fetch('/api/teacher/documents', {
         method: 'POST',
         body: formData,
       });
 
+      // Simulate progress during upload
+      setUploadProgress(50);
+      setUploadStatus('Processing document...');
+
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Failed to upload document');
       }
+      
+      // Complete progress
+      setUploadProgress(100);
+      setUploadStatus('Upload complete!');
       
       setSuccessMessage(data.message || 'Document uploaded and processing started automatically!');
       setSelectedFile(null); 
@@ -228,6 +273,11 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
       setError(err instanceof Error ? err.message : 'An unknown error occurred during upload.');
     } finally {
       setIsUploading(false);
+      // Reset progress after a short delay
+      setTimeout(() => {
+        setUploadProgress(0);
+        setUploadStatus('');
+      }, 2000);
     }
   };
 
@@ -294,6 +344,15 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
           >
             {isUploading ? 'Uploading...' : `Upload ${selectedFile.name}`}
           </ModernButton>
+          
+          {isUploading && (
+            <>
+              <ProgressBar>
+                <ProgressFill progress={uploadProgress} />
+              </ProgressBar>
+              <StatusText>{uploadStatus}</StatusText>
+            </>
+          )}
         </>
       )}
     </UploaderContainer>
