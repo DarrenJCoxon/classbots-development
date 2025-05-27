@@ -13,6 +13,8 @@ import type { ChatMessage as DbChatMessage } from '@/types/database.types'; // R
 interface ChatMessageProps {
   message: DbChatMessage; // Use the aliased type
   chatbotName: string;
+  userId?: string;
+  directAccess?: boolean;
 }
 
 type MessageMetadataWithFlags = {
@@ -272,7 +274,7 @@ const markdownComponents: Components = {
 // --- End React Markdown Components ---
 
 // --- Main Component ---
-function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
+function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: ChatMessageProps) {
     const isUser = message.role === 'user';
     const { speak, stop, isLoading: isTTSLoading, isPlaying, error: ttsError } = useTextToSpeech();
     
@@ -507,7 +509,10 @@ function ChatMessageDisplay({ message, chatbotName }: ChatMessageProps) {
                                 if (isPlaying) {
                                     stop();
                                 } else {
-                                    speak(message.content);
+                                    speak(message.content, {
+                                        userId,
+                                        directAccess
+                                    });
                                 }
                             }}
                             disabled={isTTSLoading}

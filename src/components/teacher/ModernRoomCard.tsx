@@ -295,6 +295,18 @@ const CardFooter = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: 10px 12px;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+    justify-content: space-between;
   }
 `;
 
@@ -393,6 +405,53 @@ const ViewButton = styled(Link)`
     font-size: 11px;
     gap: 4px;
     border-radius: 6px;
+    
+    &:hover {
+      transform: none;
+    }
+    
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+`;
+
+const ImportButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(152, 93, 215, 0.1);
+  color: ${({ theme }) => theme.colors.primary};
+  border: 1px solid rgba(152, 93, 215, 0.3);
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  
+  &:hover {
+    background: rgba(152, 93, 215, 0.2);
+    border-color: rgba(152, 93, 215, 0.5);
+    transform: translateY(-2px);
+  }
+  
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 6px 12px;
+    font-size: 11px;
+    gap: 4px;
     
     &:hover {
       transform: none;
@@ -569,6 +628,7 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
   };
 
   return (
+    <>
     <RoomCardContainer
       as={motion.div}
       initial={{ opacity: 0, y: 20 }}
@@ -611,13 +671,6 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
                 <DropdownItem onClick={generateJoinUrl}>
                   <FiLink />
                   Copy Join URL
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  setShowCsvUpload(true);
-                  setIsDropdownOpen(false);
-                }}>
-                  <FiUpload />
-                  Import Students
                 </DropdownItem>
                 <DropdownDivider />
                 <DropdownItem onClick={() => {
@@ -702,19 +755,27 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
           )}
         </StatusBadge>
         
-        <ViewButton href={`/teacher-dashboard/rooms/${room.room_id}`}>
-          View Details
-          <FiChevronRight />
-        </ViewButton>
+        <ButtonGroup>
+          <ImportButton onClick={() => setShowCsvUpload(true)}>
+            <FiUpload />
+            Import Students
+          </ImportButton>
+          
+          <ViewButton href={`/teacher-dashboard/rooms/${room.room_id}`}>
+            View Details
+            <FiChevronRight />
+          </ViewButton>
+        </ButtonGroup>
       </CardFooter>
-      
-      {showCsvUpload && (
-        <StudentCsvUpload
-          roomId={room.room_id}
-          roomName={room.room_name}
-          onClose={() => setShowCsvUpload(false)}
-        />
-      )}
     </RoomCardContainer>
+    
+    {showCsvUpload && (
+      <StudentCsvUpload
+        roomId={room.room_id}
+        roomName={room.room_name}
+        onClose={() => setShowCsvUpload(false)}
+      />
+    )}
+    </>
   );
 };

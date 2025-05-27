@@ -26,9 +26,9 @@ async function getSingleDetailedAssessment(
     if (assessmentError || !assessment) { return NextResponse.json({ error: 'Assessment not found or error fetching it.' }, { status: 404 }); }
     const { data: chatbotOwner, error: chatbotOwnerError } = await adminSupabase.from('chatbots').select('teacher_id, name').eq('chatbot_id', assessment.chatbot_id).single();
     if (chatbotOwnerError || !chatbotOwner || chatbotOwner.teacher_id !== requestingUserId) { return NextResponse.json({ error: 'Not authorized to view this assessment' }, { status: 403 });}
-    let studentProfile: Pick<Profile, 'full_name' | 'email'> | null = null;
+    let studentProfile: { full_name: string | null } | null = null;
     if (assessment.student_id) {
-        const { data: studentData } = await adminSupabase.from('profiles').select('full_name, email').eq('user_id', assessment.student_id).single();
+        const { data: studentData } = await adminSupabase.from('student_profiles').select('full_name').eq('user_id', assessment.student_id).single();
         studentProfile = studentData;
     }
     let assessedConversation: DbChatMessage[] = [];
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabaseUserClient.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
 
-    const { data: profile, error: profileError } = await supabaseUserClient.from('profiles').select('role').eq('user_id', user.id).single();
+    const { data: profile, error: profileError } = await supabaseUserClient.from('teacher_profiles').select('role').eq('user_id', user.id).single();
     if (profileError || !profile || profile.role !== 'teacher') { return NextResponse.json({ error: 'Not authorized' }, { status: 403 });}
     
     if (assessmentId) {
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
             const studentNamesMap: Map<string, string> = new Map();
             if (studentIds.length > 0) {
                 const { data: studentData, error: studentError } = await adminSupabase
-                    .from('profiles')
+                    .from('student_profiles')
                     .select('user_id, full_name')
                     .in('user_id', studentIds);
                 

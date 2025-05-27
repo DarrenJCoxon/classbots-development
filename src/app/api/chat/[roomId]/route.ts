@@ -38,19 +38,30 @@ export async function GET(request: NextRequest) {
 
         if (directAccessKey && bypassUserId && directAccessKey === (process.env.DIRECT_ACCESS_ADMIN_KEY || 'directaccess_key')) {
             console.log(`[API Chat GET] Using bypassed auth for user: ${bypassUserId}`);
-            // Use admin client to verify the user exists
-            const { data: userData, error: userError } = await supabaseAdmin
-                .from('profiles')
-                .select('user_id, role')
+            // Use admin client to verify the user exists - check both profile tables
+            const { data: studentProfile } = await supabaseAdmin
+                .from('student_profiles')
+                .select('user_id')
                 .eq('user_id', bypassUserId)
                 .maybeSingle();
-
-            if (userError || !userData) {
-                console.error(`[API Chat GET] Error verifying bypassed user ${bypassUserId}:`, userError);
-                return createErrorResponse('Invalid bypass user ID', 401, ErrorCodes.UNAUTHORIZED);
+                
+            if (studentProfile) {
+                user = { id: bypassUserId, role: 'student' };
+            } else {
+                // Check teacher_profiles if not a student
+                const { data: teacherProfile } = await supabaseAdmin
+                    .from('teacher_profiles')
+                    .select('user_id')
+                    .eq('user_id', bypassUserId)
+                    .maybeSingle();
+                    
+                if (teacherProfile) {
+                    user = { id: bypassUserId, role: 'teacher' };
+                } else {
+                    console.error(`[API Chat GET] User ${bypassUserId} not found in student_profiles or teacher_profiles`);
+                    return createErrorResponse('Invalid bypass user ID', 401, ErrorCodes.UNAUTHORIZED);
+                }
             }
-
-            user = { id: bypassUserId, role: userData.role };
         } else {
             // Standard authentication
             const supabase = await createServerSupabaseClient();
@@ -58,13 +69,23 @@ export async function GET(request: NextRequest) {
             if (authError || !authUser) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
             
             // Get user profile with admin client to ensure we have the role
-            const { data: userProfile } = await supabaseAdmin
-                .from('profiles')
-                .select('role')
+            const { data: studentProfile } = await supabaseAdmin
+                .from('student_profiles')
+                .select('user_id')
                 .eq('user_id', authUser.id)
                 .single();
                 
-            user = { ...authUser, role: userProfile?.role };
+            if (studentProfile) {
+                user = { ...authUser, role: 'student' };
+            } else {
+                const { data: teacherProfile } = await supabaseAdmin
+                    .from('teacher_profiles')
+                    .select('user_id')
+                    .eq('user_id', authUser.id)
+                    .single();
+                    
+                user = { ...authUser, role: teacherProfile ? 'teacher' : undefined };
+            }
         }
         
         if (!isTeacherTestRoom(roomId)) {
@@ -83,13 +104,23 @@ export async function GET(request: NextRequest) {
             // Get user profile using admin client if not already available
             let userRole = user.role;
             if (!userRole) {
-                const { data: profile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('role')
+                const { data: studentProfile } = await supabaseAdmin
+                    .from('student_profiles')
+                    .select('user_id')
                     .eq('user_id', user.id)
                     .single();
                     
-                userRole = profile?.role;
+                if (studentProfile) {
+                    userRole = 'student';
+                } else {
+                    const { data: teacherProfile } = await supabaseAdmin
+                        .from('teacher_profiles')
+                        .select('user_id')
+                        .eq('user_id', user.id)
+                        .single();
+                        
+                    userRole = teacherProfile ? 'teacher' : undefined;
+                }
             }
             
             if (userRole === 'student' && !roomMembership) {
@@ -240,13 +271,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
 
-    // Get user profile with admin client to bypass RLS - include country_code
-    const { data: userProfile, error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .select('role, country_code')
+    // Get user profile with admin client to bypass RLS - check both profile tables
+    let userProfile: any = null;
+    let userRole: string | undefined;
+    
+    // Check student_profiles first
+    const { data: studentProfile } = await supabaseAdmin
+        .from('student_profiles')
+        .select('user_id, country_code')
         .eq('user_id', user.id)
         .single();
-    if (profileError || !userProfile) { return NextResponse.json({ error: 'User profile not found' }, { status: 403 }); }
+        
+    if (studentProfile) {
+        userProfile = { ...studentProfile, role: 'student' };
+        userRole = 'student';
+    } else {
+        // Check teacher_profiles
+        const { data: teacherProfile } = await supabaseAdmin
+            .from('teacher_profiles')
+            .select('user_id, country_code')
+            .eq('user_id', user.id)
+            .single();
+            
+        if (teacherProfile) {
+            userProfile = { ...teacherProfile, role: 'teacher' };
+            userRole = 'teacher';
+        } else {
+            console.error(`[API Chat POST] User ${user.id} not found in student_profiles or teacher_profiles`);
+            return NextResponse.json({ error: 'User profile not found' }, { status: 403 });
+        }
+    }
     
     // Determine effective country code: request body takes precedence over profile
     const effectiveCountryCode = requestCountryCode || userProfile.country_code || null;
@@ -256,8 +310,8 @@ export async function POST(request: NextRequest) {
       effective: effectiveCountryCode || 'null'
     });
 
-    const isStudent = userProfile.role === 'student';
-    const isTeacher = userProfile.role === 'teacher';
+    const isStudent = userRole === 'student';
+    const isTeacher = userRole === 'teacher';
     
     console.log(`[API Chat POST] Received request:`, {
       content: content?.substring(0, 30),
@@ -351,8 +405,8 @@ export async function POST(request: NextRequest) {
             
             // Get this specific teacher's profile
             const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabaseAdmin
-                .from('profiles')
-                .select('country_code, role, email')
+                .from('teacher_profiles')
+                .select('country_code, email')
                 .eq('user_id', roomData.teacher_id)
                 .single();
                 
@@ -403,8 +457,8 @@ export async function POST(request: NextRequest) {
             created_at: new Date().toISOString(),
         };
         const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await supabaseAdmin
-            .from('profiles')
-            .select('country_code, email, role')
+            .from('teacher_profiles')
+            .select('country_code, email')
             .eq('user_id', chatbotConfig.teacher_id)
             .single();
             
@@ -542,12 +596,29 @@ export async function POST(request: NextRequest) {
                   { 
                     type: "safety_intervention_triggered", 
                     message: "Safety intervention triggered. A safety message will be displayed.",
-                    country_code: countryCode
+                    country_code: countryCode,
+                    message_id: currentMessageId,
+                    room_id: roomId,
+                    user_id: user.id
                   }, 
                   { status: 200 }
                 );
             } catch (safetyError) {
                 console.error(`[API Chat POST] Error processing safety check:`, safetyError);
+                console.error(`[API Chat POST] Safety check error details:`, {
+                    errorType: safetyError?.constructor?.name,
+                    errorMessage: safetyError instanceof Error ? safetyError.message : String(safetyError),
+                    errorStack: safetyError instanceof Error ? safetyError.stack : 'No stack trace',
+                    messageId: currentMessageId,
+                    userId: user.id,
+                    roomId: roomId,
+                    countryCode: countryCode
+                });
+                // Return error response instead of continuing
+                return NextResponse.json(
+                    { error: 'Failed to process safety check', details: safetyError instanceof Error ? safetyError.message : 'Unknown error' },
+                    { status: 500 }
+                );
             }
         } else {
             console.error(`[API Chat POST] Could not find room data for safety processing: ${roomId}`);

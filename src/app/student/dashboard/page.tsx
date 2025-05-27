@@ -20,7 +20,8 @@ console.log('STUDENT DASHBOARD PAGE LOADING', new Date().toISOString());
 interface StudentProfile {
   user_id: string;
   full_name: string | null;
-  email: string | null;
+  first_name: string | null;
+  surname: string | null;
   is_anonymous?: boolean;
   username?: string;
   pin_code?: string;
@@ -409,6 +410,7 @@ export default function StudentDashboardPage() {
       
       // Set rooms - API returns joinedRooms
       if (response_data.joinedRooms) {
+        console.log(`Loaded ${response_data.joinedRooms.length} rooms:`, response_data.joinedRooms);
         setRooms(response_data.joinedRooms.map((room: any) => ({
           ...room,
           is_active: true,
@@ -416,6 +418,7 @@ export default function StudentDashboardPage() {
           created_at: room.joined_at
         })));
       } else {
+        console.log('No rooms found in response');
         setRooms([]);
       }
       
@@ -542,7 +545,7 @@ export default function StudentDashboardPage() {
           transition={{ duration: 0.4 }}
           style={{ textAlign: 'center', marginBottom: '40px' }}
         >
-          <Title>Welcome, {studentProfile?.full_name || 'Student'}!</Title>
+          <Title>Welcome, {studentProfile?.first_name || studentProfile?.full_name || 'Student'}!</Title>
           <Subtitle>
             {rooms.length > 0 
               ? `You have access to ${rooms.length} ${rooms.length === 1 ? 'classroom' : 'classrooms'} with ${rooms.reduce((total, room) => total + room.chatbots.length, 0)} chatbots.`

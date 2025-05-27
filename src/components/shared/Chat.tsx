@@ -157,7 +157,7 @@ interface ChatProps {
   countryCode?: string;
 }
 
-export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatProps) {
+export default function Chat({ roomId, chatbot, instanceId, countryCode, directMode }: ChatProps) {
   // Auto-detect country code if not provided
   const detectedCountryCode = countryCode || (() => {
     if (typeof navigator !== 'undefined') {
@@ -1454,7 +1454,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode }: ChatP
                 <ChatMessageComponent 
                   key={message.message_id} 
                   message={message} 
-                  chatbotName={chatbot.name} 
+                  chatbotName={chatbot.name}
+                  userId={userId || undefined}
+                  directAccess={!!searchParams?.get('direct') || directMode}
                 />
               );
             })

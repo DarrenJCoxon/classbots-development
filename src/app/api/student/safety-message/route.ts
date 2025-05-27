@@ -101,7 +101,9 @@ export async function GET(request: NextRequest) {
           console.log(`[SAFETY API DIAGNOSTICS] Found ${count || 0} safety messages for user ${userId} in room ${roomId}`);
         }
         
-        // Now get the most recent safety message
+        // Now get the most recent safety message (within last 30 minutes)
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        
         const { data, error } = await supabaseAdmin
           .from('chat_messages')
           .select('*')
@@ -109,6 +111,7 @@ export async function GET(request: NextRequest) {
           .eq('room_id', roomId)
           .eq('role', 'system')
           .filter('metadata->isSystemSafetyResponse', 'eq', true)
+          .gte('created_at', thirtyMinutesAgo) // Only messages from last 30 minutes
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(); // Use maybeSingle to avoid throwing an error if no results
@@ -127,9 +130,9 @@ export async function GET(request: NextRequest) {
         }
         
         if (!data) {
-          console.log(`[SAFETY API DIAGNOSTICS] No safety messages found for user ${userId} in room ${roomId}`);
+          console.log(`[SAFETY API DIAGNOSTICS] No recent safety messages found for user ${userId} in room ${roomId} (checking messages from last 30 minutes)`);
         } else {
-          console.log(`[SAFETY API DIAGNOSTICS] Found latest safety message ID: ${data.message_id}, created: ${data.created_at}`);
+          console.log(`[SAFETY API DIAGNOSTICS] Found recent safety message ID: ${data.message_id}, created: ${data.created_at} (within last 30 minutes)`);
         }
         
         // No safety message found is a valid result (returns null)

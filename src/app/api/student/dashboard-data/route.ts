@@ -136,13 +136,16 @@ export async function GET(request: NextRequest) {
     console.log(`[API GET /student/dashboard-data] PIN verification status: ${pinVerified ? 'Verified' : 'Unknown'}`);
     
     // Verify user is a student
+    let profile: any;
     try {
       // Let's try to be extra careful about database connections
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, role, full_name, email') // Fetch full_name and email too
+      const { data: profileData, error: profileError } = await supabase
+        .from('student_profiles')
+        .select('user_id, role, full_name') // Fetch full_name too
         .eq('user_id', effectiveUserId)
         .single();
+      
+      profile = profileData;
 
     if (profileError || !profile) {
       console.warn(`[API GET /student/dashboard-data] Profile error for user ${effectiveUserId}:`, profileError?.message);
@@ -160,16 +163,12 @@ export async function GET(request: NextRequest) {
           email: null
         };
         
-        return NextResponse.json({
-          studentProfile: tempProfile,
-          joinedRooms: [],
-          recentAssessments: [],
-          message: 'Using temporary profile for authenticated student'
-        });
+        // Don't return early - continue to fetch rooms with the temp profile
+        profile = tempProfile;
       }
       
       // If not PIN verified, try regular profile creation flow
-      if (isDirect && hasTimestamp) {
+      else if (isDirect && hasTimestamp && !profile) {
         console.log(`[API GET /student/dashboard-data] Direct login - trying to create profile for ${effectiveUserId}`);
         
         try {
@@ -179,7 +178,7 @@ export async function GET(request: NextRequest) {
           
           // Try to create a basic profile directly (don't try to use auth.admin which is failing)
           const { error: insertError } = await supabase
-            .from('profiles')
+            .from('student_profiles')
             .insert({
               user_id: effectiveUserId,
               role: 'student',
@@ -197,19 +196,15 @@ export async function GET(request: NextRequest) {
             
             // Try to get the profile again
             const { data: newProfile } = await supabase
-              .from('profiles')
-              .select('user_id, role, full_name, email')
+              .from('student_profiles')
+              .select('user_id, role, full_name')
               .eq('user_id', effectiveUserId)
               .single();
               
             if (newProfile) {
               console.log('[API GET /student/dashboard-data] Successfully retrieved new profile');
-              return NextResponse.json({
-                studentProfile: newProfile,
-                joinedRooms: [],
-                recentAssessments: [],
-                message: 'New profile created' 
-              });
+              // Don't return early - continue to fetch rooms
+              profile = newProfile;
             }
           }
         } catch (err) {
@@ -217,11 +212,13 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // If we still don't have a profile, return an error
-      return NextResponse.json({ error: 'User profile not found.' }, { status: 403 });
+      // If we still don't have a profile and it's not a direct/PIN access, return an error
+      if (!profile) {
+        return NextResponse.json({ error: 'User profile not found.' }, { status: 403 });
+      }
     }
     
-    if (profile.role !== 'student') {
+    if (profile && profile.role !== 'student') {
       console.warn(`[API GET /student/dashboard-data] User ${effectiveUserId} is not a student. Role: ${profile.role}`);
       return NextResponse.json({ error: 'Not authorized (user is not a student)' }, { status: 403 });
     }
@@ -229,7 +226,7 @@ export async function GET(request: NextRequest) {
       console.error('[API GET /student/dashboard-data] Error checking user profile:', err);
       
       // If profile check fails but PIN was verified, create a temporary profile
-      if (pinVerified) {
+      if (pinVerified || (isDirect && hasTimestamp)) {
         const tempProfile = {
           user_id: effectiveUserId,
           role: 'student',
@@ -237,43 +234,47 @@ export async function GET(request: NextRequest) {
           email: null
         };
         
-        return NextResponse.json({
-          studentProfile: tempProfile,
-          joinedRooms: [],
-          recentAssessments: [],
-          message: 'Using temporary profile after exception'
-        });
+        // Don't return early - continue to fetch rooms
+        profile = tempProfile;
+      } else {
+        return NextResponse.json({ error: 'Error checking user profile' }, { status: 500 });
       }
-      
-      return NextResponse.json({ error: 'Error checking user profile' }, { status: 500 });
     }
     
     console.log(`[API GET /student/dashboard-data] User ${effectiveUserId} authenticated as student.`);
     
-    // Since we've already verified the user is a student,
-    // let's fetch the profile data again to ensure we have it for this scope
-    // Include pin_code and username in the selection
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, email, pin_code, username')
-      .eq('user_id', effectiveUserId)
-      .single();
-      
-    // Extended profile info to include pin_code and username
-    const studentProfileInfo = {
-        user_id: effectiveUserId, // We already have validated effectiveUserId
-        full_name: userProfile?.full_name || 'Student',
-        email: userProfile?.email || '',
-        pin_code: userProfile?.pin_code || null,
-        username: userProfile?.username || null
-    };
-
     // Simplify our approach - just use the admin client directly for reliability
     // Create an admin client to bypass RLS policies that might be causing issues
     const supabaseAdmin = createAdminClient();
     console.log('[API GET /student/dashboard-data] Using admin client to fetch rooms');
     
+    // Since we've already verified the user is a student,
+    // let's fetch the profile data again to ensure we have it for this scope
+    // Include pin_code and username in the selection
+    const { data: userProfile, error: profileFetchError } = await supabaseAdmin
+      .from('student_profiles')
+      .select('user_id, full_name, first_name, surname, pin_code, username')
+      .eq('user_id', effectiveUserId)
+      .single();
+      
+    if (profileFetchError) {
+      console.log('[API GET /student/dashboard-data] Error fetching full profile:', profileFetchError.message);
+    } else {
+      console.log('[API GET /student/dashboard-data] Fetched profile:', userProfile);
+    }
+      
+    // Extended profile info to include pin_code and username
+    const studentProfileInfo = {
+        user_id: effectiveUserId, // We already have validated effectiveUserId
+        full_name: userProfile?.full_name || profile?.full_name || 'Student',
+        first_name: userProfile?.first_name || null,
+        surname: userProfile?.surname || null,
+        pin_code: userProfile?.pin_code || null,
+        username: userProfile?.username || null
+    };
+    
     // Fetch joined rooms with admin client
+    console.log('[API GET /student/dashboard-data] Querying room_memberships for student_id:', effectiveUserId);
     const { data: membershipsData, error: roomsError } = await supabaseAdmin
       .from('room_memberships')
       .select(`

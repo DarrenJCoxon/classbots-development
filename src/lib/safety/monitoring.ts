@@ -1015,7 +1015,8 @@ export async function checkMessageSafety(
         }
 
         const adminClient = createAdminClient();
-        const { data: currentMessageData, error: fetchMsgError } = await supabaseUserContextClient
+        // Use admin client to fetch the message to ensure we can see it
+        const { data: currentMessageData, error: fetchMsgError } = await adminClient
             .from('chat_messages')
             .select('created_at, metadata')
             .eq('message_id', messageId)
@@ -1023,7 +1024,8 @@ export async function checkMessageSafety(
 
         if (fetchMsgError || !currentMessageData) {
              console.error(`[Safety Check] Failed to fetch current message ${messageId}:`, fetchMsgError);
-             return;
+             console.error(`[Safety Check] Message ID: ${messageId}, Student ID: ${studentId}`);
+             throw new Error(`Failed to fetch message data: ${fetchMsgError?.message || 'Message not found'}`);
         }
 
         const { hasConcern, concernType } = initialConcernCheck(messageContent);
@@ -1052,23 +1054,61 @@ export async function checkMessageSafety(
             );
 
             if (isRealConcern && concernLevel >= CONCERN_THRESHOLD) {
+                console.log(`[Safety Check] Creating flag for real concern. Room data:`, {
+                    roomId: room.room_id,
+                    teacherId: room.teacher_id,
+                    roomName: room.room_name,
+                    roomCodeExists: !!room.room_code
+                });
+                
                 const { data: teacherProfile } = await adminClient.from('profiles').select('email').eq('user_id', room.teacher_id).single();
                 const { data: studentProfile } = await adminClient.from('profiles').select('full_name').eq('user_id', studentId).single();
                 const studentName = studentProfile?.full_name || `Student (ID: ${studentId.substring(0, 6)}...)`;
+                
+                console.log(`[Safety Check] Attempting to insert flag with data:`, {
+                    message_id: messageId,
+                    student_id: studentId,
+                    teacher_id: room.teacher_id,
+                    room_id: room.room_id,
+                    concern_type: concernType,
+                    concern_level: concernLevel,
+                    status: 'pending'
+                });
+                
                 const { data: insertedFlag, error: flagInsertError } = await adminClient.from('flagged_messages').insert({
-                    message_id: messageId, student_id: studentId, teacher_id: room.teacher_id,
-                    room_id: room.room_id, concern_type: concernType, concern_level: concernLevel,
-                    analysis_explanation: analysisExplanation, status: 'pending',
+                    message_id: messageId, 
+                    student_id: studentId, 
+                    teacher_id: room.teacher_id,
+                    room_id: room.room_id, 
+                    concern_type: concernType, 
+                    concern_level: concernLevel,
+                    analysis_explanation: analysisExplanation, 
+                    status: 'pending' as const
                 }).select('flag_id').single();
 
-                if (flagInsertError) { console.error(`[Safety Check] FAILED to insert flag:`, flagInsertError.message); return; }
-                
-                const newFlagId = insertedFlag!.flag_id; // Non-null assertion because if no error, data should exist
-                console.log(`[Safety Check] Flag ${newFlagId} inserted for message ${messageId}.`);
-                if (teacherProfile?.email) {
-                    const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${newFlagId}`;
-                    await sendTeacherAlert(teacherProfile.email,studentName,room.room_name || `Room (ID: ${room.room_id.substring(0,6)})`,concernType,concernLevel,messageContent,viewUrl);
-                } else { console.warn(`[Safety Check] Teacher email for ${room.teacher_id} not found. Cannot send alert for flag ${newFlagId}.`);}
+                if (flagInsertError) { 
+                    console.error(`[Safety Check] FAILED to insert flag:`, flagInsertError.message); 
+                    console.error(`[Safety Check] Flag insertion error details:`, {
+                        error: flagInsertError,
+                        messageId,
+                        studentId,
+                        teacherId: room.teacher_id,
+                        roomId: room.room_id,
+                        concernType,
+                        concernLevel
+                    });
+                    // Don't return here - continue to show safety message to student even if flag fails
+                } else if (insertedFlag && insertedFlag.flag_id) {
+                    const flagId = insertedFlag.flag_id;
+                    console.log(`[Safety Check] Flag ${flagId} inserted for message ${messageId}.`);
+                    if (teacherProfile?.email) {
+                        const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/teacher-dashboard/concerns/${flagId}`;
+                        await sendTeacherAlert(teacherProfile.email,studentName,room.room_name || `Room (ID: ${room.room_id.substring(0,6)})`,concernType,concernLevel,messageContent,viewUrl);
+                        console.log(`[Safety Check] Email alert sent to teacher ${teacherProfile.email} for flag ${flagId}`);
+                    } else { 
+                        console.warn(`[Safety Check] Teacher email for ${room.teacher_id} not found. Cannot send alert for flag ${flagId}.`);
+                    }
+                }
             } else { console.log(`[Safety Check] Concern level ${concernLevel} < threshold ${CONCERN_THRESHOLD} or not real.`); }
 
             if (isRealConcern && concernLevel >= CONCERN_THRESHOLD) {

@@ -5,16 +5,34 @@ import openai from '@/lib/openai/client';
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
+    // Get request body first to check for direct access
+    const body = await request.json();
+    const { text, voice = 'alloy', speed = 1.0, userId, directAccess } = body;
+
+    // Check authentication - allow both normal auth and direct access
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    if (authError || !user) {
+    // If no authenticated user but direct access is requested with userId
+    if ((!user || authError) && (!directAccess || !userId)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get request body
-    const { text, voice = 'alloy', speed = 1.0 } = await request.json();
+    // For direct access, verify the user exists in auth.users
+    if (directAccess && userId && !user) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const adminClient = createAdminClient();
+      
+      const { data: userCheck } = await adminClient
+        .from('student_profiles')
+        .select('user_id')
+        .eq('user_id', userId)
+        .single();
+        
+      if (!userCheck) {
+        return NextResponse.json({ error: 'Invalid user' }, { status: 401 });
+      }
+    }
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });

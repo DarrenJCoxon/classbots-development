@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from 'react';
 interface TTSOptions {
   voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
   speed?: number;
+  userId?: string;
+  directAccess?: boolean;
 }
 
 export function useTextToSpeech() {
@@ -44,6 +46,8 @@ export function useTextToSpeech() {
           text,
           voice: options.voice || 'alloy',
           speed: options.speed || 1.0,
+          userId: options.userId,
+          directAccess: options.directAccess,
         }),
         signal: abortControllerRef.current.signal,
       });

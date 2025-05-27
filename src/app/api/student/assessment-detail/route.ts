@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
             if (!isTeacher) {
               // Check profile table as fallback
               const { data: profile } = await supabase
-                .from('profiles')
+                .from('teacher_profiles')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();

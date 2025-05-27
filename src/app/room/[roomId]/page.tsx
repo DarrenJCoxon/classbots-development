@@ -452,6 +452,12 @@ export default function RoomPage() {
   }, [roomId, fetchRoomData, uidFromUrl]);
 
   const handleBack = () => {
+    console.log('[RoomPage] handleBack called:', {
+      userRole,
+      uidFromUrl,
+      isStudent
+    });
+    
     if (userRole === 'teacher') {
       router.push('/teacher-dashboard');
     } else {
@@ -461,9 +467,18 @@ export default function RoomPage() {
         localStorage.setItem('student_direct_access_id', uidFromUrl);
         localStorage.setItem('current_student_id', uidFromUrl);
         
-        // Go directly to the student dashboard page
-        router.push(`/student/dashboard?direct=true&uid=${uidFromUrl}`);
+        // Create a timestamp for the student dashboard
+        const timestamp = Date.now();
+        // Create an access signature with the user ID
+        const accessSignature = btoa(`${uidFromUrl}:${timestamp}`);
+        
+        const dashboardUrl = `/student/dashboard?user_id=${uidFromUrl}&uid=${uidFromUrl}&access_signature=${accessSignature}&ts=${timestamp}&direct=1`;
+        console.log('[RoomPage] Navigating to:', dashboardUrl);
+        
+        // Navigate to the student dashboard with secure signature
+        router.push(dashboardUrl);
       } else {
+        console.log('[RoomPage] No uidFromUrl, fallback to regular dashboard');
         // Fallback to regular student dashboard
         router.push('/student/dashboard');
       }

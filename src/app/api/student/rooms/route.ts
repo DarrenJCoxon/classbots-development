@@ -40,7 +40,7 @@ export async function GET() {
 
     // Verify user is a student
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('student_profiles')
       .select('role')
       .eq('user_id', user.id)
       .single();

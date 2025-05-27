@@ -3,52 +3,150 @@
 
 import { useState, useRef } from 'react';
 import styled from 'styled-components';
-import { Card, Button, Alert } from '@/styles/StyledComponents';
+import { FiX, FiUpload } from 'react-icons/fi';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { Label, FormGroup, FormText } from '@/components/ui/Form';
+import { Text } from '@/components/ui/Typography';
+import { Alert } from '@/styles/StyledComponents';
 
 // --- Styled Components ---
-const ModalOverlay = styled.div`
+const Overlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
   padding: ${({ theme }) => theme.spacing.md};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0;
+    align-items: flex-start;
+  }
 `;
 
-const ModalContent = styled(Card)`
+const FormCard = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 0;
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  box-shadow: 0 20px 60px rgba(152, 93, 215, 0.2);
   width: 100%;
-  max-width: 500px;
+  max-width: 650px;
   margin: 20px;
   position: relative;
-  text-align: center;
-  border-top: none !important;
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
-  overflow-y: hidden; /* Hide overflow at the card level */
+  max-height: 90vh;
+  overflow-y: hidden;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin: 0;
+    width: 100%;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
 `;
 
-const ModalTitle = styled.h3`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.text};
-`;
-
-const ModalText = styled.p`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  color: ${({ theme }) => theme.colors.textLight};
-  text-align: left;
-`;
-
-const ModalActions = styled.div`
+const Header = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.spacing.md};
+  justify-content: space-between;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
+const Title = styled.h2`
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: ${({ theme }) => theme.fonts.heading};
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, 
+    ${({ theme }) => theme.colors.primary}, 
+    ${({ theme }) => theme.colors.magenta}
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const CloseButton = styled.button`
+  background: rgba(152, 93, 215, 0.1);
+  border: none;
+  color: ${({ theme }) => theme.colors.primary};
+  cursor: pointer;
+  font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  margin-top: ${({ theme }) => theme.spacing.xl};
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(152, 93, 215, 0.2);
+    transform: scale(1.05);
+  }
+`;
+
+const FormContent = styled.div`
+  padding: ${({ theme }) => theme.spacing.lg};
+  overflow-y: auto;
+  flex-grow: 1;
+  max-height: calc(90vh - 140px);
+  overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: ${({ theme }) => theme.colors.borderDark};
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  scrollbar-width: thin;
+  scrollbar-color: ${({ theme }) => theme.colors.borderDark} transparent;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+    max-height: calc(100vh - 140px);
+  }
+`;
+
+const Footer = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+  background-color: ${({ theme }) => theme.colors.background};
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column-reverse;
+    padding: ${({ theme }) => theme.spacing.md};
+  }
 `;
 
 const FileUploadWrapper = styled.div`
@@ -70,12 +168,6 @@ const HiddenInput = styled.input`
   display: none;
 `;
 
-const TemplateLink = styled.a`
-  color: ${({ theme }) => theme.colors.primary};
-  font-weight: 500;
-  text-decoration: underline;
-  cursor: pointer;
-`;
 
 const ResultsContainer = styled.div`
   margin-top: ${({ theme }) => theme.spacing.lg};
@@ -83,22 +175,24 @@ const ResultsContainer = styled.div`
   max-height: 300px;
   overflow-y: auto;
   text-align: left;
-  background: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: ${({ theme }) => theme.borderRadius.md};
   
   &::-webkit-scrollbar {
     width: 8px;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: ${({ theme }) => theme.colors.borderDark};
-    border-radius: 3px;
+    background-color: rgba(152, 93, 215, 0.3);
+    border-radius: 4px;
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: ${({ theme }) => theme.colors.borderDark} transparent; /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(152, 93, 215, 0.3) transparent;
 `;
+
 
 const MagicLinkItem = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.md};
@@ -109,37 +203,25 @@ const MagicLinkItem = styled.div`
 `;
 
 const ExpiryWarning = styled.div`
-  margin-top: ${({ theme }) => theme.spacing.md};
+  background-color: ${({ theme }) => theme.colors.warningBackground || '#FFF3CD'};
+  color: ${({ theme }) => theme.colors.warningText || '#856404'};
   padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.secondary}20;
   border-radius: ${({ theme }) => theme.borderRadius.medium};
-  border-left: 3px solid ${({ theme }) => theme.colors.secondary};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
   font-size: 0.9rem;
 `;
 
 const StudentName = styled.div`
   font-weight: 600;
-  margin-bottom: ${({ theme }) => theme.spacing.xs};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
 const MagicLink = styled.div`
-  font-family: ${({ theme }) => theme.fonts.mono};
-  font-size: 0.8rem;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: ${({ theme }) => theme.colors.primary};
   word-break: break-all;
-  padding: ${({ theme }) => theme.spacing.xs};
-  background: ${({ theme }) => theme.colors.backgroundDark};
-  border-radius: ${({ theme }) => theme.borderRadius.medium};
-  margin-top: ${({ theme }) => theme.spacing.xs};
-`;
-
-const CopyButton = styled(Button).attrs({ size: 'small' })`
-  margin-top: ${({ theme }) => theme.spacing.xs};
-  font-size: 0.8rem;
-`;
-
-const CopyAllButton = styled(Button)`
-  margin-top: ${({ theme }) => theme.spacing.md};
-  /* This component inherits all Button props */
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
 interface StudentCsvUploadProps {
@@ -327,29 +409,34 @@ const ModalBody = styled.div`
 `;
 
   return (
-    <ModalOverlay>
-      <ModalContent>
-        <ModalTitle>Import Students for {roomName}</ModalTitle>
+    <Overlay onClick={onClose}>
+      <FormCard onClick={(e) => e.stopPropagation()}>
+        <Header>
+          <Title>Import Students</Title>
+          <CloseButton onClick={onClose}>
+            <FiX />
+          </CloseButton>
+        </Header>
         
-        <ModalBody>
-          <ModalText>
-            Upload a CSV file with student information to bulk add them to this room. 
+        <FormContent>
+          <Text style={{ marginBottom: '16px' }}>
+            Upload a CSV file with student information to bulk add them to {roomName}. 
             Each student will receive a unique magic link for passwordless access.
-          </ModalText>
+          </Text>
           
-          <ModalText>
-            Required CSV format: <TemplateLink onClick={downloadTemplateCSV}>Download Template</TemplateLink>
-          </ModalText>
-          <ul>
-            <li><strong>First Name</strong> (required)</li>
-            <li><strong>Surname</strong> (required)</li>
-          </ul>
-          <ModalText style={{ fontSize: '0.9rem', color: 'var(--color-text-light)' }}>
-            Student usernames will be generated as firstname.surname (e.g., jane.smith)
-          </ModalText>
+          <FormGroup>
+            <Label>Required CSV format</Label>
+            <FormText>
+              Your CSV must have two columns: <strong>First Name</strong> and <strong>Surname</strong>
+              <br />
+              <a href="#" onClick={(e) => { e.preventDefault(); downloadTemplateCSV(); }} style={{ color: 'var(--color-primary)' }}>
+                Download Template CSV
+              </a>
+            </FormText>
+          </FormGroup>
 
-          {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
-          {success && <Alert variant="success" style={{ marginBottom: '16px' }}>{success}</Alert>}
+          {error && <Alert variant="error">{error}</Alert>}
+          {success && <Alert variant="success">{success}</Alert>}
 
           <FileUploadWrapper onClick={() => fileInputRef.current?.click()}>
             <p>Click to select CSV file or drag and drop</p>
@@ -364,37 +451,42 @@ const ModalBody = styled.div`
 
           {results.length > 0 && (
             <>
-              <ModalText>Student Magic Links (distribute these to your students):</ModalText>
+              <Label style={{ marginTop: '24px', marginBottom: '12px' }}>Student Magic Links</Label>
               <ExpiryWarning>
                 <strong>Important:</strong> These magic links will expire after 24 hours. Please make sure students use their links within this timeframe.
-                If a link expires, you will need to generate a new one for the student.
               </ExpiryWarning>
               <ResultsContainer>
                 {results.map((student, index) => (
                   <MagicLinkItem key={index}>
                     <StudentName>{student.fullName}</StudentName>
                     <MagicLink>{student.magicLink}</MagicLink>
-                    <CopyButton 
+                    <ModernButton 
                       size="small"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => handleCopyLink(student.magicLink)}
+                      style={{ marginTop: '8px' }}
                     >
                       Copy Link
-                    </CopyButton>
+                    </ModernButton>
                   </MagicLinkItem>
                 ))}
               </ResultsContainer>
-              <CopyAllButton onClick={handleCopyAllLinks}>Copy All Links</CopyAllButton>
+              <ModernButton 
+                onClick={handleCopyAllLinks}
+                style={{ width: '100%', marginTop: '16px' }}
+              >
+                Copy All Links
+              </ModernButton>
             </>
           )}
-        </ModalBody>
+        </FormContent>
 
-        <ModalActions>
-          <Button variant="outline" onClick={onClose} disabled={isUploading}>
+        <Footer>
+          <ModernButton variant="secondary" onClick={onClose} disabled={isUploading}>
             Close
-          </Button>
-        </ModalActions>
-      </ModalContent>
-    </ModalOverlay>
+          </ModernButton>
+        </Footer>
+      </FormCard>
+    </Overlay>
   );
 }

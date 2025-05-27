@@ -125,27 +125,14 @@ export async function POST(request: Request) {
           
           // Also update profile
           await supabaseAdmin
-            .from('profiles')
+            .from('student_profiles')
             .update({ 
-              full_name: student_name,
-              // Store the last login time
-              last_login_at: new Date().toISOString()
+              full_name: student_name
             })
             .eq('user_id', user_id)
             .then(res => {
               if (res.error) {
                 console.warn('[Simple Join API] Error updating profile name:', res.error);
-              }
-            });
-        } else {
-          // Update login timestamp even if name didn't change
-          await supabaseAdmin
-            .from('profiles')
-            .update({ last_login_at: new Date().toISOString() })
-            .eq('user_id', user_id)
-            .then(res => {
-              if (res.error) {
-                console.warn('[Simple Join API] Error updating profile login timestamp:', res.error);
               }
             });
         }
@@ -271,7 +258,7 @@ export async function POST(request: Request) {
         // Create profile - use upsert to handle case where the profile might already exist
         console.log('[Simple Join API] Creating profile for user:', currentUserId);
         const { error: profileError } = await supabaseAdmin
-          .from('profiles')
+          .from('student_profiles')
           .upsert({
             user_id: currentUserId,
             email: tempEmail,
@@ -292,7 +279,7 @@ export async function POST(request: Request) {
           try {
             // Try a direct insert as last resort
             const { error: insertError } = await supabaseAdmin
-              .from('profiles')
+              .from('student_profiles')
               .insert({
                 user_id: currentUserId,
                 email: tempEmail,

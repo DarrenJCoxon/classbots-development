@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       // Check for profile existence
       // We check for profile existence, but don't use its data directly
       const { error: profileError } = await supabaseAdmin
-        .from('profiles')
+        .from('student_profiles')
         .select('user_id, role')
         .eq('user_id', userId)
         .single();
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         // If user exists in auth but not profile, create profile
         if (userCheck.user.user_metadata?.full_name) {
           const { error: insertError } = await supabaseAdmin
-            .from('profiles')
+            .from('student_profiles')
             .insert({
               user_id: userId,
               full_name: userCheck.user.user_metadata.full_name,
