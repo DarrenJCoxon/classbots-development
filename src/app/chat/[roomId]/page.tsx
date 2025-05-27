@@ -332,14 +332,33 @@ export default function ChatPage() {
         throw new Error('Not authenticated');
       }
 
-      const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
-      if (!profile) {
-        initialFetchDoneRef.current = false;
-        throw new Error('User profile not found');
+      // Check if user is student or teacher
+      const { data: studentProfile } = await supabase
+        .from('student_profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+        
+      let userRole: string;
+      if (studentProfile) {
+        userRole = 'student';
+      } else {
+        const { data: teacherProfile } = await supabase
+          .from('teacher_profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (teacherProfile) {
+          userRole = 'teacher';
+        } else {
+          initialFetchDoneRef.current = false;
+          throw new Error('User profile not found');
+        }
       }
       
       // Set isStudent state
-      setIsStudent(profile.role === 'student');
+      setIsStudent(userRole === 'student');
 
       const { data: roomData, error: roomError } = await supabase.from('rooms')
         .select(`

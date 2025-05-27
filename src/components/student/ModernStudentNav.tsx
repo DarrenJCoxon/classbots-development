@@ -508,7 +508,7 @@ export const ModernStudentNav: React.FC = () => {
       if (directAccessId) {
         // Direct access user - fetch profile by ID
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('student_profiles')
           .select('full_name, username')
           .eq('user_id', directAccessId)
           .single();
@@ -521,7 +521,7 @@ export const ModernStudentNav: React.FC = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: profile } = await supabase
-            .from('profiles')
+            .from('student_profiles')
             .select('full_name, username')
             .eq('user_id', user.id)
             .single();
