@@ -56,7 +56,7 @@ export default function TeacherDashboardPage() {
             student_id,
             room_id,
             created_at,
-            student_profiles!room_student_associations_student_id_fkey (
+            student_profiles (
               full_name,
               username
             )
@@ -81,23 +81,23 @@ export default function TeacherDashboardPage() {
         
         // Fetch recent assessments
         const { data: recentAssessments } = await supabase
-          .from('assessment_results')
+          .from('student_assessments')
           .select(`
-            result_id,
+            assessment_id,
             room_id,
-            created_at,
+            assessed_at,
             status,
-            student_profiles!assessment_results_student_id_fkey (
+            student_profiles (
               full_name,
               username
             ),
-            chatbots!assessment_results_chatbot_id_fkey (
-              chatbot_name
+            chatbots (
+              name
             )
           `)
           .in('room_id', roomIds)
-          .gte('created_at', sevenDaysAgo.toISOString())
-          .order('created_at', { ascending: false })
+          .gte('assessed_at', sevenDaysAgo.toISOString())
+          .order('assessed_at', { ascending: false })
           .limit(5);
           
         // Add assessment activities
@@ -105,13 +105,13 @@ export default function TeacherDashboardPage() {
           const profile = Array.isArray(assessment.student_profiles) ? assessment.student_profiles[0] : assessment.student_profiles;
           const chatbot = Array.isArray(assessment.chatbots) ? assessment.chatbots[0] : assessment.chatbots;
           const studentName = profile?.full_name || profile?.username || 'A student';
-          const chatbotName = chatbot?.chatbot_name || 'assessment';
+          const chatbotName = chatbot?.name || 'assessment';
           const roomName = roomMap.get(assessment.room_id) || 'a room';
           activities.push({
-            id: `assessment-${assessment.result_id}`,
+            id: `assessment-${assessment.assessment_id}`,
             type: 'assessment',
             content: `${studentName} completed ${chatbotName} in ${roomName}`,
-            time: formatTimeAgo(new Date(assessment.created_at))
+            time: formatTimeAgo(new Date(assessment.assessed_at))
           });
         });
         
@@ -121,10 +121,10 @@ export default function TeacherDashboardPage() {
           .select(`
             flag_id,
             created_at,
-            rooms!flagged_messages_room_id_fkey (
+            rooms (
               room_name
             ),
-            student_profiles!flagged_messages_student_id_fkey (
+            student_profiles (
               full_name,
               username
             )

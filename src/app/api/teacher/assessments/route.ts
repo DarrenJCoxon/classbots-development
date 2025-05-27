@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabaseUserClient.auth.getUser();
     if (authError || !user) { return NextResponse.json({ error: 'Not authenticated' }, { status: 401 }); }
 
-    const { data: profile, error: profileError } = await supabaseUserClient.from('teacher_profiles').select('role').eq('user_id', user.id).single();
-    if (profileError || !profile || profile.role !== 'teacher') { return NextResponse.json({ error: 'Not authorized' }, { status: 403 });}
+    const { data: profile, error: profileError } = await supabaseUserClient.from('teacher_profiles').select('user_id').eq('user_id', user.id).single();
+    if (profileError || !profile) { return NextResponse.json({ error: 'Not authorized' }, { status: 403 });}
     
     if (assessmentId) {
         return getSingleDetailedAssessment(assessmentId, user.id, adminSupabase);

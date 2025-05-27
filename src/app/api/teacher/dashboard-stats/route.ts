@@ -75,8 +75,8 @@ export async function GET() {
         // Count completed assessments in teacher's rooms
         roomIds.length > 0
             ? supabaseAdmin
-                .from('assessment_results')
-                .select('result_id', { count: 'exact', head: true })
+                .from('student_assessments')
+                .select('assessment_id', { count: 'exact', head: true })
                 .in('room_id', roomIds)
                 .eq('status', 'completed')
             : Promise.resolve({ count: 0, error: null })
