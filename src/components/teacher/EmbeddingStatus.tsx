@@ -183,7 +183,7 @@ export default function EmbeddingStatus({
 
   if (loading) {
     return (
-      <StatusContainer variant="light" hoverable={false}>
+      <StatusContainer variant="light" hoverable={undefined}>
         <p>Loading processing status...</p>
       </StatusContainer>
     );
@@ -191,15 +191,15 @@ export default function EmbeddingStatus({
 
   if (error) {
     return (
-      <StatusContainer variant="light" hoverable={false}>
-        <ModernAlert $variant="error">{error}</ModernAlert>
+      <StatusContainer variant="light" hoverable={undefined}>
+        <Alert variant="error">{error}</Alert>
       </StatusContainer>
     );
   }
 
   if (!stats) {
     return (
-      <StatusContainer variant="light" hoverable={false}>
+      <StatusContainer variant="light" hoverable={undefined}>
         <p>No processing statistics available</p>
       </StatusContainer>
     );
@@ -214,7 +214,7 @@ export default function EmbeddingStatus({
                      (document.status === 'processing' && progressPercent === 100);
 
   return (
-    <StatusContainer variant="light" hoverable={false}>
+    <StatusContainer variant="light" hoverable={undefined}>
       <Header>
         <Title>Document Processing Status</Title>
       </Header>
@@ -250,7 +250,7 @@ export default function EmbeddingStatus({
       </StatsContainer>
       
       {document.error_message && (
-        <ModernAlert $variant="error">Error: {document.error_message}</ModernAlert>
+        <Alert variant="error">Error: {document.error_message}</Alert>
       )}
     </StatusContainer>
   );
