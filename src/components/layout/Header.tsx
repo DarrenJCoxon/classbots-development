@@ -180,16 +180,28 @@ export default function Header() {
       setUser(currentUser);
       
       if (currentUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
+        // Check student_profiles first
+        const { data: studentProfile } = await supabase
+          .from('student_profiles')
+          .select('user_id')
           .eq('user_id', currentUser.id)
           .single();
         
-        if (profile) {
-          setUserRole(profile.role);
+        if (studentProfile) {
+          setUserRole('student');
         } else {
-          setUserRole(null);
+          // Check teacher_profiles
+          const { data: teacherProfile } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
+            .eq('user_id', currentUser.id)
+            .single();
+            
+          if (teacherProfile) {
+            setUserRole('teacher');
+          } else {
+            setUserRole(null);
+          }
         }
       } else {
         setUserRole(null);
@@ -203,21 +215,34 @@ export default function Header() {
       setUser(sessionUser);
       
       if (sessionUser) {
+        // Check student_profiles first
         supabase
-          .from('profiles')
-          .select('role')
+          .from('student_profiles')
+          .select('user_id')
           .eq('user_id', sessionUser.id)
           .single()
-          .then(({ data: profileData, error: profileError }) => {
-            if (profileError) {
-              console.warn("Error fetching profile on auth state change:", profileError.message);
-              setUserRole(null);
-              return;
-            }
-            if (profileData) {
-              setUserRole(profileData.role);
+          .then(({ data: studentData }) => {
+            if (studentData) {
+              setUserRole('student');
             } else {
-              setUserRole(null);
+              // Check teacher_profiles
+              supabase
+                .from('teacher_profiles')
+                .select('user_id')
+                .eq('user_id', sessionUser.id)
+                .single()
+                .then(({ data: teacherData, error: profileError }) => {
+                  if (profileError) {
+                    console.warn("Error fetching profile on auth state change:", profileError.message);
+                    setUserRole(null);
+                    return;
+                  }
+                  if (teacherData) {
+                    setUserRole('teacher');
+                  } else {
+                    setUserRole(null);
+                  }
+                });
             }
           });
       } else {

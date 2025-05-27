@@ -296,17 +296,32 @@ export default function RoomPage() {
       } else {
         userId = user.id;
         
-        // Get user role from profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
+        // Get user role from profile - check both tables
+        const { data: studentProfile } = await supabase
+          .from('student_profiles')
+          .select('user_id')
           .eq('user_id', userId)
           .single();
-  
-        if (!profile) throw new Error('User profile not found');
-        userRole = profile.role;
-        setUserRole(userRole);
-        setIsStudent(userRole === 'student');
+          
+        if (studentProfile) {
+          userRole = 'student';
+          setUserRole('student');
+          setIsStudent(true);
+        } else {
+          const { data: teacherProfile } = await supabase
+            .from('teacher_profiles')
+            .select('user_id')
+            .eq('user_id', userId)
+            .single();
+            
+          if (teacherProfile) {
+            userRole = 'teacher';
+            setUserRole('teacher');
+            setIsStudent(false);
+          } else {
+            throw new Error('User profile not found');
+          }
+        }
       }
 
       // First, ensure we have access to this room
