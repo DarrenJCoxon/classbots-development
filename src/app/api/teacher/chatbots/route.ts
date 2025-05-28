@@ -106,17 +106,23 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
 // POST Handler
 export async function POST(request: NextRequest) {
   try {
+    console.log('[POST /api/teacher/chatbots] Starting request');
+    
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error('[POST /api/teacher/chatbots] Auth error:', authError);
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+
+    console.log('[POST /api/teacher/chatbots] User authenticated:', user.id);
 
     // Use admin client for all database operations to bypass RLS
     const supabaseAdmin = createAdminClient();
 
     // Check if user is a teacher in the profiles table
+    console.log('[POST /api/teacher/chatbots] Checking user profile...');
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
@@ -124,14 +130,31 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profileError) {
-      console.error('Error fetching profile:', profileError);
-      return NextResponse.json({ error: 'Error checking authorization' }, { status: 500 });
+      console.error('[POST /api/teacher/chatbots] Error fetching profile:', {
+        error: profileError,
+        userId: user.id,
+        message: profileError.message,
+        code: profileError.code,
+        details: profileError.details
+      });
+      return NextResponse.json({ 
+        error: 'Error checking authorization',
+        details: profileError.message 
+      }, { status: 500 });
     }
 
+    console.log('[POST /api/teacher/chatbots] Profile found:', profile);
+
     if (!profile || profile.role !== 'teacher') {
-      console.error('User not authorized:', { userId: user.id, role: profile?.role });
+      console.error('[POST /api/teacher/chatbots] User not authorized:', { 
+        userId: user.id, 
+        profile: profile,
+        role: profile?.role 
+      });
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
+
+    console.log('[POST /api/teacher/chatbots] User authorized as teacher');
 
     const body: CreateChatbotPayload = await request.json();
     console.log("[API POST /teacher/chatbots] Received payload for creation:", body);
@@ -161,6 +184,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Use admin client for insert to bypass RLS restrictions
+    console.log('[POST /api/teacher/chatbots] Inserting chatbot with data:', chatbotDataToInsert);
+    
     const { data: newChatbot, error: insertError } = await supabaseAdmin
       .from('chatbots')
       .insert(chatbotDataToInsert)
@@ -168,18 +193,33 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('Error creating chatbot:', insertError);
+      console.error('[POST /api/teacher/chatbots] Error creating chatbot:', {
+        error: insertError,
+        message: insertError.message,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint,
+        data: chatbotDataToInsert
+      });
       if (insertError.code === '23505') {
          return NextResponse.json({ error: 'A chatbot with this name might already exist or another unique constraint was violated.' }, { status: 409 });
       }
       throw insertError;
     }
 
+    console.log('[POST /api/teacher/chatbots] Chatbot created successfully:', newChatbot);
     return NextResponse.json(newChatbot, { status: 201 });
   } catch (error) {
-    console.error('Error in POST /api/teacher/chatbots:', error);
+    console.error('[POST /api/teacher/chatbots] Unexpected error:', {
+      error: error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create chatbot' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to create chatbot',
+        details: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
