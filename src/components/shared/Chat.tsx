@@ -1233,13 +1233,16 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   if (dataContent === '[DONE]') continue;
                   
                   const parsed = JSON.parse(dataContent);
-                  const piece = parsed.content;
+                  // Handle both formats: direct content or OpenRouter format
+                  const piece = parsed.content || parsed.choices?.[0]?.delta?.content;
                   
                   if (typeof piece === 'string') {
                     assistantResponse += piece;
                     
                     // Update immediately for every chunk
                     scheduleUpdate();
+                  } else if (piece !== undefined) {
+                    console.warn('[Chat.tsx] Unexpected content format:', piece, 'Full parsed:', parsed);
                   }
                 } catch (e) {
                   console.warn('[Chat.tsx] Stream parse error:', e);
