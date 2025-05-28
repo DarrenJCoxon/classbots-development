@@ -9,6 +9,7 @@ import { Container, Card, Button } from '@/styles/StyledComponents';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
+import EnhancedRagScraper from '@/components/teacher/EnhancedRagScraper';
 import { GlassCard } from '@/components/shared/GlassCard';
 import { ModernButton } from '@/components/shared/ModernButton';
 import { PageTransition } from '@/components/shared/PageTransition';
@@ -330,8 +331,21 @@ export default function KnowledgeBasePage() {
         {docsError && <ModernAlert $variant="error">{docsError}</ModernAlert>}
         
         <Section variant="light" hoverable={undefined}>
-          <h2>Add Documents</h2>
-          <p>Upload PDF, Word, or TXT files. These will be processed and made available for your chatbot to use when RAG is enabled.</p>
+          <h2>Add Content to Knowledge Base</h2>
+          <p>Add content by uploading documents or scraping webpages. This content will be processed and made available for your chatbot to use when RAG is enabled.</p>
+          
+          <EnhancedRagScraper
+            chatbotId={chatbotId}
+            onScrapeSuccess={(newDocument) => {
+                // Immediately add the new document to the list if provided
+                if (newDocument) {
+                    setDocuments(prev => [newDocument, ...prev]);
+                }
+                // Also refresh the full list for consistency
+                fetchDocuments();
+            }}
+          />
+          
           <DocumentUploader 
             chatbotId={chatbotId} 
             onUploadSuccess={(newDocument) => {

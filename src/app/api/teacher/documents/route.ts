@@ -359,83 +359,88 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No file or URL provided (safeguard).' }, { status: 400 });
     }
 
-    // Auto-process the document after upload
-    console.log(`[API /documents POST] Auto-processing document: ${documentRecordData.document_id}`);
-    
-    try {
-      // Instead of making an internal HTTP call, directly process the document
-      // This avoids authentication issues with internal API calls
-      console.log(`[API /documents POST] Starting direct document processing`);
+    // Auto-process the document after upload ONLY for file uploads
+    // Web scraping will handle processing separately to avoid race conditions
+    if (file) {
+      console.log(`[API /documents POST] Auto-processing uploaded file: ${documentRecordData.document_id}`);
       
-      // Update document status to 'processing'
-      const { error: updateError } = await adminSupabase
-        .from('documents')
-        .update({
-          status: 'processing' as DocumentStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('document_id', documentRecordData.document_id);
-
-      if (updateError) {
-        console.error(`[API /documents POST] Error updating document status: ${updateError.message}`);
-      } else {
-        console.log(`[API /documents POST] Document status updated to processing`);
+      try {
+        // Instead of making an internal HTTP call, directly process the document
+        // This avoids authentication issues with internal API calls
+        console.log(`[API /documents POST] Starting direct document processing`);
         
-        // Fetch the complete document record for processing
-        const { data: fullDocument, error: fetchError } = await adminSupabase
+        // Update document status to 'processing'
+        const { error: updateError } = await adminSupabase
           .from('documents')
-          .select('*')
-          .eq('document_id', documentRecordData.document_id)
-          .single();
-          
-        if (fetchError || !fullDocument) {
-          console.error(`[API /documents POST] Error fetching full document: ${fetchError?.message}`);
+          .update({
+            status: 'processing' as DocumentStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('document_id', documentRecordData.document_id);
+
+        if (updateError) {
+          console.error(`[API /documents POST] Error updating document status: ${updateError.message}`);
         } else {
-          // Process in the background with the complete document object
-          console.log(`[API /documents POST] Calling processDocumentFile with document:`, {
-            document_id: fullDocument.document_id,
-            file_name: fullDocument.file_name,
-            file_type: fullDocument.file_type,
-            status: fullDocument.status
-          });
+          console.log(`[API /documents POST] Document status updated to processing`);
           
-          processDocumentFile(fullDocument as Document)
-            .then(() => {
-              console.log(`[API /documents POST] Document ${documentRecordData.document_id} processed successfully`);
-            })
-            .catch(error => {
-              console.error(`[API /documents POST] Error processing document ${documentRecordData.document_id}:`, error);
-              console.error(`[API /documents POST] Error stack:`, error.stack);
-              // Update status to error
-              adminSupabase
-                .from('documents')
-                .update({ 
-                  status: 'error' as DocumentStatus,
-                  error_message: error instanceof Error ? error.message : 'Unknown processing error'
-                })
-                .eq('document_id', documentRecordData.document_id)
-                .then(({ error: updateErr }) => {
-                  if (updateErr) {
-                    console.error('Failed to update document status:', updateErr);
-                  } else {
-                    console.log('Document status updated to error');
-                  }
-                });
+          // Fetch the complete document record for processing
+          const { data: fullDocument, error: fetchError } = await adminSupabase
+            .from('documents')
+            .select('*')
+            .eq('document_id', documentRecordData.document_id)
+            .single();
+            
+          if (fetchError || !fullDocument) {
+            console.error(`[API /documents POST] Error fetching full document: ${fetchError?.message}`);
+          } else {
+            // Process in the background with the complete document object
+            console.log(`[API /documents POST] Calling processDocumentFile with document:`, {
+              document_id: fullDocument.document_id,
+              file_name: fullDocument.file_name,
+              file_type: fullDocument.file_type,
+              status: fullDocument.status
             });
+            
+            processDocumentFile(fullDocument as Document)
+              .then(() => {
+                console.log(`[API /documents POST] Document ${documentRecordData.document_id} processed successfully`);
+              })
+              .catch(error => {
+                console.error(`[API /documents POST] Error processing document ${documentRecordData.document_id}:`, error);
+                console.error(`[API /documents POST] Error stack:`, error.stack);
+                // Update status to error
+                adminSupabase
+                  .from('documents')
+                  .update({ 
+                    status: 'error' as DocumentStatus,
+                    error_message: error instanceof Error ? error.message : 'Unknown processing error'
+                  })
+                  .eq('document_id', documentRecordData.document_id)
+                  .then(({ error: updateErr }) => {
+                    if (updateErr) {
+                      console.error('Failed to update document status:', updateErr);
+                    } else {
+                      console.log('Document status updated to error');
+                    }
+                  });
+              });
+          }
+          
+          console.log(`[API /documents POST] Auto-processing started successfully`);
         }
-        
-        console.log(`[API /documents POST] Auto-processing started successfully`);
+      } catch (processError) {
+        console.error(`[API /documents POST] Error triggering auto-processing:`, processError);
+        // Don't fail the upload, just log the error
       }
-    } catch (processError) {
-      console.error(`[API /documents POST] Error triggering auto-processing:`, processError);
-      // Don't fail the upload, just log the error
+    } else {
+      console.log(`[API /documents POST] Skipping auto-processing for web scrape - will be handled by client`);
     }
     
     // Return a consistent response format
     return NextResponse.json({
       document: documentRecordData,
       documentId: documentRecordData.document_id, // Add this explicitly for client compatibility
-      message: file ? 'File uploaded and processing started automatically.' : 'Webpage added and processing started automatically.'
+      message: file ? 'File uploaded and processing started automatically.' : 'Webpage scraped successfully. Ready for processing.'
     }, { status: 201 });
 
   } catch (error) {
