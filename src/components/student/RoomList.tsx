@@ -4,9 +4,8 @@
 import styled from 'styled-components';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/styles/StyledComponents';
 import { GlassCard } from '@/components/shared/GlassCard';
-import { ModernButton } from '@/components/shared/ModernButton';
+import { Button } from '@/components/ui/Button';
 import type { StudentRoom } from '@/types/student.types';
 
 const RoomGrid = styled.div`
@@ -152,17 +151,14 @@ export default function RoomList({ rooms }: RoomListProps) {
             <JoinedDate>
               Joined: {new Date(room.joined_at || room.created_at).toLocaleDateString()}
             </JoinedDate>
-            <ModernButton 
+            <Button 
               onClick={() => router.push(`/room/${room.room_id}`)}
               variant="primary"
               size="small"
-              style={{ 
-                minWidth: '120px',
-                textAlign: 'center'
-              }}
+              fullWidth
             >
               Enter Room
-            </ModernButton>
+            </Button>
           </RoomFooter>
         </RoomCard>
       ))}

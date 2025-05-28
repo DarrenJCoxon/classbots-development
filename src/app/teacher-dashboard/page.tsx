@@ -51,7 +51,7 @@ export default function TeacherDashboardPage() {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
         const { data: recentJoins } = await supabase
-          .from('room_student_associations')
+          .from('room_memberships')
           .select(`
             student_id,
             room_id,

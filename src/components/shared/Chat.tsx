@@ -10,7 +10,6 @@ import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMes
 import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import ChatInput from '@/components/shared/ChatInput';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { ModernButton } from '@/components/shared/ModernButton';
 import type { ChatMessage, Chatbot } from '@/types/database.types';
 
 const ASSESSMENT_TRIGGER_COMMAND = "/assess";
@@ -57,6 +56,7 @@ const ChatContainer = styled(Card)`
   min-height: 500px;
   overflow: hidden;
   position: relative;
+  padding-bottom: 0;
 `;
 
 const MessagesList = styled.div`
@@ -67,13 +67,13 @@ const MessagesList = styled.div`
   flex-direction: column;
   gap: 1rem;
   height: 100%;
-  max-height: calc(100vh - 200px); // Ensure there's a max height
+  max-height: calc(100vh - 280px); // Adjusted for assessment section
   position: relative; // Added for absolute positioning of children
   will-change: transform; // Performance optimization for scrolling
   -webkit-overflow-scrolling: touch; // Better scrolling on iOS
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    max-height: calc(100vh - 250px); // Account for mobile browser chrome
+    max-height: calc(100vh - 320px); // Account for mobile browser chrome and assessment
     padding: 0.5rem; // Reduced padding on mobile
     gap: 0.75rem; // Slightly smaller gap between messages
   }
@@ -119,9 +119,29 @@ const LoadingIndicator = styled.div`
   color: ${({ theme }) => theme.colors.textLight};
 `;
 
-const SubmitAssessmentButtonWrapper = styled.div`
-  margin-top: 1rem;
-  width: 100%;
+const AssessmentSection = styled.div`
+  position: relative;
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
+  background: rgba(152, 93, 215, 0.05);
+  border: 1px solid rgba(152, 93, 215, 0.2);
+  border-radius: ${({ theme }) => theme.borderRadius.large};
+  text-align: center;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    margin-top: ${({ theme }) => theme.spacing.md};
+    padding: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
+const AssessmentInfo = styled.p`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 0.875rem;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 0.8rem;
+  }
 `;
 
 const ThinkingIndicator = styled.div`
@@ -797,36 +817,53 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   useEffect(() => {
     if (!roomId || !userId || !chatbot?.chatbot_id) return;
     
-    console.log('[Chat.tsx RT] Setting up realtime subscription for chat messages');
+    let retryCount = 0;
+    const maxRetries = 3;
+    let channel: any = null;
     
-    const channel = supabase
-      .channel(`chat-messages-${userId}-${roomId}-${chatbot.chatbot_id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `room_id=eq.${roomId} AND (metadata->>chatbotId)=eq.${chatbot.chatbot_id}`
-        },
-        (payload) => {
-          console.log('[Chat.tsx RT] New chat message detected:', payload);
-          
-          const newMessage = payload.new as ChatMessage;
-          
-          // Only add if it's for this user or it's an assistant response
-          if (newMessage.user_id === userId || newMessage.role === 'assistant') {
-            handleRealtimeMessage(newMessage);
-          }
+    const setupSubscription = async () => {
+      try {
+        console.log('[Chat.tsx RT] Setting up realtime subscription for chat messages (attempt', retryCount + 1, ')');
+        
+        channel = supabase
+          .channel(`chat-messages-${userId}-${roomId}-${chatbot.chatbot_id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'chat_messages',
+              filter: `room_id=eq.${roomId} AND (metadata->>chatbotId)=eq.${chatbot.chatbot_id}`
+            },
+            (payload) => {
+              console.log('[Chat.tsx RT] New chat message detected:', payload);
+              
+              const newMessage = payload.new as ChatMessage;
+              
+              // Only add if it's for this user or it's an assistant response
+              if (newMessage.user_id === userId || newMessage.role === 'assistant') {
+                handleRealtimeMessage(newMessage);
+              }
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error('[Chat.tsx RT] Error setting up subscription:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(() => setupSubscription(), 2000 * retryCount);
         }
-      )
-      .subscribe((status) => {
-        console.log('[Chat.tsx RT] Chat subscription status:', status);
-      });
+      }
+    };
+    
+    // Initial setup
+    setupSubscription();
     
     return () => {
       console.log('[Chat.tsx RT] Cleaning up chat message subscription');
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [roomId, userId, chatbot?.chatbot_id, supabase, handleRealtimeMessage]);
   
@@ -1413,7 +1450,7 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   
   return (
     <ChatContainer>
-      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <ModernButton onClick={() => fetchMessages()} size="small" variant="ghost">Retry</ModernButton> </ErrorContainer> )}
+      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <Button onClick={() => fetchMessages()} size="small" variant="ghost" gradient={false}>Retry</Button> </ErrorContainer> )}
       <MessagesList ref={messagesListRef}>
         {isFetchingMessages && messages.length === 0 ? ( 
           <LoadingIndicator><LoadingSpinner /> Loading...</LoadingIndicator> 
@@ -1487,20 +1524,25 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
           onClearError={() => setError(null)}
           onClear={messages.length > 0 ? handleClearChat : undefined}
         />
-        {chatbot.bot_type === 'assessment' && (
-          <SubmitAssessmentButtonWrapper>
-            <Button 
-              onClick={handleSubmitAssessment} 
-              disabled={isLoading || isSubmittingAssessment}
-              variant="primary"
-              fullWidth
-              loading={isSubmittingAssessment}
-            >
-              {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit Assessment'}
-            </Button>
-          </SubmitAssessmentButtonWrapper>
-        )}
       </StyledChatInputContainer>
+      
+      {chatbot.bot_type === 'assessment' && (
+        <AssessmentSection>
+          <AssessmentInfo>
+            When you're ready, submit your conversation for assessment. Make sure you've answered all questions fully.
+          </AssessmentInfo>
+          <Button 
+            onClick={handleSubmitAssessment} 
+            disabled={isLoading || isSubmittingAssessment || messages.filter(m => m.role === 'user').length < 2}
+            variant="primary"
+            size="medium"
+            loading={isSubmittingAssessment}
+            gradient={false}
+          >
+            {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit for Assessment'}
+          </Button>
+        </AssessmentSection>
+      )}
     </ChatContainer>
   );
 }

@@ -20,6 +20,7 @@ import {
 import { GlassCard } from '@/components/shared/GlassCard';
 import Link from 'next/link';
 import type { Chatbot } from '@/types/database.types';
+import { LinkButton } from '@/components/ui/Button';
 
 interface ModernChatbotCardProps {
   chatbot: Chatbot;
@@ -249,53 +250,7 @@ const StatusBadge = styled.span<{ $isActive: boolean }>`
   }
 `;
 
-const TestButton = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  background: linear-gradient(135deg, 
-    ${({ theme }) => theme.colors.primary}, 
-    ${({ theme }) => theme.colors.magenta}
-  );
-  color: white;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 12px;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateX(4px);
-    box-shadow: 0 8px 24px rgba(152, 93, 215, 0.3);
-  }
-  
-  svg {
-    transition: transform 0.3s ease;
-    width: 14px;
-    height: 14px;
-  }
-  
-  &:hover svg {
-    transform: translateX(4px);
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 6px 12px;
-    font-size: 11px;
-    gap: 4px;
-    border-radius: 6px;
-    
-    &:hover {
-      transform: none;
-    }
-    
-    svg {
-      width: 12px;
-      height: 12px;
-    }
-  }
-`;
+// Removed TestButton - using LinkButton from UI components
 
 // Dropdown styles
 const DropdownContainer = styled.div`
@@ -522,10 +477,14 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
       </CardBody>
       
       <CardFooter>
-        <TestButton href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}>
+        <LinkButton 
+          href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}
+          variant="primary"
+          size="small"
+          iconRight={<FiChevronRight />}
+        >
           Test Chat
-          <FiChevronRight />
-        </TestButton>
+        </LinkButton>
       </CardFooter>
     </ChatbotCardContainer>
   );

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import type { Chatbot } from '@/types/database.types';
 import { FiMessageSquare, FiMoreVertical, FiEdit, FiTrash2, FiPlay, FiDatabase } from 'react-icons/fi';
 import { DashboardCard } from '@/components/shared/DashboardCard';
+import { LinkButton, Button } from '@/components/ui/Button';
 
 interface ChatbotCardProps {
   chatbot: Chatbot;
@@ -26,6 +27,11 @@ const CardActions = styled.div`
   display: flex;
   gap: 8px;
   
+  /* Ensure buttons take up available space */
+  > * {
+    flex: 1;
+  }
+  
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     bottom: 12px;
     left: 20px;
@@ -34,86 +40,9 @@ const CardActions = styled.div`
   }
 `;
 
-const SubtleButton = styled(Link)`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  background: ${({ theme }) => theme.colors.backgroundDark}40;
-  border: 1px solid ${({ theme }) => theme.colors.border}20;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.text};
-  text-decoration: none;
-  transition: all 0.2s ease;
-  cursor: pointer;
-  
-  &:hover {
-    background: ${({ theme }) => theme.colors.primary}10;
-    border-color: ${({ theme }) => theme.colors.primary}30;
-    color: ${({ theme }) => theme.colors.primary};
-    transform: translateY(-1px);
-  }
-  
-  svg {
-    width: 16px;
-    height: 16px;
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 8px;
-    font-size: 12px;
-    gap: 4px;
-    
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-  }
-`;
+// Removed SubtleButton - using UI Button components
 
-const EditButton = styled.button`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  background: ${({ theme }) => theme.colors.backgroundDark}40;
-  border: 1px solid ${({ theme }) => theme.colors.border}20;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.text};
-  transition: all 0.2s ease;
-  cursor: pointer;
-  
-  &:hover {
-    background: ${({ theme }) => theme.colors.primary}10;
-    border-color: ${({ theme }) => theme.colors.primary}30;
-    color: ${({ theme }) => theme.colors.primary};
-    transform: translateY(-1px);
-  }
-  
-  svg {
-    width: 16px;
-    height: 16px;
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    padding: 8px;
-    font-size: 12px;
-    gap: 4px;
-    
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-  }
-`;
+// Removed EditButton - using UI Button components
 
 const OptionsButton = styled(motion.button)`
   position: absolute;
@@ -244,19 +173,34 @@ export const ChatbotCard: React.FC<ChatbotCardProps> = ({
       />
       
       <CardActions onClick={(e) => e.stopPropagation()}>
-        <SubtleButton href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}>
-          <FiPlay />
+        <LinkButton 
+          href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}
+          variant="ghost"
+          size="small"
+          icon={<FiPlay />}
+          fullWidth
+        >
           Test
-        </SubtleButton>
-        <EditButton onClick={() => onEdit(chatbot.chatbot_id)}>
-          <FiEdit />
+        </LinkButton>
+        <Button 
+          onClick={() => onEdit(chatbot.chatbot_id)}
+          variant="ghost"
+          size="small"
+          icon={<FiEdit />}
+          fullWidth
+        >
           Edit
-        </EditButton>
+        </Button>
         {chatbot.enable_rag && (
-          <SubtleButton href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/knowledge-base`}>
-            <FiDatabase />
+          <LinkButton 
+            href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/knowledge-base`}
+            variant="ghost"
+            size="small"
+            icon={<FiDatabase />}
+            fullWidth
+          >
             Knowledge
-          </SubtleButton>
+          </LinkButton>
         )}
       </CardActions>
       

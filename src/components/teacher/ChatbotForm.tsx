@@ -12,7 +12,7 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
-import { ModernButton } from '@/components/shared/ModernButton';
+import { Button } from '@/components/ui/Button';
 // Import all required components for document handling
 import EnhancedRagUploader from './EnhancedRagUploader';
 import EnhancedRagScraper from './EnhancedRagScraper';
@@ -569,7 +569,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 <ExampleTemplateContainer>
                   <Label as="p" style={{ marginBottom: '4px' }}>Example Templates:</Label>
                   <TemplateButtonGroup>
-                    <ModernButton 
+                    <Button 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -601,9 +601,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Science Assessment
-                    </ModernButton>
+                    </Button>
                     
-                    <ModernButton 
+                    <Button 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -635,9 +635,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Essay Rubric
-                    </ModernButton>
+                    </Button>
                     
-                    <ModernButton 
+                    <Button 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -669,7 +669,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Math Problems
-                    </ModernButton>
+                    </Button>
                   </TemplateButtonGroup>
                 </ExampleTemplateContainer>
                 
@@ -924,21 +924,21 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
         </FormContent>
 
         <Footer>
-          <ModernButton 
+          <Button 
             type="button" 
             variant="ghost" 
             onClick={onClose}
           >
             Cancel
-          </ModernButton>
-          <ModernButton 
+          </Button>
+          <Button 
             type="submit" 
             form="chatbotCreateForm" 
             variant="primary"
             disabled={isSubmitting}
           >
             {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Skolrbot')}
-          </ModernButton>
+          </Button>
         </Footer>
       </FormCard>
     </Overlay>

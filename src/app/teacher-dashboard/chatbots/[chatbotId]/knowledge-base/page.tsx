@@ -163,6 +163,18 @@ export default function KnowledgeBasePage() {
   const fetchChatbotInfo = useCallback(async () => {
     if(!chatbotId) return;
     try {
+      // First check if we have a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError);
+        // Try to refresh the session
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshedSession) {
+          throw new Error('Authentication expired. Please log in again.');
+        }
+      }
+      
       const { data: chatbot, error: chatbotError } = await supabase
         .from('chatbots')
         .select('name, teacher_id') // Also get teacher_id for auth check
@@ -180,9 +192,18 @@ export default function KnowledgeBasePage() {
       setChatbotName(chatbot.name);
     } catch (err) {
       console.error('Error fetching chatbot info:', err);
-      setPageError(err instanceof Error ? err.message : 'Failed to fetch chatbot information');
+      // Check if it's a JWT error and provide better guidance
+      if (err instanceof Error && err.message.includes('JWT')) {
+        setPageError('Your session has expired. Please refresh the page or log in again.');
+        // Optionally redirect to login after a delay
+        setTimeout(() => {
+          router.push('/auth');
+        }, 3000);
+      } else {
+        setPageError(err instanceof Error ? err.message : 'Failed to fetch chatbot information');
+      }
     }
-  }, [chatbotId, supabase]);
+  }, [chatbotId, supabase, router]);
 
   const fetchDocuments = useCallback(async () => {
     if (!chatbotId) return;

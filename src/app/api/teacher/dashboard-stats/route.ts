@@ -68,7 +68,7 @@ export async function GET() {
         // Count unique students across all teacher's rooms
         roomIds.length > 0 
             ? supabaseAdmin
-                .from('room_student_associations')
+                .from('room_memberships')
                 .select('student_id', { count: 'exact', head: true })
                 .in('room_id', roomIds)
             : Promise.resolve({ count: 0, error: null }),

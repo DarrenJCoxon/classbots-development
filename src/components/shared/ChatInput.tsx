@@ -182,6 +182,7 @@ export default function ChatInput({ onSend, isLoading, error, onClearError, hint
             variant="primary"
             size="medium"
             loading={isLoading}
+            gradient={false}
           >
             {isLoading ? 'Sending...' : 'Send'}
           </Button>
