@@ -24,6 +24,11 @@ const HeaderWrapper = styled.header`
   min-height: 60px;
   display: flex;
   align-items: center;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    min-height: 56px;
+    padding: 8px 0;
+  }
 `;
 
 const HeaderContent = styled.div`
@@ -49,6 +54,7 @@ const Logo = styled(Link)`
   align-items: center;
   gap: 4px;
   padding: 4px 0;
+  flex-shrink: 0;
   
   /* Create a proper container for logo images */
   > * {
@@ -64,21 +70,27 @@ const Logo = styled(Link)`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     gap: 0;
     padding: ${({ theme }) => theme.spacing.xs} 0;
+    min-width: 0;
   }
 `;
 
 const LogoImage = styled(Image)`
   height: auto;
   width: auto;
+  object-fit: contain;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 55px;
-    height: 55px;
+    max-width: 120px;
+    max-height: 48px;
+    width: auto;
+    height: auto;
   }
   
   @media (max-width: 380px) {
-    width: 50px;
-    height: 50px;
+    max-width: 100px;
+    max-height: 40px;
+    width: auto;
+    height: auto;
   }
 `;
 
@@ -272,6 +284,10 @@ export default function Header() {
               width={150} 
               height={60} 
               priority
+              style={{
+                maxWidth: '100%',
+                height: 'auto'
+              }}
             />
           </Logo>
           

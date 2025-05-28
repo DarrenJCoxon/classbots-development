@@ -116,13 +116,20 @@ export async function POST(request: NextRequest) {
     // Use admin client for all database operations to bypass RLS
     const supabaseAdmin = createAdminClient();
 
-    const { data: profile } = await supabaseAdmin
+    // Check if user is a teacher in the profiles table
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return NextResponse.json({ error: 'Error checking authorization' }, { status: 500 });
+    }
 
     if (!profile || profile.role !== 'teacher') {
+      console.error('User not authorized:', { userId: user.id, role: profile?.role });
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
