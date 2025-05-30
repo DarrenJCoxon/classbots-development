@@ -1102,10 +1102,39 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
               // Try to parse the error response as JSON for more details
               try {
                 const errorData = JSON.parse(errorText);
+                console.error(`[Chat.tsx] Parsed error details:`, errorData);
+                
+                // Handle content filtering (400 error with "Message blocked")
+                if (response.status === 400 && errorData.error === "Message blocked") {
+                  console.log("[Chat.tsx] Content filter triggered - showing friendly message");
+                  
+                  // Remove the optimistic message
+                  setMessages(prev => prev.filter(m => m.message_id !== tempOptimisticLocalId));
+                  
+                  // Add a system message explaining the filter
+                  const filterMessage: ChatMessage = {
+                    message_id: `filter-${Date.now()}`,
+                    room_id: roomId,
+                    user_id: userId,
+                    role: 'system',
+                    content: errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.',
+                    created_at: new Date().toISOString(),
+                    metadata: {
+                      isContentFilter: true,
+                      filterReason: errorData.reason,
+                      chatbotId: chatbot.chatbot_id
+                    }
+                  };
+                  
+                  setMessages(prev => [...prev, filterMessage]);
+                  setIsLoading(false);
+                  setTimeout(scrollToBottom, 50);
+                  return; // Skip normal error handling
+                }
+                
                 // If we have a specific error message from the server, use it
                 if (errorData.error || errorData.message) {
                   errorMessage = errorData.error || errorData.message || errorMessage;
-                  console.error(`[Chat.tsx] Parsed error details:`, errorData);
                 }
                 
                 // Handle safety intervention from the server

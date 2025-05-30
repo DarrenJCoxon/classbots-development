@@ -390,15 +390,31 @@ export async function POST(request: NextRequest) {
     // Log error for debugging if request fails
     if (!response.ok) {
       try {
-        const errorText = await response.text();
-        console.error(`[API POST /chat/direct-access] Forwarded request failed with status ${response.status}:`, errorText);
+        // Try to parse as JSON first (for content filter errors)
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const errorData = await response.json();
+          console.error(`[API POST /chat/direct-access] Forwarded request failed with status ${response.status}:`, errorData);
+          
+          // Pass through the error response as-is (including content filter errors)
+          return NextResponse.json(errorData, { status: response.status });
+        } else {
+          // Fall back to text parsing
+          const errorText = await response.text();
+          console.error(`[API POST /chat/direct-access] Forwarded request failed with status ${response.status}:`, errorText);
+          
+          return NextResponse.json({ 
+            error: `Chat API request failed with status ${response.status}`,
+            details: errorText
+          }, { status: response.status });
+        }
       } catch (readError) {
-        console.error(`[API POST /chat/direct-access] Forwarded request failed with status ${response.status} (could not read error details)`);
+        console.error(`[API POST /chat/direct-access] Forwarded request failed with status ${response.status} (could not read error details)`, readError);
+        
+        return NextResponse.json({ 
+          error: `Chat API request failed with status ${response.status}` 
+        }, { status: response.status });
       }
-      
-      return NextResponse.json({ 
-        error: `Chat API request failed with status ${response.status}` 
-      }, { status: response.status });
     }
 
     // Return the streaming response for normal chat responses
