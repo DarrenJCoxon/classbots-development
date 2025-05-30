@@ -28,17 +28,55 @@ Log in as a student account and try sending these messages to any chatbot:
   - **Expected**: Message blocked with reason "ZIP code"
 
 #### Social Media & External Contact Tests:
-- ✅ **Social Platforms**:
-  - "Add me on Instagram"
-  - "My TikTok is @username"
-  - "Find me on Snapchat"
-  - **Expected**: Message blocked with reason "social media platform"
+- ✅ **Social Media Mentions** (Realistic for chatbots):
+  - "My Instagram is @username"
+  - "I have a TikTok account"
+  - "Check my YouTube channel"
+  - **Expected**: Message blocked with reason "social media mention" or "social media username"
 
-- ✅ **Contact Requests**:
-  - "Let's meet after school"
-  - "Want to hang out?"
-  - "DM me on Discord"
-  - **Expected**: Message blocked with reason "external contact request" or "meeting request"
+- ✅ **Social Media Inquiries**:
+  - "Do you have Instagram?"
+  - "Can you follow me on TikTok?"
+  - "What's your Discord?"
+  - **Expected**: Message blocked with reason "social media inquiry"
+
+#### Additional Personal Information Tests:
+- ✅ **Age Information**:
+  - "I'm 11 years old"
+  - "My age is 10"
+  - **Expected**: Message blocked with reason "age information"
+
+- ✅ **Birthday Information**:
+  - "My birthday is March 15"
+  - "I was born on January 1, 2012"
+  - **Expected**: Message blocked with reason "birthdate"
+
+- ✅ **Location Information**:
+  - "I live in Chicago"
+  - "I'm from New York"
+  - **Expected**: Message blocked with reason "location information"
+
+- ✅ **School Names**:
+  - "I go to Lincoln Elementary"
+  - "My school is Washington Middle School"
+  - **Expected**: Message blocked with reason "school name"
+
+- ✅ **Teacher Names**:
+  - "My teacher Mrs. Johnson"
+  - "Mr. Smith teaches math"
+  - **Expected**: Message blocked with reason "teacher name"
+
+#### Mental Health & Safety Tests:
+- ✅ **Self-Harm Concerns**:
+  - "I want to hurt myself"
+  - "Nobody likes me"
+  - "I'm so depressed"
+  - **Expected**: Message blocked with reason "violence or self-harm", "negative self-talk", or "mental health concern"
+
+- ✅ **Parent Absence**:
+  - "I'm home alone"
+  - "My parents are at work"
+  - **Expected**: Message blocked with reason "home alone status" or "parent absence"
 
 #### External Links Test:
 - ✅ **Any non-Skolr URL**:

@@ -11,7 +11,7 @@ export interface FilterResult {
   flaggedPatterns?: string[];
 }
 
-// Personal Information Patterns
+// Personal Information Patterns - Realistic for chatbot conversations
 const PERSONAL_INFO_PATTERNS = [
   {
     pattern: /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
@@ -24,47 +24,107 @@ const PERSONAL_INFO_PATTERNS = [
     replacement: '[EMAIL REMOVED]'
   },
   {
-    pattern: /\b\d{5}(?:-\d{4})?\b/g,
-    reason: 'ZIP code',
-    replacement: '[ZIP REMOVED]'
-  },
-  {
-    pattern: /\b(?:my|i live at|address is)\s+\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|place|pl)\b/gi,
+    pattern: /\b(?:my|i live at|address is|i'm at)\s+\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|place|pl)\b/gi,
     reason: 'physical address',
     replacement: '[ADDRESS REMOVED]'
   },
   {
-    pattern: /\b(?:social security|ssn|ss#)\s*:?\s*\d{3}-?\d{2}-?\d{4}\b/gi,
-    reason: 'social security number',
-    replacement: '[SSN REMOVED]'
+    pattern: /\b(?:i'm|i am|im)\s+home\s+alone\b/gi,
+    reason: 'home alone status',
+    replacement: '[SAFETY INFO REMOVED]'
+  },
+  {
+    pattern: /\b(?:my\s+)?(?:mom|dad|mother|father|parents?)\s+(?:is|are)\s+(?:at work|gone|away|not home)\b/gi,
+    reason: 'parent absence',
+    replacement: '[FAMILY INFO REMOVED]'
+  },
+  {
+    pattern: /\b(?:my school is|i go to|i attend|student at)\s+[A-Z][\w\s]+(?:elementary|middle|high|primary|secondary|school|academy|prep)\b/gi,
+    reason: 'school name',
+    replacement: '[SCHOOL REMOVED]'
+  },
+  {
+    pattern: /\b[A-Z][\w\s]+(?:Elementary|Middle|High|Primary|Secondary)\s*(?:School)?\b/g,
+    reason: 'school name',
+    replacement: '[SCHOOL REMOVED]'
+  },
+  {
+    pattern: /\b(?:my teacher(?:'s)?|teacher is)\s+(?:mrs?\.?|miss|ms\.?)?\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/gi,
+    reason: 'teacher name',
+    replacement: '[TEACHER NAME REMOVED]'
+  },
+  {
+    pattern: /\b(?:mrs?\.?|miss|ms\.?)\s+[A-Z][a-z]+\s+(?:is|teaches|said)\b/gi,
+    reason: 'teacher name',
+    replacement: '[TEACHER NAME REMOVED]'
+  },
+  {
+    pattern: /\b(?:i take|i'm on|medication for|prescribed)\s+[\w\s]+(?:for|because)\b/gi,
+    reason: 'medical information',
+    replacement: '[MEDICAL INFO REMOVED]'
+  },
+  {
+    pattern: /\b(?:my full name is|my name is)\s+[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/gi,
+    reason: 'full name',
+    replacement: '[NAME REMOVED]'
+  },
+  {
+    pattern: /\b(?:password|passcode|pin)\s*(?:is|:)?\s*["']?[\w@#$%^&*]+["']?\b/gi,
+    reason: 'password',
+    replacement: '[PASSWORD REMOVED]'
+  },
+  {
+    pattern: /\b(?:i live in|i'm from|my city is|my town is)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/gi,
+    reason: 'location information',
+    replacement: '[LOCATION REMOVED]'
+  },
+  {
+    pattern: /\b(?:birthday|birthdate|born on|i was born)\s+(?:is)?\s*(?:January|February|March|April|May|June|July|August|September|October|November|December|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/gi,
+    reason: 'birthdate',
+    replacement: '[BIRTHDATE REMOVED]'
+  },
+  {
+    pattern: /\b(?:my age is|i am|i'm)\s+\d{1,3}\s*(?:years?\s*old)?\b/gi,
+    reason: 'age information',
+    replacement: '[AGE REMOVED]'
   }
 ];
 
-// External Platform Patterns
+// External Platform Patterns - Realistic for chatbot conversations
 const EXTERNAL_PLATFORM_PATTERNS = [
   {
-    pattern: /\b(?:snapchat|instagram|tiktok|facebook|whatsapp|discord|telegram|kik|twitter|youtube|twitch)\b/gi,
-    reason: 'social media platform',
+    pattern: /\b(?:my|i have a?|i'm on|check my|follow my|see my)\s+(?:snapchat|instagram|tiktok|facebook|whatsapp|discord|telegram|kik|twitter|youtube|twitch)\b/gi,
+    reason: 'social media mention',
     replacement: '[SOCIAL MEDIA REMOVED]'
   },
   {
-    pattern: /\b(?:add me on|find me on|message me on|dm me|follow me on|friend me on)\b/gi,
-    reason: 'external contact request',
-    replacement: '[CONTACT REQUEST REMOVED]'
+    pattern: /\b(?:my username is|my handle is|@[a-zA-Z0-9_]+)\s+(?:on)?\s*(?:snapchat|instagram|tiktok|facebook|whatsapp|discord|telegram|kik|twitter|youtube|twitch)?\b/gi,
+    reason: 'social media username',
+    replacement: '[USERNAME REMOVED]'
   },
   {
-    pattern: /\b(?:let's|lets|wanna|want to)\s+(?:meet|hang out|get together|see each other)\b/gi,
-    reason: 'meeting request',
-    replacement: '[MEETING REQUEST REMOVED]'
+    pattern: /\b(?:can you|do you have|are you on|what's your)\s+(?:snapchat|instagram|tiktok|facebook|whatsapp|discord|telegram|kik|twitter|youtube|twitch)\b/gi,
+    reason: 'social media inquiry',
+    replacement: '[SOCIAL MEDIA REMOVED]'
   }
 ];
 
-// Inappropriate Content Patterns
+// Inappropriate Content Patterns - Expanded for chatbot safety
 const INAPPROPRIATE_CONTENT_PATTERNS = [
   {
     pattern: /\b(?:kill|hurt|harm|hit|punch|fight|beat up)\s+(?:myself|yourself|someone|them|him|her)\b/gi,
     reason: 'violence or self-harm',
     replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:i hate|i want to die|suicide|depressed|cutting myself)\b/gi,
+    reason: 'mental health concern',
+    replacement: '[SAFETY CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:nobody likes me|everyone hates me|i'm worthless|i'm stupid)\b/gi,
+    reason: 'negative self-talk',
+    replacement: '[CONCERNING CONTENT REMOVED]'
   }
 ];
 
