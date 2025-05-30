@@ -352,6 +352,9 @@ export async function POST(request: NextRequest) {
     
     // AI-based content moderation for inappropriate content and jailbreak attempts
     if (isStudent) {
+      // First check if this might be a safety concern - we don't want to block crisis messages
+      const { hasConcern: mightBeSafetyConcern } = initialConcernCheck(trimmedContent);
+      
       const moderationResult = await moderateContent(trimmedContent, {
         studentId: user.id,
         roomId: roomId,
@@ -361,23 +364,32 @@ export async function POST(request: NextRequest) {
       if (moderationResult.isFlagged) {
         console.log(`[API Chat POST] AI moderation flagged content from user ${user.id}: ${moderationResult.reason}`);
         
-        // Return a different message based on severity
-        let userMessage = 'Your message was blocked due to inappropriate content. Please keep conversations respectful and educational.';
-        
-        if (moderationResult.jailbreakDetected) {
-          userMessage = 'Your message appears to be attempting to manipulate the system. Please use this tool for its intended educational purpose.';
-        } else if (moderationResult.severity === 'high') {
-          userMessage = 'Your message contains content that violates our community guidelines. This has been reported for review.';
-        } else if (moderationResult.categories.includes('harassment') || moderationResult.categories.includes('hate')) {
-          userMessage = 'Please be respectful in your messages. Harassment and hate speech are not tolerated.';
+        // CRITICAL: If this might be a safety concern (self-harm, suicide, etc.), 
+        // let it through so the safety system can provide helplines
+        if (mightBeSafetyConcern && (moderationResult.categories.includes('self-harm') || 
+                                     moderationResult.categories.includes('self-harm/intent') ||
+                                     moderationResult.categories.includes('self-harm/instructions'))) {
+          console.log(`[API Chat POST] AI moderation detected self-harm content, but allowing through for safety response`);
+          // Continue processing - safety system will handle this appropriately
+        } else {
+          // Not a safety concern, or not self-harm related - block it
+          let userMessage = 'Your message was blocked due to inappropriate content. Please keep conversations respectful and educational.';
+          
+          if (moderationResult.jailbreakDetected) {
+            userMessage = 'Your message appears to be attempting to manipulate the system. Please use this tool for its intended educational purpose.';
+          } else if (moderationResult.severity === 'high' && !mightBeSafetyConcern) {
+            userMessage = 'Your message contains content that violates our community guidelines. This has been reported for review.';
+          } else if (moderationResult.categories.includes('harassment') || moderationResult.categories.includes('hate')) {
+            userMessage = 'Please be respectful in your messages. Harassment and hate speech are not tolerated.';
+          }
+          
+          return NextResponse.json({ 
+            error: 'Message blocked', 
+            message: userMessage,
+            reason: `AI moderation: ${moderationResult.categories.join(', ')}`,
+            severity: moderationResult.severity
+          }, { status: 400 });
         }
-        
-        return NextResponse.json({ 
-          error: 'Message blocked', 
-          message: userMessage,
-          reason: `AI moderation: ${moderationResult.categories.join(', ')}`,
-          severity: moderationResult.severity
-        }, { status: 400 });
       }
     }
     

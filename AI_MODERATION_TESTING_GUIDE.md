@@ -141,3 +141,14 @@ The AI moderation works alongside:
 - **Teacher Alerts**: Real-time notifications for high-severity content
 
 All systems log to the same dashboard for unified teacher oversight.
+
+### CRITICAL: Safety Message Priority
+
+**Self-harm and crisis messages are NEVER blocked** - even if they contain inappropriate language. The safety system takes priority to ensure students receive helpline information when they need it most.
+
+Example:
+- "I want to kill myself" - AI moderation detects self-harm BUT allows it through for safety response
+- "I hate myself and want to die" - Passes to safety system despite negative content
+- "F*** this, I'm going to hurt myself" - Profanity ignored, safety response provided
+
+The system prioritizes student welfare over content moderation in crisis situations.
