@@ -4,9 +4,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'; // Added useRef
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { Card, Alert, Button } from '@/styles/StyledComponents';
+import { Card, Alert } from '@/styles/StyledComponents';
 // Input import is removed as it's not used
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 const ListContainer = styled(Card)`
   margin-top: ${({ theme }) => theme.spacing.xl};
@@ -182,7 +183,7 @@ interface StudentListProps {
 //   regenerated?: boolean;
 // }
 
-const ArchiveButton = styled(Button)`
+const ArchiveButton = styled(ModernButton)`
   background-color: ${({ theme }) => theme.colors.secondary};
   color: white;
   
@@ -191,7 +192,7 @@ const ArchiveButton = styled(Button)`
   }
 `;
 
-const DeleteButton = styled(Button)`
+const DeleteButton = styled(ModernButton)`
   background-color: ${({ theme }) => theme.colors.danger};
   color: white;
   
@@ -552,9 +553,9 @@ export default function StudentList({ roomId }: StudentListProps) {
         <Title>Students</Title>
         <Alert variant="error">
           Error: {error}
-          <Button size="small" onClick={fetchStudents} style={{ marginLeft: '10px' }}>
+          <ModernButton size="small" onClick={fetchStudents} style={{ marginLeft: '10px' }}>
             Retry
-          </Button>
+          </ModernButton>
         </Alert>
       </ListContainer>
     );
@@ -566,9 +567,9 @@ export default function StudentList({ roomId }: StudentListProps) {
         <Title>Students</Title>
         <EmptyState>
           <p>No students have joined this room yet, or data could not be loaded.</p>
-          <Button size="small" onClick={fetchStudents} style={{ marginTop: '10px' }}>
+          <ModernButton size="small" onClick={fetchStudents} style={{ marginTop: '10px' }}>
             Refresh List
-          </Button>
+          </ModernButton>
         </EmptyState>
       </ListContainer>
     );
@@ -606,51 +607,50 @@ export default function StudentList({ roomId }: StudentListProps) {
                       <span className="value">{student.pin_code}</span>
                     </PinInfoRow>
                     <PinActions>
-                      <Button 
+                      <ModernButton 
                         size="small" 
                         variant="secondary"
                         onClick={() => copyToClipboard(student.user_id)}
                       >
                         Copy
-                      </Button>
-                      <Button 
+                      </ModernButton>
+                      <ModernButton 
                         size="small" 
                         variant="secondary"
                         onClick={() => regeneratePin(student.user_id)}
                       >
                         New PIN
-                      </Button>
-                      <Button 
+                      </ModernButton>
+                      <ModernButton 
                         size="small" 
                         variant="secondary"
                         onClick={() => togglePinDisplay(student.user_id)}
                       >
                         Hide
-                      </Button>
+                      </ModernButton>
                     </PinActions>
                   </PinInfoContainer>
                 ) : (
-                  <Button 
+                  <ModernButton 
                     size="small" 
                     variant="secondary"
                     onClick={() => togglePinDisplay(student.user_id)}
                   >
                     Show Login Info
-                  </Button>
+                  </ModernButton>
                 )}
               </TableCell>
               <TableCell>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <Button
-                    size="small"
+                  <ModernButton                     size="small"
                     onClick={() => handleViewChats(student.user_id)}
                   >
                     Student Details
-                  </Button>
+                  </ModernButton>
                   {student.archiving ? (
-                    <Button size="small" disabled>
+                    <ModernButton size="small" disabled>
                       <LoadingSpinner size="small" /> Archiving...
-                    </Button>
+                    </ModernButton>
                   ) : (
                     <ArchiveButton
                       size="small"
@@ -661,9 +661,9 @@ export default function StudentList({ roomId }: StudentListProps) {
                     </ArchiveButton>
                   )}
                   {student.deleting ? (
-                    <Button size="small" disabled>
+                    <ModernButton size="small" disabled>
                       <LoadingSpinner size="small" /> Deleting...
-                    </Button>
+                    </ModernButton>
                   ) : (
                     <DeleteButton
                       size="small"
@@ -703,48 +703,47 @@ export default function StudentList({ roomId }: StudentListProps) {
                 <LoadingSpinner size="small" />
               ) : student.showPin && student.pin_code ? (
                 <>
-                  <Button 
+                  <ModernButton 
                     size="small" 
                     variant="secondary"
                     onClick={() => copyToClipboard(student.user_id)}
                   >
                     Copy
-                  </Button>
-                  <Button 
+                  </ModernButton>
+                  <ModernButton 
                     size="small" 
                     variant="secondary"
                     onClick={() => regeneratePin(student.user_id)}
                   >
                     New PIN
-                  </Button>
-                  <Button 
+                  </ModernButton>
+                  <ModernButton 
                     size="small" 
                     variant="secondary"
                     onClick={() => togglePinDisplay(student.user_id)}
                   >
                     Hide
-                  </Button>
+                  </ModernButton>
                 </>
               ) : (
-                <Button 
+                <ModernButton 
                   size="small" 
                   variant="secondary"
                   onClick={() => togglePinDisplay(student.user_id)}
                 >
                   Show Login Info
-                </Button>
+                </ModernButton>
               )}
-              <Button
-                size="small"
+              <ModernButton                 size="small"
                 onClick={() => handleViewChats(student.user_id)}
                 style={{ marginRight: '0.5rem' }}
               >
                 Student Details
-              </Button>
+              </ModernButton>
               {student.archiving ? (
-                <Button size="small" disabled>
+                <ModernButton size="small" disabled>
                   <LoadingSpinner size="small" /> Archiving...
-                </Button>
+                </ModernButton>
               ) : (
                 <ArchiveButton
                   size="small"
@@ -755,9 +754,9 @@ export default function StudentList({ roomId }: StudentListProps) {
                 </ArchiveButton>
               )}
               {student.deleting ? (
-                <Button size="small" disabled>
+                <ModernButton size="small" disabled>
                   <LoadingSpinner size="small" /> Deleting...
-                </Button>
+                </ModernButton>
               ) : (
                 <DeleteButton
                   size="small"
@@ -778,9 +777,9 @@ export default function StudentList({ roomId }: StudentListProps) {
             <p>Are you sure you want to remove <strong>{studentToArchive.name}</strong> from this room?</p>
             <p>The student will no longer have access to this room, but their account and data will be preserved.</p>
             <ModalActions>
-              <Button variant="outline" onClick={closeArchiveModal}>
+              <ModernButton variant="ghost" onClick={closeArchiveModal}>
                 Cancel
-              </Button>
+              </ModernButton>
               <ArchiveButton 
                 onClick={() => archiveStudent(studentToArchive.user_id)}
                 variant="secondary"
@@ -798,9 +797,9 @@ export default function StudentList({ roomId }: StudentListProps) {
             <p>Are you sure you want to permanently delete <strong>{studentToDelete.name}</strong>?</p>
             <p style={{ color: 'red', fontWeight: 'bold' }}>⚠️ This action cannot be undone. The student's account and all associated data will be permanently deleted.</p>
             <ModalActions>
-              <Button variant="outline" onClick={closeDeleteModal}>
+              <ModernButton variant="ghost" onClick={closeDeleteModal}>
                 Cancel
-              </Button>
+              </ModernButton>
               <DeleteButton 
                 onClick={() => deleteStudent(studentToDelete.user_id)}
                 variant="secondary"

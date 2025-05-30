@@ -3,14 +3,21 @@
 
 import { useState, useEffect } from 'react';
 import SimplePDFViewer from './SimplePDFViewer';
+import { MediaViewer } from './MediaViewer';
+import { VideoPlayerWithTracking } from './VideoPlayerWithTracking';
+import { parseVideoUrl } from '@/lib/utils/video-utils';
 
 interface ReadingDocumentViewerProps {
   chatbotId: string;
   userId?: string;
 }
 
-export default function ReadingDocumentViewer({ chatbotId, userId }: ReadingDocumentViewerProps) {
+export default function ReadingDocumentViewer({ 
+  chatbotId, 
+  userId
+}: ReadingDocumentViewerProps) {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [contentType, setContentType] = useState<'pdf' | 'video'>('pdf');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,13 +56,34 @@ export default function ReadingDocumentViewer({ chatbotId, userId }: ReadingDocu
       const data = await response.json();
       console.log('[ReadingDocumentViewer] API Response:', data);
       
-      if (data.document && data.document.file_url) {
-        // Clean the URL - remove any fragments
-        const cleanUrl = data.document.file_url.split('#')[0];
-        console.log('[ReadingDocumentViewer] Setting clean document URL:', cleanUrl);
-        setDocumentUrl(cleanUrl);
+      if (data.document) {
+        const docContentType = data.document.content_type || 'pdf';
+        setContentType(docContentType);
+        
+        // Get the appropriate URL based on content type
+        let url = null;
+        if (docContentType === 'video') {
+          // For videos, the file_url contains the video URL
+          url = data.document.file_url;
+        } else {
+          // For PDFs, use file_url
+          url = data.document.file_url;
+        }
+        
+        if (url) {
+          // Clean the URL - remove any fragments
+          const cleanUrl = url.split('#')[0];
+          console.log('[ReadingDocumentViewer] Setting document:', {
+            url: cleanUrl,
+            contentType: docContentType
+          });
+          setDocumentUrl(cleanUrl);
+        } else {
+          console.log('[ReadingDocumentViewer] No document URL found in response');
+          setDocumentUrl(null);
+        }
       } else {
-        console.log('[ReadingDocumentViewer] No document URL found in response');
+        console.log('[ReadingDocumentViewer] No document in response');
         setDocumentUrl(null);
       }
     } catch (err) {
@@ -66,6 +94,48 @@ export default function ReadingDocumentViewer({ chatbotId, userId }: ReadingDocu
     }
   };
 
+  // For video content, use VideoPlayerWithTracking if we have tracking info
+  if (contentType === 'video' && documentUrl) {
+    if (loading) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100%',
+          color: '#666'
+        }}>
+          Loading video...
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100%',
+          color: '#ef4444',
+          padding: '2rem',
+          textAlign: 'center'
+        }}>
+          {error}
+        </div>
+      );
+    }
+    
+    // Always use VideoPlayerWithTracking for videos
+    const videoInfo = parseVideoUrl(documentUrl);
+    return (
+      <VideoPlayerWithTracking
+        videoInfo={videoInfo}
+        title="Video Content"
+      />
+    );
+  }
+  
+  // For PDF content, use SimplePDFViewer
   return (
     <SimplePDFViewer 
       documentUrl={documentUrl}

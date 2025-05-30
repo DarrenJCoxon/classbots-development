@@ -15,12 +15,13 @@ import {
   FiToggleLeft,
   FiToggleRight,
   FiBookOpen,
-  FiClipboard
+  FiClipboard,
+  FiVideo
 } from 'react-icons/fi';
 import { GlassCard } from '@/components/shared/GlassCard';
 import Link from 'next/link';
 import type { Chatbot } from '@/types/database.types';
-import { LinkButton } from '@/components/ui/Button';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 interface ModernChatbotCardProps {
   chatbot: Chatbot;
@@ -449,10 +450,12 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
           <StatItem>
             <StatIcon>
               {chatbot.bot_type === 'reading_room' ? <FiBookOpen /> : 
+               chatbot.bot_type === 'viewing_room' ? <FiVideo /> : 
                chatbot.bot_type === 'assessment' ? <FiClipboard /> : 
                <FiMessageSquare />}
             </StatIcon>
             <StatValue>{chatbot.bot_type === 'reading_room' ? 'Reading' : 
+                       chatbot.bot_type === 'viewing_room' ? 'Viewing' : 
                        chatbot.bot_type === 'assessment' ? 'Assessment' : 
                        'Learning'}</StatValue>
             <StatLabel>Bot Type</StatLabel>
@@ -477,14 +480,15 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
       </CardBody>
       
       <CardFooter>
-        <LinkButton 
-          href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}
+        <ModernButton 
           variant="primary"
           size="small"
-          iconRight={<FiChevronRight />}
+          onClick={() => window.location.href = `/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
         >
           Test Chat
-        </LinkButton>
+          <FiChevronRight />
+        </ModernButton>
       </CardFooter>
     </ChatbotCardContainer>
   );

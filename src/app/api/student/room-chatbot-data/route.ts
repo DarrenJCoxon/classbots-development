@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
           rag_enabled, 
           bot_type, 
           assessment_criteria_text,
-          welcome_message
+          welcome_message,
+          linked_assessment_bot_id
         `)
         .eq('chatbot_id', chatbotId)
         .single(),
@@ -167,7 +168,7 @@ export async function GET(request: NextRequest) {
       },
       chatbot: chatbot,
       instanceId: existingInstance?.instance_id || instanceId,
-      readingDocument: chatbot.bot_type === 'reading_room' ? readingDocument : null
+      readingDocument: (chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room') ? readingDocument : null
     });
     
     // Cache for 5 minutes

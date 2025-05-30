@@ -4,7 +4,8 @@ import { useState, Suspense } from 'react';
 import styled from 'styled-components';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, Button, Alert } from '@/styles/StyledComponents';
+import { Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const PageWrapper = styled.div`
@@ -118,19 +119,19 @@ function ConfirmContent() {
         )}
         
         <ButtonGroup>
-          <Button 
+          <ModernButton 
             onClick={handleResendLink}
             disabled={isResending}
           >
             {isResending ? 'Sending...' : 'Resend Magic Link'}
-          </Button>
+          </ModernButton>
           
-          <Button 
-            variant="outline"
+          <ModernButton 
+            variant="ghost"
             onClick={() => router.push('/join-room')}
           >
             Back to Room Join
-          </Button>
+          </ModernButton>
         </ButtonGroup>
       </ConfirmCard>
     </PageWrapper>

@@ -4,7 +4,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { Button, Alert, Card } from '@/styles/StyledComponents';
+import { Alert, Card } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import ChatbotList from '@/components/teacher/ChatbotList';
 import ChatbotForm from '@/components/teacher/ChatbotForm'; // For the modal
 // import DeleteModal from '@/components/teacher/DeleteModal'; // We'll integrate delete later
@@ -81,7 +82,7 @@ export default function ChatbotsPage() {
     <div>
       <PageHeader>
         <Title>My Chatbots</Title>
-        <Button onClick={() => setShowChatbotForm(true)}>+ Create Chatbot</Button>
+        <ModernButton onClick={() => setShowChatbotForm(true)}>+ Create Chatbot</ModernButton>
       </PageHeader>
 
       {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}

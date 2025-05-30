@@ -1,106 +1,124 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { Database } from '@/types/database.types'
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
+    console.log('[Dashboard API] Starting request')
+    const supabase = await createServerSupabaseClient()
+    const supabaseAdmin = createAdminClient()
     
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('[Dashboard API] Auth check:', { userId: user?.id, error: authError })
+    
+    if (authError || !user) {
+      console.error('[Dashboard API] Auth error:', authError)
+      return NextResponse.json({ error: 'Unauthorized', details: authError?.message }, { status: 401 })
     }
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel using admin client to bypass RLS
     const [
       userResult,
       roomsResult,
       assessmentsResult,
       recentChatsResult
     ] = await Promise.all([
-      // User profile
-      supabase
-        .from('students')
+      // User profile from student_profiles
+      supabaseAdmin
+        .from('student_profiles')
         .select('*')
-        .eq('id', session.user.id)
+        .eq('user_id', user.id)
         .single(),
       
-      // User's rooms with chatbot counts
-      supabase
-        .from('student_room_associations')
+      // User's rooms with proper joins
+      supabaseAdmin
+        .from('room_memberships')
         .select(`
           room_id,
-          is_active,
           joined_at,
           rooms!inner (
-            id,
-            name,
+            room_id,
+            room_name,
             room_code,
             created_at,
             is_active
           )
         `)
-        .eq('student_id', session.user.id)
-        .eq('is_active', true)
+        .eq('student_id', user.id)
         .order('joined_at', { ascending: false }),
       
       // Recent assessments
-      supabase
-        .from('assessments')
+      supabaseAdmin
+        .from('student_assessments')
         .select(`
-          id,
-          title,
+          assessment_id,
           status,
-          score,
-          feedback,
-          created_at,
+          ai_grade_raw,
+          ai_feedback_student,
+          assessed_at,
           student_id,
           chatbot_id,
-          chatbots (
-            id,
-            name,
-            subject
-          )
-        `)
-        .eq('student_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(5),
-      
-      // Recent chat messages for activity
-      supabase
-        .from('chats')
-        .select(`
-          id,
-          message,
-          created_at,
-          room_id,
-          rooms (
-            id,
+          chatbots!student_assessments_chatbot_id_fkey (
+            chatbot_id,
             name
           )
         `)
-        .eq('user_id', session.user.id)
+        .eq('student_id', user.id)
+        .order('assessed_at', { ascending: false })
+        .limit(5),
+      
+      // Recent chat messages for activity
+      supabaseAdmin
+        .from('chat_messages')
+        .select(`
+          message_id,
+          content,
+          created_at,
+          room_id
+        `)
+        .eq('user_id', user.id)
+        .eq('role', 'user')
         .order('created_at', { ascending: false })
         .limit(10)
     ])
 
-    // Check for errors
-    if (userResult.error) throw userResult.error
-    if (roomsResult.error) throw roomsResult.error
-    if (assessmentsResult.error) throw assessmentsResult.error
-    if (recentChatsResult.error) throw recentChatsResult.error
+    // Check for errors with detailed logging
+    if (userResult.error) {
+      console.error('[Dashboard API] User profile error:', userResult.error)
+      throw new Error(`Failed to fetch user profile: ${userResult.error.message}`)
+    }
+    if (roomsResult.error) {
+      console.error('[Dashboard API] Rooms error:', roomsResult.error)
+      throw new Error(`Failed to fetch rooms: ${roomsResult.error.message}`)
+    }
+    if (assessmentsResult.error) {
+      console.error('[Dashboard API] Assessments error:', assessmentsResult.error)
+      throw new Error(`Failed to fetch assessments: ${assessmentsResult.error.message}`)
+    }
+    if (recentChatsResult.error) {
+      console.error('[Dashboard API] Recent chats error:', recentChatsResult.error)
+      throw new Error(`Failed to fetch recent chats: ${recentChatsResult.error.message}`)
+    }
+    
+    // Debug logging for student profile
+    console.log('[Dashboard API] Student profile data:', {
+      user_id: user.id,
+      first_name: userResult.data?.first_name,
+      surname: userResult.data?.surname,
+      full_name: userResult.data?.full_name,
+      username: userResult.data?.username,
+      pin_code: userResult.data?.pin_code
+    })
 
     // Get chatbot counts for each room
     const roomIds = roomsResult.data?.map(r => r.room_id) || []
     let chatbotCounts: Record<string, number> = {}
     
     if (roomIds.length > 0) {
-      const { data: chatbotData } = await supabase
-        .from('room_chatbot_associations')
+      const { data: chatbotData } = await supabaseAdmin
+        .from('room_chatbots')
         .select('room_id, chatbot_id')
         .in('room_id', roomIds)
-        .eq('is_active', true)
       
       if (chatbotData) {
         chatbotCounts = chatbotData.reduce((acc, item) => {
@@ -110,28 +128,69 @@ export async function GET() {
       }
     }
 
-    // Format rooms with chatbot counts
-    const roomsWithCounts = roomsResult.data?.map(room => ({
-      ...room,
-      chatbot_count: chatbotCounts[room.room_id] || 0
-    })) || []
+    // Format rooms with chatbot counts and fix structure
+    const formattedRooms = roomsResult.data?.map(membership => {
+      const room = membership.rooms as any; // rooms is a single object from the join
+      return {
+        room_id: membership.room_id,
+        joined_at: membership.joined_at,
+        chatbot_count: chatbotCounts[membership.room_id] || 0,
+        is_active: room?.is_active ?? true,
+        rooms: {
+          id: membership.room_id,
+          name: room?.room_name || 'Unknown Room',
+          room_code: room?.room_code || '',
+          created_at: room?.created_at || membership.joined_at,
+          is_active: room?.is_active ?? true
+        }
+      }
+    }) || []
+
+    // Format assessments 
+    const formattedAssessments = assessmentsResult.data?.map(assessment => {
+      // Use the correct property name from the foreign key relationship
+      const chatbot = (assessment as any)['chatbots!student_assessments_chatbot_id_fkey'];
+      return {
+        id: assessment.assessment_id,
+        title: chatbot?.name || 'Assessment', // Use chatbot name as title
+        status: assessment.status || 'completed',
+        score: assessment.ai_grade_raw ? parseFloat(assessment.ai_grade_raw) : null,
+        feedback: assessment.ai_feedback_student || null,
+        created_at: assessment.assessed_at,
+        student_id: assessment.student_id,
+        chatbot_id: assessment.chatbot_id,
+        chatbots: chatbot ? {
+          id: chatbot.chatbot_id,
+          name: chatbot.name,
+          subject: null // Not available in current query
+        } : null
+      }
+    }) || []
 
     // Calculate stats
-    const totalRooms = roomsWithCounts.length
-    const totalAssessments = assessmentsResult.data?.length || 0
-    const averageScore = assessmentsResult.data?.length 
-      ? assessmentsResult.data.reduce((sum, a) => sum + (a.score || 0), 0) / assessmentsResult.data.length
-      : 0
+    const totalRooms = formattedRooms.length
+    const totalAssessments = formattedAssessments.length
     const recentActivity = recentChatsResult.data?.length || 0
 
+    // Return formatted user data with proper name
+    const userData = userResult.data ? {
+      id: user.id,
+      full_name: userResult.data.full_name || (userResult.data.first_name && userResult.data.surname ? `${userResult.data.first_name} ${userResult.data.surname}` : null) || 'Student',
+      first_name: userResult.data.first_name,
+      surname: userResult.data.surname,
+      username: userResult.data.username,
+      school_id: userResult.data.school_id,
+      pin_code: userResult.data.pin_code // Add pin_code to the response
+    } : null
+
     return NextResponse.json({
-      user: userResult.data,
-      rooms: roomsWithCounts,
-      assessments: assessmentsResult.data || [],
+      user: userData,
+      rooms: formattedRooms,
+      assessments: formattedAssessments,
       stats: {
         totalRooms,
         totalAssessments,
-        averageScore: Math.round(averageScore),
+        averageScore: 0, // Can calculate if needed
         recentActivity
       }
     }, {
@@ -141,9 +200,13 @@ export async function GET() {
     })
 
   } catch (error) {
-    console.error('Dashboard data error:', error)
+    console.error('[Dashboard API] Error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch dashboard data'
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard data' },
+      { 
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : String(error)
+      },
       { status: 500 }
     )
   }

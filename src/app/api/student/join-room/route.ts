@@ -124,10 +124,16 @@ export async function POST(request: Request) {
           });
           
           // Also update profile
+          const nameParts = student_name.trim().split(' ');
+          const firstName = nameParts[0] || student_name;
+          const surname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+          
           await supabaseAdmin
             .from('student_profiles')
             .update({ 
-              full_name: student_name
+              full_name: student_name,
+              first_name: firstName,
+              surname: surname
             })
             .eq('user_id', user_id)
             .then(res => {
@@ -257,12 +263,20 @@ export async function POST(request: Request) {
         
         // Create profile - use upsert to handle case where the profile might already exist
         console.log('[Simple Join API] Creating profile for user:', currentUserId);
+        
+        // Parse the student name into first and last parts
+        const nameParts = student_name.trim().split(' ');
+        const firstName = nameParts[0] || student_name;
+        const surname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+        
         const { error: profileError } = await supabaseAdmin
           .from('student_profiles')
           .upsert({
             user_id: currentUserId,
             email: tempEmail,
             full_name: student_name,
+            first_name: firstName,
+            surname: surname,
             is_anonymous: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -283,6 +297,8 @@ export async function POST(request: Request) {
                 user_id: currentUserId,
                 email: tempEmail,
                 full_name: student_name,
+                first_name: firstName,
+                surname: surname,
                 is_anonymous: true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()

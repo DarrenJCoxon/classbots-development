@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    if (chatbot.bot_type !== 'reading_room') {
-      return NextResponse.json({ error: 'Not a Reading Room bot' }, { status: 400 });
+    if (chatbot.bot_type !== 'reading_room' && chatbot.bot_type !== 'viewing_room') {
+      return NextResponse.json({ error: 'Not a Reading Room or Viewing Room bot' }, { status: 400 });
     }
 
     // Get the reading document for this chatbot
@@ -64,28 +64,40 @@ export async function GET(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Use the stored file_url directly if available, otherwise construct it
-    let fileUrl = readingDoc.file_url;
+    // Handle different content types
+    let documentUrl: string | null = null;
+    let contentType = readingDoc.content_type || 'pdf'; // Default to PDF for backward compatibility
     
-    if (!fileUrl) {
-      // Fallback: construct the URL if not stored
-      const { data: publicUrlData } = adminSupabase
-        .storage
-        .from('documents')
-        .getPublicUrl(readingDoc.file_path);
+    if (contentType === 'video') {
+      // For videos, use the video_url directly
+      documentUrl = readingDoc.video_url;
+    } else {
+      // For PDFs, use the stored file_url or construct it
+      documentUrl = readingDoc.file_url;
       
-      fileUrl = publicUrlData.publicUrl;
+      if (!documentUrl && readingDoc.file_path) {
+        // Fallback: construct the URL if not stored
+        const { data: publicUrlData } = adminSupabase
+          .storage
+          .from('documents')
+          .getPublicUrl(readingDoc.file_path);
+        
+        documentUrl = publicUrlData.publicUrl;
+      }
     }
 
-    console.log('[API /student/reading-document] Returning document URL:', fileUrl);
+    console.log('[API /student/reading-document] Returning document:', { contentType, documentUrl });
 
     return NextResponse.json({
       document: {
-        document_id: readingDoc.document_id,
+        document_id: readingDoc.id,
+        content_type: contentType,
         file_name: readingDoc.file_name,
-        file_url: fileUrl,
-        file_type: readingDoc.file_type,
-        uploaded_at: readingDoc.uploaded_at
+        file_url: documentUrl, // This will be either PDF URL or video URL
+        video_platform: readingDoc.video_platform,
+        video_id: readingDoc.video_id,
+        video_metadata: readingDoc.video_metadata,
+        uploaded_at: readingDoc.created_at
       }
     });
 

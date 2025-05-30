@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
     }
 
     // Apply botType filter
-    if (botType && (botType === 'learning' || botType === 'assessment' || botType === 'reading_room')) {
+    if (botType && (botType === 'learning' || botType === 'assessment' || botType === 'reading_room' || botType === 'viewing_room')) {
       query = query.eq('bot_type', botType);
     }
 
@@ -174,10 +174,11 @@ export async function POST(request: NextRequest) {
       model: body.model || 'openai/gpt-4.1-nano',
       max_tokens: body.max_tokens === undefined || body.max_tokens === null ? 1000 : Number(body.max_tokens),
       temperature: body.temperature === undefined || body.temperature === null ? 0.7 : Number(body.temperature),
-      enable_rag: (body.bot_type === 'learning' || body.bot_type === 'reading_room') ? (body.enable_rag || false) : false,
+      enable_rag: (body.bot_type === 'learning' || body.bot_type === 'reading_room' || body.bot_type === 'viewing_room') ? (body.enable_rag || false) : false,
       bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
-      welcome_message: body.welcome_message || null, 
+      welcome_message: body.welcome_message || null,
+      linked_assessment_bot_id: body.linked_assessment_bot_id || null,
     };
     if (chatbotDataToInsert.description === undefined) {
         delete chatbotDataToInsert.description; 
@@ -208,6 +209,110 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[POST /api/teacher/chatbots] Chatbot created successfully:', newChatbot);
+    
+    // If this is a viewing room bot with a video URL, save it immediately
+    if (body.bot_type === 'viewing_room' && body.video_url && newChatbot.chatbot_id) {
+      try {
+        console.log('[POST /api/teacher/chatbots] Saving video URL for viewing room bot:', body.video_url);
+        
+        // Parse and validate the video URL
+        const { parseVideoUrl, validateVideoUrl } = await import('@/lib/utils/video-utils');
+        const validation = validateVideoUrl(body.video_url);
+        
+        if (validation.valid) {
+          const videoInfo = parseVideoUrl(body.video_url);
+          
+          // Create reading document record for the video
+          const { error: videoError } = await supabaseAdmin
+            .from('reading_documents')
+            .insert({
+              chatbot_id: newChatbot.chatbot_id,
+              content_type: 'video',
+              file_name: body.video_url,
+              file_path: null,
+              file_url: null,
+              file_size: 0,
+              video_url: videoInfo.originalUrl,
+              video_platform: videoInfo.platform,
+              video_id: videoInfo.videoId,
+              video_metadata: {
+                platform: videoInfo.platform,
+                videoId: videoInfo.videoId,
+                embedUrl: videoInfo.embedUrl,
+                originalUrl: videoInfo.originalUrl,
+                capturedAt: new Date().toISOString()
+              }
+            });
+          
+          if (videoError) {
+            console.error('[POST /api/teacher/chatbots] Error saving video URL:', videoError);
+            // Don't fail the whole request, just log the error
+          } else {
+            console.log('[POST /api/teacher/chatbots] Video URL saved successfully');
+            
+            // If RAG is enabled, fetch and process the transcript
+            if (body.enable_rag && videoInfo.platform === 'youtube' && videoInfo.videoId) {
+              // Import transcript utilities
+              const { fetchYouTubeTranscript, formatTranscriptForKnowledgeBase } = await import('@/lib/youtube/transcript');
+              
+              try {
+                console.log('[POST /api/teacher/chatbots] Fetching YouTube transcript for video:', videoInfo.videoId);
+                const transcript = await fetchYouTubeTranscript(videoInfo.videoId);
+                
+                if (transcript) {
+                  const formattedTranscript = formatTranscriptForKnowledgeBase(transcript);
+                  const transcriptFileName = `transcript_${videoInfo.videoId}_${Date.now()}.txt`;
+                  const transcriptPath = `${newChatbot.chatbot_id}/${transcriptFileName}`;
+                  
+                  // Upload transcript to storage
+                  const { error: uploadError } = await supabaseAdmin.storage
+                    .from('documents')
+                    .upload(transcriptPath, new Blob([formattedTranscript], { type: 'text/plain' }), {
+                      contentType: 'text/plain',
+                      upsert: false
+                    });
+                  
+                  if (!uploadError) {
+                    // Create document record for the transcript
+                    const { data: transcriptDoc, error: docError } = await supabaseAdmin
+                      .from('documents')
+                      .insert({
+                        chatbot_id: newChatbot.chatbot_id,
+                        file_name: `Video Transcript: ${transcript.title || videoInfo.videoId}`,
+                        file_type: 'text',
+                        file_size: formattedTranscript.length,
+                        file_path: transcriptPath,
+                        status: 'uploaded',
+                        original_url: videoInfo.originalUrl
+                      })
+                      .select()
+                      .single();
+                    
+                    if (!docError && transcriptDoc) {
+                      console.log('[POST /api/teacher/chatbots] Transcript document created, ready for processing');
+                      
+                      // Process the transcript asynchronously
+                      import('@/lib/document-processing/processor').then(({ processDocument }) => {
+                        processDocument(transcriptDoc).catch(err => {
+                          console.error('[POST /api/teacher/chatbots] Error processing transcript:', err);
+                        });
+                      });
+                    }
+                  }
+                }
+              } catch (transcriptError) {
+                console.error('[POST /api/teacher/chatbots] Error fetching/processing transcript:', transcriptError);
+                // Don't fail the request
+              }
+            }
+          }
+        }
+      } catch (videoError) {
+        console.error('[POST /api/teacher/chatbots] Error handling video URL:', videoError);
+        // Don't fail the whole request
+      }
+    }
+    
     return NextResponse.json(newChatbot, { status: 201 });
   } catch (error) {
     console.error('[POST /api/teacher/chatbots] Unexpected error:', {

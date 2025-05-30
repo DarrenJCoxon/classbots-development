@@ -377,8 +377,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
           <SelectedFileContainer>
             <FileName title={file.name}>{file.name}</FileName>
             <FileSize>{formatFileSize(file.size)}</FileSize>
-            <ModernButton
-              size="small"
+            <ModernButton               size="small"
               variant="ghost"
               onClick={() => setFile(null)}
               disabled={uploading}
@@ -387,8 +386,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
             </ModernButton>
           </SelectedFileContainer>
           
-          <ModernButton
-            onClick={handleUpload}
+          <ModernButton             onClick={handleUpload}
             disabled={uploading}
             fullWidth
             style={{ marginTop: '16px' }}

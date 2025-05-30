@@ -19,7 +19,7 @@ import {
   FiUpload
 } from 'react-icons/fi';
 import { GlassCard } from '@/components/shared/GlassCard';
-import { Button, IconButton } from '@/components/ui';
+import { ModernButton, IconButton } from '@/components/shared/ModernButton';;
 import Link from 'next/link';
 import type { TeacherRoom } from '@/types/database.types';
 import StudentCsvUpload from './StudentCsvUpload';
@@ -640,14 +640,15 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
       <CardHeader>
         <DropdownContainer ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
           <DropdownButton
-            variant="ghost"
-            size="small"
+            $variant="ghost"
+            $size="small"
             aria-label="Room options"
             onClick={() => {
               setIsDropdownOpen(!isDropdownOpen);
             }}
-            icon={<FiMoreVertical />}
-          />
+          >
+            <FiMoreVertical />
+          </DropdownButton>
           
           <AnimatePresence>
             {isDropdownOpen && (

@@ -371,8 +371,7 @@ export default function AssessmentsListPage() {
 
       {pagination.totalPages > 1 && (
         <PaginationControls>
-          <ModernButton
-            onClick={() => handlePageChange(pagination.currentPage - 1)}
+          <ModernButton             onClick={() => handlePageChange(pagination.currentPage - 1)}
             disabled={pagination.currentPage === 0 || loading}
             variant="ghost"
           >
@@ -381,8 +380,7 @@ export default function AssessmentsListPage() {
           <span>
             Page {pagination.currentPage + 1} of {pagination.totalPages}
           </span>
-          <ModernButton
-            onClick={() => handlePageChange(pagination.currentPage + 1)}
+          <ModernButton             onClick={() => handlePageChange(pagination.currentPage + 1)}
             disabled={pagination.currentPage >= pagination.totalPages - 1 || loading}
             variant="ghost"
           >

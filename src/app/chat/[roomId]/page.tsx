@@ -170,6 +170,38 @@ const OrientationMessage = styled.div`
   }
 `;
 
+const AssessmentSection = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
+  background: ${({ theme }) => theme.colors.backgroundCard};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  text-align: center;
+  border: 2px dashed ${({ theme }) => theme.colors.primary}40;
+`;
+
+const AssessmentTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+`;
+
+const AssessmentText = styled.p`
+  color: ${({ theme }) => theme.colors.textLight};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+`;
+
+const AssessmentButtonWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  align-items: center;
+`;
+
 interface RoomQueryResult {
   room_id: string;
   room_name: string;
@@ -190,6 +222,8 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStudent, setIsStudent] = useState(false);
+  const [linkedAssessmentBot, setLinkedAssessmentBot] = useState<{chatbot_id: string; name: string} | null>(null);
+  const [assessmentTransition, setAssessmentTransition] = useState(false);
 
   const params = useParams();
   const searchParams = useSearchParams();
@@ -231,6 +265,44 @@ export default function ChatPage() {
         initialFetchDoneRef.current = false;
     }
   }, [roomId, chatbotIdFromUrl, params?.roomId, searchParams]);
+
+  const fetchLinkedAssessmentBot = async (assessmentBotId: string) => {
+    console.log('[ChatPage] Fetching linked assessment bot with ID:', assessmentBotId);
+    try {
+      // Fetch the assessment bot details
+      const { data: assessmentBot, error } = await supabase
+        .from('chatbots')
+        .select('chatbot_id, name')
+        .eq('chatbot_id', assessmentBotId)
+        .single();
+      
+      console.log('[ChatPage] Assessment bot query result:', { assessmentBot, error });
+      
+      if (!error && assessmentBot) {
+        console.log('[ChatPage] Setting linkedAssessmentBot state:', assessmentBot);
+        setLinkedAssessmentBot({
+          chatbot_id: assessmentBot.chatbot_id,
+          name: assessmentBot.name
+        });
+      }
+    } catch (err) {
+      console.error('[ChatPage] Error fetching linked assessment bot:', err);
+    }
+  };
+
+  // Removed handleVideoComplete - no longer tracking video completion
+
+  const handleStartAssessment = () => {
+    if (linkedAssessmentBot && roomId) {
+      // Navigate to the same room but with the assessment bot
+      const currentParams = new URLSearchParams(window.location.search);
+      currentParams.set('chatbot', linkedAssessmentBot.chatbot_id);
+      
+      // Preserve direct access parameters if present
+      const newUrl = `/chat/${roomId}?${currentParams.toString()}`;
+      router.push(newUrl);
+    }
+  };
 
   const fetchRoomData = useCallback(async () => {
     if (!roomId || !chatbotIdFromUrl) {
@@ -316,6 +388,16 @@ export default function ChatPage() {
           setRoom(data.room);
           setChatbot(data.chatbot);
           setIsStudent(true); // Direct access is for students
+          
+          // Check for linked assessment bot if viewing room
+          console.log('[ChatPage] Direct access - Chatbot data:', {
+            bot_type: data.chatbot?.bot_type,
+            linked_assessment_bot_id: data.chatbot?.linked_assessment_bot_id
+          });
+          if (data.chatbot?.bot_type === 'viewing_room' && data.chatbot?.linked_assessment_bot_id) {
+            fetchLinkedAssessmentBot(data.chatbot.linked_assessment_bot_id);
+          }
+          
           initialFetchDoneRef.current = true;
           setLoading(false);
           return;
@@ -375,7 +457,8 @@ export default function ChatPage() {
               enable_rag, 
               bot_type, 
               assessment_criteria_text,
-              welcome_message
+              welcome_message,
+              linked_assessment_bot_id
             )
           )
         `)
@@ -409,7 +492,17 @@ export default function ChatPage() {
       const typedRoomData = roomData as RoomQueryResult;
       setRoom(typedRoomData);
       if (typedRoomData.room_chatbots && typedRoomData.room_chatbots.length > 0 && typedRoomData.room_chatbots[0].chatbots) {
-        setChatbot(typedRoomData.room_chatbots[0].chatbots);
+        const chatbotData = typedRoomData.room_chatbots[0].chatbots;
+        setChatbot(chatbotData);
+        
+        // Check for linked assessment bot if viewing room
+        console.log('[ChatPage] Chatbot data:', {
+          bot_type: chatbotData.bot_type,
+          linked_assessment_bot_id: chatbotData.linked_assessment_bot_id
+        });
+        if (chatbotData.bot_type === 'viewing_room' && chatbotData.linked_assessment_bot_id) {
+          fetchLinkedAssessmentBot(chatbotData.linked_assessment_bot_id);
+        }
       } else {
         initialFetchDoneRef.current = false;
         throw new Error('Chatbot details missing in fetched room data.');
@@ -515,13 +608,14 @@ export default function ChatPage() {
     <PageWrapper>
       {isStudent && <ModernStudentNav />}
       <MainContent>
-        <Container $isReadingRoom={chatbot.bot_type === 'reading_room'}>
-          <Header $isReadingRoom={chatbot.bot_type === 'reading_room'}>
+        <Container $isReadingRoom={chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room'}>
+          <Header $isReadingRoom={chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room'}>
             <RoomInfo>
               <h1>{room.room_name}</h1>
               <p>Chatting with: <strong>{chatbot.name}</strong></p>
               {chatbot.bot_type === 'assessment' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>This is an Assessment Bot.</p>}
               {chatbot.bot_type === 'reading_room' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>📖 Reading Room - Document & AI Assistant</p>}
+              {chatbot.bot_type === 'viewing_room' && <p style={{fontSize: '0.9em', fontStyle: 'italic', color: '#555'}}>📹 Viewing Room - Video & AI Assistant</p>}
             </RoomInfo>
             <BackButtonWrapper>
               <ModernButton onClick={handleBack} variant="ghost" size="small">
@@ -530,7 +624,7 @@ export default function ChatPage() {
             </BackButtonWrapper>
           </Header>
           
-          {chatbot.bot_type === 'reading_room' ? (
+          {(chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room') ? (
             <>
               <SplitScreenContainer>
                 <DocumentSection>
@@ -543,6 +637,32 @@ export default function ChatPage() {
                   {roomId && <Chat roomId={roomId} chatbot={chatbot} instanceId={instanceIdFromUrl || undefined} />}
                 </ChatSection>
               </SplitScreenContainer>
+              
+              {/* Assessment Section for Viewing Room */}
+              {console.log('[ChatPage] Rendering assessment section:', {
+                bot_type: chatbot.bot_type,
+                linkedAssessmentBot,
+                condition: chatbot.bot_type === 'viewing_room' && linkedAssessmentBot
+              })}
+              {chatbot.bot_type === 'viewing_room' && linkedAssessmentBot && (
+                <AssessmentSection>
+                  <AssessmentTitle>📝 Ready to Test Your Knowledge?</AssessmentTitle>
+                  <AssessmentText>
+                    Once you've finished watching the video, you can start the assessment to test your understanding. 
+                    The assessment will ask you questions about what you've learned from the video.
+                  </AssessmentText>
+                  <AssessmentButtonWrapper>
+                    <ModernButton 
+                      variant="primary" 
+                      size="large"
+                      onClick={handleStartAssessment}
+                    >
+                      Start Assessment: {linkedAssessmentBot.name}
+                    </ModernButton>
+                  </AssessmentButtonWrapper>
+                </AssessmentSection>
+              )}
+              
               <OrientationMessage>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8h7a2 2 0 002-2V5a2 2 0 00-2-2h-7m-2 9v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5m-2 0h7a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />

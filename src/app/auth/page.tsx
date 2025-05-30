@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import AuthForm from '@/components/auth/AuthForm';
 import { Alert } from '@/styles/StyledComponents';
-import { Button } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { FullPageLoader } from '@/components/shared/AnimatedLoader';
 import { FiArrowRight } from 'react-icons/fi';
 
@@ -178,13 +178,12 @@ function AuthContent() {
             <div className="loader-wrapper">
               <FullPageLoader message="" variant="dots" />
             </div>
-            <Button 
+            <ModernButton 
               variant="secondary"
               onClick={() => router.push('/student-access')}
-              iconRight={<FiArrowRight />}
             >
-              Go to Student Login Now
-            </Button>
+              Go to Student Login Now <FiArrowRight />
+            </ModernButton>
           </StudentRedirectCard>
         </Container>
       </AuthPage>
@@ -197,14 +196,13 @@ function AuthContent() {
         {urlLoginType === 'student' ? (
           <StyledAlert variant="info">
             The student login page has moved. Please use the new student access page.
-            <Button 
+            <ModernButton 
               variant="secondary"
               onClick={() => router.push('/student-access')} 
               style={{ marginTop: '16px' }}
-              iconRight={<FiArrowRight />}
             >
-              Go to Student Access
-            </Button>
+              Go to Student Access <FiArrowRight />
+            </ModernButton>
           </StyledAlert>
         ) : (
           <AuthContainer

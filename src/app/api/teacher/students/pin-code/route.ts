@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     // Use admin client to fetch student info to ensure we can find them
     const { data: student, error: studentError } = await supabaseAdmin
       .from('student_profiles')
-      .select('full_name, pin_code, username')
+      .select('full_name, pin_code, username, year_group')
       .eq('user_id', studentId)
       .maybeSingle(); // Use maybeSingle instead of single to avoid the error
     
@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       pin_code: student.pin_code || '',
       username: student.username || '',
+      year_group: student.year_group || '',
       studentName: student.full_name
     });
     
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Get student's current info - use admin client to ensure we find them
     const { data: student } = await supabaseAdmin
       .from('student_profiles')
-      .select('full_name, username')
+      .select('full_name, username, year_group')
       .eq('user_id', studentId)
       .maybeSingle(); // Use maybeSingle to avoid errors
     // studentError is removed as it was unused
@@ -251,6 +252,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       pin_code: newPin,
       username: username,
+      year_group: student.year_group || '',
       studentName: student.full_name,
       regenerated: true
     });

@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Button } from '@/styles/StyledComponents';
+import { Container, Card } from '@/styles/StyledComponents';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
 import DocumentList from '@/components/teacher/DocumentList';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
@@ -325,9 +325,9 @@ export default function KnowledgeBasePage() {
         <PageWrapper>
             <Container>
                 <ModernAlert $variant="error" style={{marginTop: '20px'}}>{pageError}</ModernAlert>
-                <Button onClick={() => router.push('/teacher-dashboard/chatbots')} style={{marginTop: '16px'}}>
+                <ModernButton onClick={() => router.push('/teacher-dashboard/chatbots')} style={{marginTop: '16px'}}>
                     Back to Chatbots
-                </Button>
+                </ModernButton>
             </Container>
         </PageWrapper>
     );

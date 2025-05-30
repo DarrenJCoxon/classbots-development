@@ -267,8 +267,7 @@ export default function DocumentCard({
       
       <Actions onClick={e => e.stopPropagation()}>
         {showProcessButton && (
-          <ModernButton
-            size="small"
+          <ModernButton             size="small"
             variant="primary"
             onClick={onProcess}
             disabled={isProcessing}
@@ -277,8 +276,7 @@ export default function DocumentCard({
             {isProcessing ? 'Processing...' : 'Process'}
           </ModernButton>
         )}
-        <ModernButton
-          size="small"
+        <ModernButton           size="small"
           variant="ghost"
           onClick={onDelete}
           disabled={!canDelete}

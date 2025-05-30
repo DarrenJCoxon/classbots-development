@@ -3,7 +3,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Alert, Card, Button } from '@/styles/StyledComponents';
+import { Alert, Card } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
 
@@ -173,13 +174,13 @@ export default function TeacherProfileCheck() {
         
         <p>Your teacher account needs additional setup to access the teacher dashboard.</p>
         
-        <Button 
+        <ModernButton 
           onClick={handleRepairProfile} 
           disabled={repairing || success}
           style={{ marginTop: '1rem' }}
         >
           {repairing ? <><LoadingSpinner /><span> Setting Up Profile...</span></> : 'Complete Setup'}
-        </Button>
+        </ModernButton>
       </FixProfileCard>
     );
   }

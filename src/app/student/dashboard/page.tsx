@@ -429,22 +429,42 @@ export default function StudentDashboardPage() {
       
       // Single optimized API call
       const response = await fetch('/api/student/dashboard-all', {
+        method: 'GET',
         credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
           'Cache-Control': 'max-age=60' // Client-side cache hint
         }
       });
+      
+      console.log('[Student Dashboard] API response status:', response.status);
       
       if (!response.ok) {
         if (response.status === 401) {
           router.push('/student-access');
           throw new Error('Not authenticated. Please log in.');
         }
-        const errorData = await response.json().catch(() => ({}));
+        
+        let errorData;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        } else {
+          // If not JSON, it might be an HTML error page
+          const text = await response.text();
+          console.error('[Student Dashboard] Non-JSON response:', text.substring(0, 500));
+          errorData = { error: 'Server returned non-JSON response', details: text.substring(0, 200) };
+        }
+        
+        console.error('[Student Dashboard] API error:', errorData);
         throw new Error(errorData.error || 'Failed to load dashboard');
       }
       
       const data = await response.json();
+      
+      // Debug logging to trace name issue
+      console.log('[Student Dashboard] Received user data:', data.user);
+      
       setUser(data.user);
       setRooms(data.rooms);
       setAssessments(data.assessments);

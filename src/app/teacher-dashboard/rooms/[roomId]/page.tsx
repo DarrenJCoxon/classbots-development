@@ -563,6 +563,7 @@ export default function TeacherRoomDetailPage() {
                   <h3>
                     {bot.bot_type === 'assessment' && '📝 '}
                     {bot.bot_type === 'reading_room' && '📖 '}
+                    {bot.bot_type === 'viewing_room' && '📹 '}
                     {bot.bot_type === 'learning' && '🤖 '}
                     {bot.name}
                   </h3>
@@ -570,10 +571,12 @@ export default function TeacherRoomDetailPage() {
                   <Badge variant={
                     bot.bot_type === 'assessment' ? 'warning' :
                     bot.bot_type === 'reading_room' ? 'cyan' :
+                    bot.bot_type === 'viewing_room' ? 'magenta' :
                     'default'
                   }>
                     {bot.bot_type === 'assessment' ? 'Assessment Bot' :
                      bot.bot_type === 'reading_room' ? 'Reading Room' :
+                     bot.bot_type === 'viewing_room' ? 'Viewing Room' :
                      'Learning Bot'}
                   </Badge>
                 </ChatbotCard>
@@ -589,8 +592,7 @@ export default function TeacherRoomDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <SectionTitle style={{ marginBottom: 0 }}>Enrolled Students ({students.length})</SectionTitle>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <ModernButton
-                variant="ghost"
+              <ModernButton                 variant="ghost"
                 size="small"
                 onClick={() => setShowArchivedStudents(!showArchivedStudents)}
                 style={{ whiteSpace: 'nowrap' }}
@@ -643,8 +645,7 @@ export default function TeacherRoomDetailPage() {
                               <LoadingSpinner size="small" /> Archiving...
                             </ModernButton>
                           ) : (
-                            <ModernButton
-                              size="small"
+                            <ModernButton                               size="small"
                               variant="secondary"
                               onClick={() => openArchiveModal(student)}
                             >
@@ -656,8 +657,7 @@ export default function TeacherRoomDetailPage() {
                               <LoadingSpinner size="small" /> Deleting...
                             </ModernButton>
                           ) : (
-                            <ModernButton
-                              size="small"
+                            <ModernButton                               size="small"
                               variant="danger"
                               onClick={() => openDeleteModal(student)}
                               style={{ backgroundColor: '#dc3545', color: 'white' }}
@@ -696,8 +696,7 @@ export default function TeacherRoomDetailPage() {
                               Archiving...
                             </ModernButton>
                           ) : (
-                            <ModernButton
-                              size="small"
+                            <ModernButton                               size="small"
                               variant="secondary"
                               onClick={() => openArchiveModal(student)}
                               style={{flex: 1}}
@@ -710,8 +709,7 @@ export default function TeacherRoomDetailPage() {
                               Deleting...
                             </ModernButton>
                           ) : (
-                            <ModernButton
-                              size="small"
+                            <ModernButton                               size="small"
                               variant="danger"
                               onClick={() => openDeleteModal(student)}
                               style={{flex: 1, backgroundColor: '#dc3545', color: 'white'}}

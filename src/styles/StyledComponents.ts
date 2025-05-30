@@ -1,6 +1,7 @@
 // src/styles/StyledComponents.ts
 import styled, { css } from 'styled-components'; // Added css import
 import Link from 'next/link'; // Import Link for the new StyledLink
+import { ModernButton } from '@/components/shared/ModernButton';
 
 export const Container = styled.div`
   width: 100%;
@@ -125,12 +126,12 @@ export const Button = styled.button<{
   `;
 
 // Inherit from Button for consistency
-export const SecondaryButton = styled(Button).attrs({ variant: 'secondary' })``;
-export const OutlineButton = styled(Button).attrs({ variant: 'outline' })``;
-export const DangerButton = styled(Button).attrs({ variant: 'danger' })``;
-export const MagentaButton = styled(Button).attrs({ variant: 'magenta' })``; // New MagentaButton
-export const CyanButton = styled(Button).attrs({ variant: 'cyan' })``;     // New CyanButton
-export const TextButton = styled(Button).attrs({ variant: 'text' })``;       // New TextButton
+export const SecondaryButton = styled(ModernButton).attrs({ variant: 'secondary' })``;
+export const OutlineButton = styled(ModernButton).attrs({ variant: 'ghost' })``;
+export const DangerButton = styled(ModernButton).attrs({ variant: 'danger' })``;
+export const MagentaButton = styled(ModernButton).attrs({ variant: 'primary' })``; // New MagentaButton
+export const CyanButton = styled(ModernButton).attrs({ variant: 'secondary' })``;     // New CyanButton
+export const TextButton = styled(ModernButton).attrs({ variant: 'ghost' })``;       // New TextButton
 
 
 export const FormGroup = styled.div`

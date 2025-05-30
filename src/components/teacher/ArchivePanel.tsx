@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Button, Card, Alert } from '@/styles/StyledComponents';
+import { Card, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { Room } from '@/types/database.types';
 
@@ -240,17 +241,17 @@ export default function ArchivePanel({ type, roomId, onItemRestored }: ArchivePa
               </ItemInfo>
               <ActionButtons>
                 {restoringIds[room.room_id] ? (
-                  <Button disabled size="small" variant="outline">
+                  <ModernButton disabled size="small" variant="ghost">
                     <LoadingSpinner size="small" /> Restoring...
-                  </Button>
+                  </ModernButton>
                 ) : (
-                  <Button 
+                  <ModernButton 
                     size="small" 
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => handleRestoreRoom(room.room_id)}
                   >
                     Restore Room
-                  </Button>
+                  </ModernButton>
                 )}
               </ActionButtons>
             </ArchiveItem>
@@ -268,17 +269,17 @@ export default function ArchivePanel({ type, roomId, onItemRestored }: ArchivePa
               </ItemInfo>
               <ActionButtons>
                 {restoringIds[student.user_id] ? (
-                  <Button disabled size="small" variant="outline">
+                  <ModernButton disabled size="small" variant="ghost">
                     <LoadingSpinner size="small" /> Restoring...
-                  </Button>
+                  </ModernButton>
                 ) : (
-                  <Button 
+                  <ModernButton 
                     size="small" 
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => handleRestoreStudent(student.user_id, student.room_id)}
                   >
                     Restore Student
-                  </Button>
+                  </ModernButton>
                 )}
               </ActionButtons>
             </ArchiveItem>
@@ -292,14 +293,14 @@ export default function ArchivePanel({ type, roomId, onItemRestored }: ArchivePa
     <ArchiveContainer>
       <ArchiveHeader>
         <h3>Archived {type === 'rooms' ? 'Rooms' : 'Students'}</h3>
-        <Button 
+        <ModernButton 
           size="small" 
-          variant="outline"
+          variant="ghost"
           onClick={fetchArchivedItems}
           disabled={loading}
         >
           {loading ? <LoadingSpinner size="small" /> : 'Refresh'}
-        </Button>
+        </ModernButton>
       </ArchiveHeader>
       {renderArchiveList()}
     </ArchiveContainer>

@@ -21,34 +21,8 @@ import {
   FiChevronRight
 } from 'react-icons/fi';
 import { ModernRoomCard } from './ModernRoomCard';
-import { 
-  PageWrapper, 
-  Container, 
-  Section, 
-  Grid, 
-  Flex, 
-  Stack,
-  StatsCard,
-  Card,
-  CardBody,
-  Button,
-  IconButton,
-  ButtonGroup,
-  Heading,
-  Text,
-  PageTitle,
-  SectionTitle,
-  SearchInput,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableHeaderCell,
-  Badge,
-  StatusBadge,
-  CodeBadge
-} from '@/components/ui';
+import { ModernButton, IconButton, ButtonGroup } from '@/components/shared/ModernButton';
+import { PageWrapper, Container, Section, Grid, Flex, Stack, StatsCard, Card, CardBody, Heading, Text, PageTitle, SectionTitle, SearchInput, Table, TableHeader, TableBody, TableRow, TableCell, TableHeaderCell, Badge, StatusBadge, CodeBadge } from '@/components/ui';;
 import type { TeacherRoom } from '@/types/database.types';
 import StudentCsvUpload from './StudentCsvUpload';
 import Link from 'next/link';
@@ -63,7 +37,7 @@ interface ModernRoomsListProps {
 }
 
 // Custom styled components that aren't in the unified library yet
-const CreateRoomButton = styled(Button)`
+const CreateRoomButton = styled(ModernButton)`
   white-space: nowrap;
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -282,12 +256,13 @@ const RoomDropdownMenu: React.FC<{
   return (
     <DropdownContainer ref={dropdownRef}>
       <DropdownButton
-        variant="ghost"
-        size="small"
+        $variant="ghost"
+        $size="small"
         aria-label="Room options"
         onClick={() => setIsOpen(!isOpen)}
-        icon={<FiMoreVertical />}
-      />
+      >
+        <FiMoreVertical />
+      </DropdownButton>
       
       <AnimatePresence>
         {isOpen && (
@@ -410,12 +385,11 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
               <CreateRoomButton
                 variant="primary"
                 size="medium"
-                icon={<FiPlus />}
                 onClick={onCreateRoom}
                 disabled={!canCreateRoom}
                 title={!canCreateRoom ? "Create a chatbot before creating a room" : "Create New Room"}
               >
-                Create Room
+                <FiPlus /> Create Room
               </CreateRoomButton>
             </Flex>
           </Flex>
@@ -460,14 +434,13 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
                     }
                   </Text>
                   {!searchTerm && (
-                    <Button
+                    <ModernButton
                       variant="primary"
-                      icon={<FiPlus />}
                       onClick={onCreateRoom}
                       disabled={!canCreateRoom}
                     >
-                      Create Your First Room
-                    </Button>
+                      <FiPlus /> Create Your First Room
+                    </ModernButton>
                   )}
                 </Stack>
               </CardBody>
@@ -539,41 +512,36 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
                     </TableCell>
                     <TableCell>
                       <ActionButtonsCell>
-                        <Button
-                          variant="ghost"
+                        <ModernButton                           variant="ghost"
                           size="small"
                           onClick={() => onEditRoom(room)}
                         >
                           Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ModernButton>
+                        <ModernButton                           variant="ghost"
                           size="small"
                           onClick={() => generateJoinUrl(room.room_code)}
                         >
                           Join URL
-                        </Button>
-                        <Button
-                          variant="primary"
+                        </ModernButton>
+                        <ModernButton                           variant="primary"
                           size="small"
                           onClick={() => setCsvUploadRoom(room)}
                         >
                           Import Students
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ModernButton>
+                        <ModernButton                           variant="ghost"
                           size="small"
                           onClick={() => onArchiveRoom(room)}
                         >
                           Archive
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ModernButton>
+                        <ModernButton                           variant="ghost"
                           size="small"
                           onClick={() => onDeleteRoom(room)}
                         >
                           Delete
-                        </Button>
+                        </ModernButton>
                       </ActionButtonsCell>
                     </TableCell>
                   </TableRow>

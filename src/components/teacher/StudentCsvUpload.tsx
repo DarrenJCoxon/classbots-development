@@ -194,17 +194,23 @@ const ResultsContainer = styled.div`
 `;
 
 
-const MagicLinkItem = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+const StudentItem = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
   padding: ${({ theme }) => theme.spacing.md};
   background: ${({ theme }) => theme.colors.background};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
-  border-left: 3px solid ${({ theme }) => theme.colors.primary};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 2px 8px rgba(152, 93, 215, 0.1);
+  }
 `;
 
-const ExpiryWarning = styled.div`
-  background-color: #FFF3CD;
-  color: #856404;
+const InfoMessage = styled.div`
+  background-color: #E3F2FD;
+  color: #1565C0;
   padding: ${({ theme }) => theme.spacing.md};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
   margin-bottom: ${({ theme }) => theme.spacing.md};
@@ -216,12 +222,23 @@ const StudentName = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
-const MagicLink = styled.div`
-  font-family: monospace;
+const CredentialsGrid = styled.div`
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin-top: 8px;
   font-size: 0.9rem;
-  color: ${({ theme }) => theme.colors.primary};
-  word-break: break-all;
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
+`;
+
+const CredentialLabel = styled.span`
+  color: ${({ theme }) => theme.colors.textLight};
+  font-weight: 500;
+`;
+
+const CredentialValue = styled.span`
+  color: ${({ theme }) => theme.colors.text};
+  font-family: monospace;
+  font-weight: 600;
 `;
 
 interface StudentCsvUploadProps {
@@ -233,7 +250,10 @@ interface StudentCsvUploadProps {
 interface StudentLinkResult {
   fullName: string;
   email: string | null;
-  magicLink: string;
+  username: string;
+  pin_code: string;
+  year_group?: string;
+  login_url: string;
 }
 
 export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentCsvUploadProps) {
@@ -306,7 +326,9 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
           setResults([{
             fullName: "Debug Student",
             email: null,
-            magicLink: "https://example.com/debug-link"
+            username: "debug.student",
+            pin_code: "1234",
+            login_url: "/student-login"
           }]);
         }
       }
@@ -319,15 +341,18 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
         
         // Show the first error in the UI
         const firstError = data.failedImports[0];
-        setError(`Failed to add ${failedCount} students. First error: ${firstError.error} (Student: ${firstError.student.fullName})`);
+        const studentDisplay = firstError.student?.fullName || 'Unknown Student';
+        setError(`Failed to add ${failedCount} students. First error: ${firstError.error} (Student: ${studentDisplay})`);
         
         // Log all errors with details
         console.error('Failed student imports with details:');
         data.failedImports.forEach((failed: any, index: number) => {
-          console.error(`${index + 1}. Student: ${failed.student.fullName}`, {
+          const studentName = failed.student?.fullName || 'Unknown Student';
+          console.error(`${index + 1}. Student: ${studentName}`, {
             error: failed.error,
             details: failed.details,
-            index: failed.index
+            index: failed.index,
+            rawStudent: failed.student
           });
         });
         setResults(data?.students || []);
@@ -362,14 +387,20 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
 
   const handleCopyAllLinks = async () => {
     try {
-      const allLinks = results.map(result => `${result.fullName}: ${result.magicLink}`).join('\n\n');
-      await navigator.clipboard.writeText(allLinks);
+      const allCredentials = results.map(result => {
+        let text = `${result.fullName}\nUsername: ${result.username}\nPIN: ${result.pin_code}`;
+        if (result.year_group) {
+          text += `\nYear Group: ${result.year_group}`;
+        }
+        return text;
+      }).join('\n\n');
+      await navigator.clipboard.writeText(allCredentials);
       // Use a safer approach than alert
-      setSuccess('All links copied to clipboard!');
+      setSuccess('All credentials copied to clipboard!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      console.error('Failed to copy links:', err);
-      setError('Failed to copy links.');
+      console.error('Failed to copy credentials:', err);
+      setError('Failed to copy credentials.');
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -377,7 +408,7 @@ export default function StudentCsvUpload({ roomId, roomName, onClose }: StudentC
   const downloadTemplateCSV = () => {
     // Using separate lines for each student to make it clearer in the CSV file
     // Add more rows to demonstrate multiple students can be imported
-    const csvContent = 'First Name,Surname\nJohn,Doe\nJane,Smith\nBob,Johnson';
+    const csvContent = 'First Name,Surname,Year Group\nJohn,Doe,Year 7\nJane,Smith,Year 8\nBob,Johnson,Year 7';
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -422,14 +453,14 @@ const ModalBody = styled.div`
           <div style={{ marginBottom: '16px' }}>
             <Text>
               Upload a CSV file with student information to bulk add them to {roomName}. 
-              Each student will receive a unique magic link for passwordless access.
+              Each student will receive a unique username and PIN for secure access.
             </Text>
           </div>
           
           <FormGroup>
             <Label>Required CSV format</Label>
             <FormText>
-              Your CSV must have two columns: <strong>First Name</strong> and <strong>Surname</strong>
+              Your CSV must have columns: <strong>First Name</strong>, <strong>Surname</strong>, and optionally <strong>Year Group</strong>
               <br />
               <a href="#" onClick={(e) => { e.preventDefault(); downloadTemplateCSV(); }} style={{ color: 'var(--color-primary)' }}>
                 Download Template CSV
@@ -453,31 +484,45 @@ const ModalBody = styled.div`
 
           {results.length > 0 && (
             <>
-              <Label style={{ marginTop: '24px', marginBottom: '12px' }}>Student Magic Links</Label>
-              <ExpiryWarning>
-                <strong>Important:</strong> These magic links will expire after 24 hours. Please make sure students use their links within this timeframe.
-              </ExpiryWarning>
+              <Label style={{ marginTop: '24px', marginBottom: '12px' }}>Student Login Credentials</Label>
+              <InfoMessage>
+                <strong>Important:</strong> Students can log in at <strong>/student-login</strong> using their username and PIN. 
+                Please share these credentials securely with students.
+              </InfoMessage>
               <ResultsContainer>
                 {results.map((student, index) => (
-                  <MagicLinkItem key={index}>
+                  <StudentItem key={index}>
                     <StudentName>{student.fullName}</StudentName>
-                    <MagicLink>{student.magicLink}</MagicLink>
+                    <CredentialsGrid>
+                      <CredentialLabel>Username:</CredentialLabel>
+                      <CredentialValue>{student.username}</CredentialValue>
+                      
+                      <CredentialLabel>PIN:</CredentialLabel>
+                      <CredentialValue>{student.pin_code}</CredentialValue>
+                      
+                      {student.year_group && (
+                        <>
+                          <CredentialLabel>Year Group:</CredentialLabel>
+                          <CredentialValue>{student.year_group}</CredentialValue>
+                        </>
+                      )}
+                    </CredentialsGrid>
                     <ModernButton 
                       size="small"
-                      variant="secondary"
-                      onClick={() => handleCopyLink(student.magicLink)}
-                      style={{ marginTop: '8px' }}
+                      variant="ghost"
+                      onClick={() => handleCopyLink(`${student.fullName}\nUsername: ${student.username}\nPIN: ${student.pin_code}${student.year_group ? `\nYear Group: ${student.year_group}` : ''}`)}
+                      style={{ marginTop: '12px' }}
                     >
-                      Copy Link
+                      Copy Details
                     </ModernButton>
-                  </MagicLinkItem>
+                  </StudentItem>
                 ))}
               </ResultsContainer>
               <ModernButton 
                 onClick={handleCopyAllLinks}
                 style={{ width: '100%', marginTop: '16px' }}
               >
-                Copy All Links
+                Copy All Credentials
               </ModernButton>
             </>
           )}

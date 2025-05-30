@@ -3,7 +3,7 @@
 
 import { useState, useRef, ChangeEvent, DragEvent, useEffect } from 'react';
 import styled from 'styled-components';
-import { Button } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 const UploaderContainer = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
@@ -93,7 +93,7 @@ const DocumentMeta = styled.p`
   font-size: 0.875rem;
 `;
 
-const PreviewButton = styled(Button)`
+const PreviewButton = styled(ModernButton)`
   margin-right: ${({ theme }) => theme.spacing.sm};
 `;
 
@@ -456,19 +456,18 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
           
           <div style={{ display: 'flex', gap: '8px' }}>
             <PreviewButton
-              variant="outline"
+              variant="ghost"
               size="small"
               onClick={() => window.open(currentDocument.file_url, '_blank')}
             >
               Preview PDF
             </PreviewButton>
-            <Button
-              variant="outline"
+            <ModernButton               variant="ghost"
               size="small"
               onClick={handleDelete}
             >
               Delete
-            </Button>
+            </ModernButton>
           </div>
           
           <ModernAlert $variant="info" style={{ marginTop: '16px' }}>
@@ -500,9 +499,9 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
         </UploadText>
         <FileTypeInfo>PDF files only (Max 20MB)</FileTypeInfo>
         {!selectedFile && (
-          <Button 
+          <ModernButton 
             size="small" 
-            variant="outline" 
+            variant="ghost" 
             type="button" 
             onClick={(e) => { 
               e.stopPropagation(); 
@@ -510,7 +509,7 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
             }}
           >
             Browse Files
-          </Button>
+          </ModernButton>
         )}
       </UploadArea>
 
@@ -519,9 +518,8 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
           <SelectedFileContainer>
             <FileName title={selectedFile.name}>{selectedFile.name}</FileName>
             <FileSize>{formatFileSize(selectedFile.size)}</FileSize>
-            <Button
-              size="small"
-              variant="outline"
+            <ModernButton               size="small"
+              variant="ghost"
               onClick={() => {
                 setSelectedFile(null);
                 if (fileInputRef.current) fileInputRef.current.value = "";
@@ -531,17 +529,16 @@ export default function ReadingDocumentUploader({ chatbotId, onUploadSuccess }: 
               disabled={isUploading}
             >
               Remove
-            </Button>
+            </ModernButton>
           </SelectedFileContainer>
           
-          <Button
-            onClick={handleUpload}
+          <ModernButton             onClick={handleUpload}
             disabled={isUploading}
             style={{ marginTop: '16px', width: '100%' }}
             type="button"
           >
             {isUploading ? 'Uploading...' : `Upload ${selectedFile.name}`}
-          </Button>
+          </ModernButton>
           
           {isUploading && (
             <>

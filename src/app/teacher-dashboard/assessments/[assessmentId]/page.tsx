@@ -7,11 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 // createClient is not strictly needed here anymore if PATCH is via API route,
 // but keeping it in case you want direct client-side Supabase calls for other things.
 // import { createClient } from '@/lib/supabase/client'; 
-import {
-    Container, Card, Button, Alert, Badge,
-    FormGroup, Label, Input, TextArea,
-    Select as StyledSelect
-} from '@/styles/StyledComponents';
+import { Container, Card, Alert, Badge, FormGroup, Label, Input, TextArea, Select as StyledSelect } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import type {
     StudentAssessment,
@@ -47,7 +44,7 @@ const PageTitle = styled.h1`
   font-size: 1.8rem;
 `;
 
-const BackButton = styled(Button)``;
+const BackButton = styled(ModernButton)``;
 
 const MainGrid = styled.div`
   display: grid;
@@ -236,7 +233,7 @@ export default function AssessmentDetailPage() {
       <Container>
         <Header>
           <PageTitle>Review Assessment: {student_name || 'Student'}</PageTitle>
-          <BackButton variant="outline" onClick={() => router.push('/teacher-dashboard/assessments')}>
+          <BackButton variant="ghost" onClick={() => router.push('/teacher-dashboard/assessments')}>
             {'<'} All Assessments
           </BackButton>
         </Header>
@@ -323,9 +320,9 @@ export default function AssessmentDetailPage() {
                     <option value="teacher_reviewed">Teacher Reviewed</option>
                 </StyledSelect>
               </FormGroup>
-              <Button type="submit" disabled={isSubmittingReview} style={{width: '100%'}}>
+              <ModernButton type="submit" disabled={isSubmittingReview} style={{width: '100%'}}>
                 {isSubmittingReview ? 'Saving Review...' : 'Save Teacher Review'}
-              </Button>
+              </ModernButton>
             </TeacherReviewForm>
           </AssessmentDetailsCard>
         </MainGrid>

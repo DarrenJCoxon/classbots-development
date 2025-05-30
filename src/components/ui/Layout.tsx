@@ -52,7 +52,6 @@ export const PageWrapper: React.FC<PageWrapperProps> = ({
 }) => {
   return (
     <StyledPageWrapper
-      $gradient={gradient}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}

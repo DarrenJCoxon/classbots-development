@@ -18,7 +18,7 @@ export type DocumentStatus = 'uploaded' | 'processing' | 'completed' | 'error' |
 export type ChunkStatus = 'pending' | 'embedded' | 'error';
 
 // Bot Type Enum
-export type BotTypeEnum = 'learning' | 'assessment' | 'reading_room';
+export type BotTypeEnum = 'learning' | 'assessment' | 'reading_room' | 'viewing_room';
 
 // Assessment Status Enum
 export type AssessmentStatusEnum = 'ai_processing' | 'ai_completed' | 'teacher_reviewed';
@@ -46,6 +46,7 @@ export interface Chatbot extends BaseTable {
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
   welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
+  linked_assessment_bot_id?: string | null; // For linking viewing room to assessment
 }
 
 export interface ReadingDocument extends BaseTable {
@@ -245,6 +246,8 @@ export interface CreateChatbotPayload {
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
   welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
+  video_url?: string; // For viewing room bots
+  linked_assessment_bot_id?: string; // For linking to assessment bot
 }
 
 export interface CreateRoomPayload {

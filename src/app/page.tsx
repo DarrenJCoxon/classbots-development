@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { APP_NAME, APP_DESCRIPTION } from '@/lib/utils/constants';
-import { Button } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 import Footer from '@/components/layout/Footer';
 import { FiUsers, FiBookOpen, FiArrowRight, FiUser, FiLogIn } from 'react-icons/fi';
 
@@ -382,7 +382,7 @@ const QuickJoinInput = styled.input`
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const router = useRouter();
@@ -390,8 +390,9 @@ export default function Home() {
   const theme = useTheme();
 
   useEffect(() => {
+    setMounted(true);
+    
     const checkUserAndRedirect = async () => {
-      setLoading(true);
       setIsRedirecting(false);
 
       try {
@@ -431,8 +432,6 @@ export default function Home() {
       } catch (error) {
         console.error('Error in checkUserAndRedirect on homepage:', error);
         setIsRedirecting(false);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -446,7 +445,8 @@ export default function Home() {
     }
   };
 
-  if (loading || isRedirecting) {
+  // Show nothing or a minimal shell while mounting to avoid hydration mismatch
+  if (!mounted || isRedirecting) {
     return (
       <HomePage>
         <HeroSection>
@@ -455,7 +455,7 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              Loading...
+              {APP_DESCRIPTION}
             </HeroTitle>
           </Container>
         </HeroSection>
@@ -478,22 +478,22 @@ export default function Home() {
             
             {!user && (
               <CTAButtons>
-                <Button
-                  variant="primary"
+                <ModernButton                   variant="primary"
                   size="large"
                   onClick={() => router.push('/auth?type=teacher_signup')}
-                  icon={<FiUser />}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                 >
+                  <FiUser />
                   Teacher Sign Up
-                </Button>
-                <Button
-                  variant="secondary"
+                </ModernButton>
+                <ModernButton                   variant="secondary"
                   size="large"
                   onClick={() => router.push('/student-access')}
-                  icon={<FiLogIn />}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                 >
+                  <FiLogIn />
                   Student Login
-                </Button>
+                </ModernButton>
               </CTAButtons>
             )}
           </Container>
@@ -507,7 +507,6 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              whileHover={{ scale: 1.02 }}
               onClick={() => router.push('/auth?type=teacher_signup')}
             >
               <PathCardHeader>
@@ -531,7 +530,6 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              whileHover={{ scale: 1.02 }}
               onClick={() => router.push('/student-access')}
             >
               <PathCardHeader>
@@ -555,7 +553,6 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              whileHover={{ scale: 1.02 }}
               as="div"
             >
               <PathCardHeader>
@@ -586,15 +583,14 @@ export default function Home() {
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                 maxLength={8}
               />
-              <Button
-                type="submit"
+              <ModernButton                 type="submit"
                 variant="primary"
                 size="medium"
                 style={{ marginTop: '16px', width: '100%' }}
                 disabled={!roomCode.trim()}
               >
                 Join Room
-              </Button>
+              </ModernButton>
             </form>
           </QuickJoinCard>
         </Container>

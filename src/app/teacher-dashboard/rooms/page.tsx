@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PageWrapper } from '@/components/shared/PageStructure';
 import { Alert } from '@/styles/StyledComponents';
 import { ModernRoomsList } from '@/components/teacher/ModernRoomsList';
-import { Button } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
 import ArchivePanel from '@/components/teacher/ArchivePanel';
@@ -16,7 +16,7 @@ import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.ty
 import { FiArchive } from 'react-icons/fi';
 
 
-const ArchiveButton = styled(Button)`
+const ArchiveButton = styled(ModernButton)`
   position: fixed;
   bottom: 40px;
   right: 40px;
@@ -119,17 +119,16 @@ function DeleteModal({ isOpen, itemType, itemName, onConfirm, onCancel, isDeleti
               &quot;? This action cannot be undone and may affect associated data (e.g., student memberships, chat history).
             </ModalText>
             <ModalActions>
-              <Button variant="ghost" onClick={onCancel} disabled={isDeleting}>
+              <ModernButton variant="ghost" onClick={onCancel} disabled={isDeleting}>
                 Cancel
-              </Button>
-              <Button
-                 variant="danger"
+              </ModernButton>
+              <ModernButton                  variant="danger"
                  onClick={onConfirm}
                  disabled={isDeleting}
-                 loading={isDeleting}
+                 
               >
                 {isDeleting ? 'Deleting...' : `Yes, Delete ${itemType}`}
-              </Button>
+              </ModernButton>
             </ModalActions>
           </ModalContent>
         </ModalOverlay>
@@ -393,17 +392,16 @@ export default function ManageRoomsPage() {
                 &quot;? The room will still be accessible but won't appear in your active rooms list.
               </ModalText>
               <ModalActions>
-                <Button variant="ghost" onClick={closeArchiveModal} disabled={isArchiving}>
+                <ModernButton variant="ghost" onClick={closeArchiveModal} disabled={isArchiving}>
                   Cancel
-                </Button>
-                <Button
-                   variant="secondary"
+                </ModernButton>
+                <ModernButton                    variant="secondary"
                    onClick={handleArchiveRoom}
                    disabled={isArchiving}
-                   loading={isArchiving}
+                   
                 >
                   {isArchiving ? 'Archiving...' : 'Archive Room'}
-                </Button>
+                </ModernButton>
               </ModalActions>
             </ModalContent>
           </ModalOverlay>

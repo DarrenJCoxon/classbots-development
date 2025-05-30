@@ -134,6 +134,7 @@ export async function POST(request: NextRequest, { params }: any) {
     
     console.log('[CSV Import API] Processing records:', records);
     console.log('[CSV Import API] First record keys:', records[0] ? Object.keys(records[0]) : 'No records');
+    console.log('[CSV Import API] First 3 records:', records.slice(0, 3));
     
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
@@ -153,17 +154,31 @@ export async function POST(request: NextRequest, { params }: any) {
              k.toLowerCase() === 'last'
       );
       
+      const yearGroupKeys = Object.keys(record).filter(
+        k => k.toLowerCase().includes('year') ||
+             k.toLowerCase().includes('grade') ||
+             k.toLowerCase().includes('form') ||
+             k.toLowerCase() === 'class'
+      );
+      
       const firstName = firstNameKeys.length > 0 ? record[firstNameKeys[0]]?.trim() || '' : '';
       const surname = surnameKeys.length > 0 ? record[surnameKeys[0]]?.trim() || '' : '';
+      const yearGroup = yearGroupKeys.length > 0 ? record[yearGroupKeys[0]]?.trim() || null : null;
       
       console.log(`[CSV Import API] Row ${i} - First Name: "${firstName}", Surname: "${surname}"`);
+      console.log(`[CSV Import API] Row ${i} - Raw record:`, JSON.stringify(record));
       
       if (!firstName.trim() || !surname.trim()) {
         console.log(`[CSV Import API] Skipping row ${i+1}: Missing first name or surname`);
+        const displayName = firstName || surname || `Row ${i + 1}`;
         failedImports.push({
           index: i,
-          student: { fullName: `${firstName} ${surname}`.trim(), email: null },
-          error: 'Missing required first name or surname'
+          student: { 
+            fullName: displayName,
+            email: null 
+          },
+          error: 'Missing required first name or surname',
+          details: `Found headers: ${Object.keys(record).join(', ')}. Expected headers like "First Name" and "Surname"`
         });
         continue;
       }
@@ -196,16 +211,29 @@ export async function POST(request: NextRequest, { params }: any) {
         
         // Step 1: Create a new user (no email check since we're not collecting emails)
         if (!userId) {
-          // Generate temp email (no longer collecting emails from CSV)
-          const userEmail = `temp-${crypto.randomBytes(8).toString('hex')}@example.com`;
+          // Generate a unique email for the student (required by Supabase)
+          // Format: username@student.classbots.local
+          const userEmail = `${username}@student.classbots.local`;
           
           try {
             console.log(`[CSV Import API] Creating new user for ${fullName}`);
+            
+            // Create user with the PIN as the password
+            // This allows students to log in with username/PIN
             const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
               email: userEmail,
-              email_confirm: true,
-              user_metadata: { full_name: fullName, role: 'student' },
-              password: crypto.randomBytes(16).toString('hex') // Random password
+              email_confirm: true, // Auto-confirm since these are not real emails
+              password: pinCode, // Use PIN as password for authentication
+              user_metadata: { 
+                full_name: fullName, 
+                role: 'student',
+                username: username,
+                is_student: true
+              },
+              app_metadata: {
+                role: 'student',
+                school_id: schoolId
+              }
             });
             
             if (createError) {
@@ -237,6 +265,7 @@ export async function POST(request: NextRequest, { params }: any) {
             school_id: schoolId,
             username: username,
             pin_code: pinCode,
+            year_group: yearGroup,
             last_pin_change: new Date().toISOString(),
             pin_change_by: user.id,
             created_at: new Date().toISOString(),
@@ -280,22 +309,13 @@ export async function POST(request: NextRequest, { params }: any) {
           throw membershipError;
         }
         
-        // Step 5: Generate magic link
-        // Add uuidv4 to ensure uniqueness even if same student is added multiple times
-        const uniqueToken = uuidv4();
-        // Put the unique token in a separate parameter instead of appending to the name
-        const simpleLinkCode = `${room.room_code}_${userId}_${encodeURIComponent(fullName)}_token-${uniqueToken.substring(0, 8)}`;
-        
-        // For production, ensure we're using skolr.app domain
-        let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        
-        // If we're in production, but the URL isn't skolr.app, force it to be
-        if (process.env.NODE_ENV === 'production' && !baseUrl.includes('skolr.app')) {
-          console.log('[CSV Import API] Enforcing production domain for magic link');
-          baseUrl = 'https://skolr.app';
-        }
-        
-        const magicLink = `${baseUrl}/m/${simpleLinkCode}`;
+        // Step 5: Student account is created - no magic link needed
+        console.log(`[CSV Import API] Student account created successfully:
+          - Name: ${fullName}
+          - Username: ${username}
+          - PIN: ${pinCode}
+          - User ID: ${userId}
+        `);
         
         // Add to successful imports
         successfulImports.push({
@@ -303,7 +323,9 @@ export async function POST(request: NextRequest, { params }: any) {
           email: null,
           username,
           pin_code: pinCode,
-          magicLink
+          year_group: yearGroup,
+          // No magic link - students use username/PIN to log in
+          login_url: '/student-login'
         });
         
       } catch (studentError) {

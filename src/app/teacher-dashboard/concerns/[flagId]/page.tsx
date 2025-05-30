@@ -5,25 +5,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { 
-  Card,
-  CardHeader,
-  CardBody,
-  Section,
-  Stack,
-  Flex,
-  Text,
-  Button,
-  Badge,
-  FormField,
-  Label,
-  type BadgeVariant
-} from '@/components/ui';
+import { Card, CardHeader, CardBody, Section, Stack, Flex, Text, Badge, FormField, Label, type BadgeVariant } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { TextArea, Select, Alert } from '@/styles/StyledComponents';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { ModernButton } from '@/components/shared/ModernButton';
 import type { FlaggedMessage, ConcernStatus, ChatMessage as DatabaseChatMessage, Profile, Room } from '@/types/database.types';
 
 interface FlagDetailsResponse extends FlaggedMessage {

@@ -24,12 +24,7 @@ export {
   Divider
 } from './Layout';
 
-export {
-  Button,
-  LinkButton,
-  IconButton,
-  ButtonGroup
-} from './Button';
+// Button components removed - use ModernButton from shared/ModernButton instead
 
 export {
   Input,
@@ -63,6 +58,6 @@ export {
 export type { CardVariant, CardSize } from './Card';
 export type { HeadingLevel, TextVariant, TextWeight } from './Typography';
 export type { ContainerSize, GridCols, Spacing } from './Layout';
-export type { ButtonVariant, ButtonSize } from './Button';
+// Button types removed - use ModernButton from shared/ModernButton instead
 export type { InputSize, InputVariant } from './Form';
 export type { BadgeVariant, BadgeSize } from './Badge';

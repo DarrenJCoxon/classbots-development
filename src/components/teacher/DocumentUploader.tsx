@@ -325,8 +325,7 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
           <SelectedFileContainer>
             <FileName title={selectedFile.name}>{selectedFile.name}</FileName>
             <FileSize>{formatFileSize(selectedFile.size)}</FileSize>
-            <ModernButton
-              size="small"
+            <ModernButton               size="small"
               variant="ghost"
               onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ""; setError(null);}}
               type="button"
@@ -335,8 +334,7 @@ export default function DocumentUploader({ chatbotId, onUploadSuccess }: Documen
             </ModernButton>
           </SelectedFileContainer>
           
-          <ModernButton
-            onClick={handleUpload}
+          <ModernButton             onClick={handleUpload}
             disabled={isUploading}
             fullWidth
             style={{ marginTop: '16px' }}

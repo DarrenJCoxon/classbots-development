@@ -4,22 +4,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
-import { 
-  Card,
-  CardBody,
-  Section,
-  Stack,
-  Flex,
-  Text,
-  Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableHeaderCell,
-  Badge
-} from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { Card, CardBody, Section, Stack, Flex, Text, Table, TableHeader, TableBody, TableRow, TableCell, TableHeaderCell, Badge } from '@/components/ui';;
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { ConcernStatus, FlaggedMessage } from '@/types/database.types';
 
@@ -281,13 +267,12 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    size="small"
+                  <ModernButton                     size="small"
                     variant="primary"
                     onClick={() => handleViewConversation(concern)}
                   >
                     Review
-                  </Button>
+                  </ModernButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -296,9 +281,9 @@ export default function ConcernsList({ limit, accentColor }: ConcernsListProps) 
 
         {!limit && pagination.hasMore && ( 
           <PaginationContainer justify="center" align="center">
-            <Button onClick={handleLoadMore} variant="ghost" disabled={loading}>
+            <ModernButton onClick={handleLoadMore} variant="ghost" disabled={loading}>
               {loading ? 'Loading...' : 'Load More Concerns'}
-            </Button>
+            </ModernButton>
           </PaginationContainer>
         )}
       </>

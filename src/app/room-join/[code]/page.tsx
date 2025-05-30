@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { Card, Button, Input, Alert } from '@/styles/StyledComponents';
+import { Card, Input, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 const PageContainer = styled.div`
   display: flex;
@@ -159,14 +160,14 @@ export default function SimpleRoomJoinPage(props: any) {
                 required
               />
               
-              <Button 
+              <ModernButton 
                 type="submit" 
                 size="large" 
                 style={{ width: '100%' }}
                 disabled={['joining', 'checking'].includes(status)}
               >
                 Join Classroom
-              </Button>
+              </ModernButton>
             </Form>
           </>
         ) : status === 'joining' ? (

@@ -5,7 +5,7 @@ import styled, { css } from 'styled-components'; // Added css import
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { FiVolume2, FiVolumeX, FiLoader } from 'react-icons/fi';
-import { IconButton } from '@/components/ui';
+import { IconButton } from '@/components/shared/ModernButton';;
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import type { ChatMessage as DbChatMessage } from '@/types/database.types'; // Renamed to avoid conflict
 
@@ -498,13 +498,8 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                 {!isUser && !isOptimistic && !isStreaming && message.content && (
                     <TTSControls>
                         <TTSButton
-                            icon={
-                                isTTSLoading ? <FiLoader className="spin" /> :
-                                isPlaying ? <FiVolumeX /> :
-                                <FiVolume2 />
-                            }
-                            size="small"
-                            variant="ghost"
+                            $size="small"
+                            $variant="ghost"
                             onClick={() => {
                                 if (isPlaying) {
                                     stop();
@@ -527,7 +522,11 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                                 isPlaying ? 'Stop text-to-speech' :
                                 'Play text-to-speech'
                             }
-                        />
+                        >
+                            {isTTSLoading ? <FiLoader className="spin" /> :
+                             isPlaying ? <FiVolumeX /> :
+                             <FiVolume2 />}
+                        </TTSButton>
                         {isTTSLoading && <TTSStatus>Loading audio...</TTSStatus>}
                         {isPlaying && <TTSStatus>Reading...</TTSStatus>}
                         {ttsError && <TTSStatus style={{ color: 'var(--color-danger)' }}>Error: {ttsError}</TTSStatus>}

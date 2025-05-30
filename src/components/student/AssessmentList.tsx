@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
-import { Card, Badge, Button } from '@/styles/StyledComponents';
+import { Card, Badge } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import type { AssessmentStatusEnum } from '@/types/database.types';
 
 // Interface for assessment summary data displayed in the list
@@ -205,7 +206,7 @@ const TruncatedText = styled.div`
   text-overflow: ellipsis;
 `;
 
-const ActionButton = styled(Button)`
+const ActionButton = styled(ModernButton)`
   padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
   font-size: 0.9rem;
 `;

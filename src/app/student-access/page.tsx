@@ -6,10 +6,9 @@ import { motion } from 'framer-motion';
 import { Container, Alert } from '@/styles/StyledComponents';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { FiLogOut, FiArrowRight } from 'react-icons/fi';
 import { ModernStudentNav } from '@/components/student/ModernStudentNav';
-import { ModernButton } from '@/components/shared/ModernButton';
 
 const PageWrapper = styled.div`
   min-height: 100vh;
@@ -294,50 +293,40 @@ export default function DirectStudentAccess() {
     setError(null);
     
     try {
-      // Step 1: First use the student lookup API endpoint to verify PIN and get user_id
-      const lookupResponse = await fetch('/api/auth/student-username-lookup', {
+      // Use the proper PIN login endpoint that creates a real session
+      const loginResponse = await fetch('/api/auth/student-pin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, pin })
+        body: JSON.stringify({ 
+          username: identifier,
+          pin_code: pin 
+        })
       });
       
-      const lookupData = await lookupResponse.json();
+      const loginData = await loginResponse.json();
       
-      if (!lookupResponse.ok) {
-        throw new Error(lookupData.error || 'Failed to find student');
+      if (!loginResponse.ok) {
+        throw new Error(loginData.error || 'Invalid username or PIN');
       }
       
-      if (!lookupData.pin_verified) {
-        throw new Error('PIN verification failed');
+      // We now have a proper Supabase session!
+      if (loginData.session) {
+        // Set the session in Supabase client
+        await supabase.auth.setSession({
+          access_token: loginData.session.access_token,
+          refresh_token: loginData.session.refresh_token
+        });
       }
       
-      // Store the relevant user info in localStorage (needed for direct access)
-      const studentData = lookupData.best_match || { full_name: 'Student' };
-      const userId = lookupData.user_id;
-      
-      // *** STORE USER INFO IN ALL POSSIBLE FORMATS FOR MAXIMUM COMPATIBILITY ***
-      localStorage.setItem('student_direct_access_id', userId);
-      localStorage.setItem('student_direct_access_name', studentData.full_name || 'Student');
-      localStorage.setItem('current_student_id', userId);
-      localStorage.setItem('direct_pin_login', 'true');
-      localStorage.setItem('direct_pin_login_time', Date.now().toString());
-      localStorage.setItem('direct_pin_login_user', userId);
+      // Store basic info for UI purposes (not for auth)
+      localStorage.setItem('current_student_id', loginData.user_id);
+      localStorage.setItem('student_name', loginData.student_name);
       
       // Record successful authentication
-      console.log("PIN verified successfully, redirecting to dashboard with direct access...");
+      console.log("Student logged in successfully with proper session");
       
-      // SUCCESS! Now redirect directly to dashboard with all necessary params
-      // This actually works better than calling the direct-student-login API which has issues
-      const redirectParams = new URLSearchParams({
-        direct: '1',
-        user_id: userId,
-        _t: Date.now().toString(), // Cache busting timestamp
-        pin_verified: 'true'      // Signal that PIN was verified
-      });
-      
-      // Set directly to window.location for a full page reload with the params
-      window.location.href = `/student/dashboard?${redirectParams.toString()}`;
-      return;
+      // Redirect to dashboard - no URL params needed since we have a real session!
+      router.push('/student/dashboard');
       
     } catch (err) {
       console.error('Login error:', err);
@@ -409,16 +398,15 @@ export default function DirectStudentAccess() {
                   />
                 </InputGroup>
                 
-                <Button 
+                <ModernButton 
                   type="submit" 
                   disabled={loading}
                   variant="primary"
                   size="large"
                   fullWidth
-                  loading={loading}
                 >
                   {loading ? 'Checking...' : 'Access Rooms'}
-                </Button>
+                </ModernButton>
               </StyledForm>
             </StyledCard>
           </StyledContainer>
@@ -465,15 +453,15 @@ export default function DirectStudentAccess() {
               </div>
             )}
             
-            <Button 
+            <ModernButton 
               variant="ghost" 
               onClick={handleLogout}
               style={{ marginTop: '24px' }}
               fullWidth
-              icon={<FiLogOut />}
-            >
+              
+            ><FiLogOut  /> 
               Log Out
-            </Button>
+            </ModernButton>
           </StyledCard>
         </StyledContainer>
       </MainContent>

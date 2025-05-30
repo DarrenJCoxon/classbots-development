@@ -12,12 +12,14 @@ import {
     Alert,
     Select as StyledSelect
 } from '@/styles/StyledComponents';
-import { Button } from '@/components/ui/Button';
+import { ModernButton } from '@/components/shared/ModernButton';
 // Import all required components for document handling
 import EnhancedRagUploader from './EnhancedRagUploader';
 import EnhancedRagScraper from './EnhancedRagScraper';
 import DocumentList from './DocumentList';
 import ReadingDocumentUploader from './ReadingDocumentUploader';
+import { VideoUrlInput } from './VideoUrlInput';
+import { validateVideoUrl } from '@/lib/utils/video-utils';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types';
 // No direct import of CreateChatbotPayload here as it's for the API route, not this component directly
 
@@ -214,6 +216,8 @@ interface ChatbotFormData {
   bot_type: BotType;
   assessment_criteria_text: string;
   welcome_message: string;
+  video_url?: string; // For viewing room bots
+  linked_assessment_bot_id?: string; // For linking to assessment bot
   chatbot_id?: string; // For edit mode
 }
 
@@ -236,6 +240,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     bot_type: initialData?.bot_type || 'learning',
     assessment_criteria_text: initialData?.assessment_criteria_text || '',
     welcome_message: initialData?.welcome_message || '',
+    video_url: initialData?.video_url || '',
+    linked_assessment_bot_id: initialData?.linked_assessment_bot_id || '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -248,6 +254,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For forcing document list refresh
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [assessmentBots, setAssessmentBots] = useState<Array<{chatbot_id: string; name: string}>>([]);
 
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof ChatbotFormData, string>> = {};
@@ -269,6 +276,14 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
 
     if (formData.bot_type === 'assessment' && !formData.assessment_criteria_text.trim()) {
       errors.assessment_criteria_text = 'Assessment criteria is required for assessment bots';
+    }
+
+    if (formData.bot_type === 'viewing_room' && formData.video_url && !editMode) {
+      // Validate video URL for viewing room bots during creation
+      const validation = validateVideoUrl(formData.video_url);
+      if (!validation.valid) {
+        errors.video_url = validation.error || 'Invalid video URL';
+      }
     }
 
     if (formData.welcome_message && formData.welcome_message.length > 1000) {
@@ -317,10 +332,12 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       model: formData.model,
       max_tokens: (formData.max_tokens === undefined || formData.max_tokens === null || isNaN(formData.max_tokens) || String(formData.max_tokens).trim() === '') ? null : Number(formData.max_tokens),
       temperature: (formData.temperature === undefined || formData.temperature === null || isNaN(formData.temperature) || String(formData.temperature).trim() === '') ? null : Number(formData.temperature),
-      enable_rag: (formData.bot_type === 'learning' || formData.bot_type === 'reading_room') ? formData.enable_rag : false,
+      enable_rag: (formData.bot_type === 'learning' || formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room') ? formData.enable_rag : false,
       bot_type: formData.bot_type,
       assessment_criteria_text: formData.bot_type === 'assessment' ? (formData.assessment_criteria_text || null) : null,
       welcome_message: formData.welcome_message.trim() || null, // <--- ADDED (send null if empty)
+      video_url: formData.bot_type === 'viewing_room' && formData.video_url ? formData.video_url.trim() : undefined,
+      linked_assessment_bot_id: formData.bot_type === 'viewing_room' && formData.linked_assessment_bot_id ? formData.linked_assessment_bot_id : undefined,
     };
 
 
@@ -383,7 +400,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
   
   // Fetch documents when in edit mode and chatbot has RAG enabled
   useEffect(() => {
-    if (editMode && initialData?.chatbot_id && formData.enable_rag && (formData.bot_type === 'learning' || formData.bot_type === 'reading_room')) {
+    if (editMode && initialData?.chatbot_id && formData.enable_rag && (formData.bot_type === 'learning' || formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room')) {
       fetchDocuments();
     }
   }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, fetchDocuments, refreshTrigger]);
@@ -403,6 +420,27 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     
     return () => clearInterval(pollingInterval);
   }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, documents, fetchDocuments]);
+  
+  // Fetch assessment bots when form is for viewing room bot
+  useEffect(() => {
+    if (formData.bot_type === 'viewing_room') {
+      const fetchAssessmentBots = async () => {
+        try {
+          const response = await fetch('/api/teacher/chatbots?botType=assessment');
+          if (response.ok) {
+            const bots = await response.json();
+            setAssessmentBots(bots.map((bot: any) => ({
+              chatbot_id: bot.chatbot_id,
+              name: bot.name
+            })));
+          }
+        } catch (error) {
+          console.error('Error fetching assessment bots:', error);
+        }
+      };
+      fetchAssessmentBots();
+    }
+  }, [formData.bot_type]);
   
   // Document operations handlers
   const handleProcessDocument = async (documentId: string) => {
@@ -527,14 +565,18 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 name="bot_type"
                 value={formData.bot_type}
                 onChange={handleChange}
+                key="bot_type_select"
               >
                 <option value="learning">Learning Bot</option>
                 <option value="assessment">Assessment Bot</option>
                 <option value="reading_room">Reading Room Bot</option>
+                <option value="viewing_room">Viewing Room Bot</option>
               </StyledSelect>
               <HelpText>
                 {formData.bot_type === 'reading_room' 
-                  ? "Reading Room: Students read a document alongside AI assistance. Perfect for guided reading sessions."
+                  ? "Reading Room: Students read a PDF document alongside AI assistance. Perfect for guided reading sessions."
+                  : formData.bot_type === 'viewing_room'
+                  ? "Viewing Room: Students watch a video alongside AI assistance. Perfect for video-based learning."
                   : "Choose 'Learning' for general interaction or 'Assessment' to evaluate student responses against criteria."
                 }
               </HelpText>
@@ -569,7 +611,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 <ExampleTemplateContainer>
                   <Label as="p" style={{ marginBottom: '4px' }}>Example Templates:</Label>
                   <TemplateButtonGroup>
-                    <Button 
+                    <ModernButton 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -601,9 +643,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Science Assessment
-                    </Button>
+                    </ModernButton>
                     
-                    <Button 
+                    <ModernButton 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -635,9 +677,9 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Essay Rubric
-                    </Button>
+                    </ModernButton>
                     
-                    <Button 
+                    <ModernButton 
                       variant="ghost" 
                       size="small"
                       style={{ marginRight: '8px', marginBottom: '8px' }}
@@ -669,7 +711,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       }}
                     >
                       Math Problems
-                    </Button>
+                    </ModernButton>
                   </TemplateButtonGroup>
                 </ExampleTemplateContainer>
                 
@@ -766,10 +808,12 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
               </HelpText>
             </FormGroup>
 
-            {(formData.bot_type === 'learning' || formData.bot_type === 'reading_room') && (
+            {(formData.bot_type === 'learning' || formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room') && (
               <FormGroup>
                   <Label htmlFor="enable_rag">
-                    {formData.bot_type === 'reading_room' ? 'Knowledge Base (Optional)' : 'Knowledge Base (RAG)'}
+                    {formData.bot_type === 'reading_room' ? 'Knowledge Base (Optional)' : 
+                     formData.bot_type === 'viewing_room' ? 'Knowledge Base (Includes Auto-Transcript)' :
+                     'Knowledge Base (RAG)'}
                   </Label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px'}}>
                       <input
@@ -783,11 +827,13 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                       <span>
                         {formData.bot_type === 'reading_room' 
                           ? 'Enable Knowledge Base: Allow the AI to use additional reference materials for context.'
+                          : formData.bot_type === 'viewing_room'
+                          ? 'Enable Knowledge Base: Video transcript will be automatically added, plus you can add more documents.'
                           : 'Enable RAG: Allow chatbot to use uploaded documents to answer questions.'}
                       </span>
                   </div>
                   <HelpText>
-                      {formData.bot_type === 'reading_room'
+                      {(formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room')
                         ? 'Add supplementary materials like teacher guides, answer keys, or background information to help the AI provide better support.'
                         : 'If enabled, you can upload documents to this chatbot\'s knowledge base after creation (on the chatbot\'s configuration page).'}
                   </HelpText>
@@ -848,8 +894,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                         </>
                       ) : (
                         <Alert variant="info" style={{ marginTop: '12px', marginBottom: '12px' }}>
-                          {formData.bot_type === 'reading_room' 
-                            ? '💡 Step 2 (Optional): After uploading the reading document, you can add supplementary materials here like teacher guides or answer keys.'
+                          {(formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room')
+                            ? `💡 Step 2 (Optional): After ${formData.bot_type === 'reading_room' ? 'uploading the reading document' : 'adding the video URL'}, you can add supplementary materials here like teacher guides or answer keys.`
                             : 'After creating your chatbot, you\'ll be able to upload documents and scrape webpages for the knowledge base.'}
                         </Alert>
                       )}
@@ -877,6 +923,75 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   <Alert variant="info">
                     💡 Step 1: Create your Reading Room bot first. After clicking "Create Skolrbot", you'll be automatically redirected to upload the reading document.
                   </Alert>
+                )}
+              </FormGroup>
+            )}
+
+            {formData.bot_type === 'viewing_room' && (
+              <FormGroup>
+                <Label htmlFor="video_url">📹 Video Content</Label>
+                <HelpText>
+                  Add a YouTube or Vimeo video that students will watch. It appears on the left side of their screen while they chat with the AI.
+                </HelpText>
+                
+                {editMode && initialData?.chatbot_id ? (
+                  <VideoUrlInput
+                    chatbotId={initialData.chatbot_id}
+                    currentVideoUrl={formData.video_url} 
+                    onSaveSuccess={() => {
+                      setSuccessMessage('Video URL saved successfully!');
+                      setTimeout(() => setSuccessMessage(null), 5000);
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Input
+                      id="video_url"
+                      name="video_url"
+                      type="url"
+                      value={formData.video_url || ''}
+                      onChange={handleChange}
+                      placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..."
+                      className={!!validationErrors.video_url ? 'is-invalid' : ''}
+                    />
+                    {validationErrors.video_url && (
+                      <Alert variant="error" style={{ marginTop: '4px', padding: '4px 8px' }}>
+                        {validationErrors.video_url}
+                      </Alert>
+                    )}
+                    {formData.enable_rag && (
+                      <HelpText style={{ marginTop: '8px' }}>
+                        🎯 The video transcript will be automatically added to the knowledge base when you save.
+                      </HelpText>
+                    )}
+                  </>
+                )}
+              </FormGroup>
+            )}
+
+            {formData.bot_type === 'viewing_room' && (
+              <FormGroup>
+                <Label htmlFor="linked_assessment_bot_id">🎯 Link to Assessment Bot (Optional)</Label>
+                <HelpText>
+                  After students complete the video, they can be prompted to take an assessment.
+                </HelpText>
+                <StyledSelect
+                  id="linked_assessment_bot_id"
+                  name="linked_assessment_bot_id"
+                  value={formData.linked_assessment_bot_id || ''}
+                  onChange={handleChange}
+                >
+                  <option value="">No linked assessment</option>
+                  {assessmentBots.map(bot => (
+                    <option key={bot.chatbot_id} value={bot.chatbot_id}>
+                      {bot.name}
+                    </option>
+                  ))}
+                </StyledSelect>
+                {formData.linked_assessment_bot_id && (
+                  <HelpText style={{ marginTop: '8px', color: '#3B82F6' }}>
+                    ✅ Students will see "Start Assessment" button after watching 90% of the video
+                  </HelpText>
                 )}
               </FormGroup>
             )}
@@ -924,21 +1039,21 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
         </FormContent>
 
         <Footer>
-          <Button 
+          <ModernButton 
             type="button" 
             variant="ghost" 
             onClick={onClose}
           >
             Cancel
-          </Button>
-          <Button 
+          </ModernButton>
+          <ModernButton 
             type="submit" 
             form="chatbotCreateForm" 
             variant="primary"
             disabled={isSubmitting}
           >
             {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Skolrbot')}
-          </Button>
+          </ModernButton>
         </Footer>
       </FormCard>
     </Overlay>

@@ -20,7 +20,8 @@ import {
   FiActivity,
   FiBook,
   FiCheckCircle,
-  FiBookOpen
+  FiBookOpen,
+  FiVideo
 } from 'react-icons/fi';
 
 // Styled components matching rooms page design
@@ -490,8 +491,8 @@ export default function ManageSkolrbotsPage() {
         if (response.ok) {
           const newBot = await response.json();
           
-          // For Reading Room bots, redirect to edit page to upload documents
-          if (newBot.bot_type === 'reading_room') {
+          // For Reading Room and Viewing Room bots, redirect to edit page to upload documents/video
+          if (newBot.bot_type === 'reading_room' || newBot.bot_type === 'viewing_room') {
             router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
             return; // Don't refresh the list since we're navigating away
           }
@@ -510,6 +511,7 @@ export default function ManageSkolrbotsPage() {
   const learningBots = chatbots.filter(bot => bot.bot_type === 'learning').length;
   const assessmentBots = chatbots.filter(bot => bot.bot_type === 'assessment').length;
   const readingRoomBots = chatbots.filter(bot => bot.bot_type === 'reading_room').length;
+  const viewingRoomBots = chatbots.filter(bot => bot.bot_type === 'viewing_room').length;
 
   if (isLoading && chatbots.length === 0) {
     return <FullPageLoader message="Loading your skolrbots..." variant="dots" />;
@@ -550,8 +552,7 @@ export default function ManageSkolrbotsPage() {
             </ToggleButton>
           </ViewToggle>
           
-          <ModernButton
-            variant="primary"
+          <ModernButton             variant="primary"
             size="medium"
             onClick={handleCreateNewChatbot}
           >
@@ -617,6 +618,20 @@ export default function ManageSkolrbotsPage() {
             <StatLabel>Reading Room Bots</StatLabel>
           </StatContent>
         </StatCard>
+        
+        <StatCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <StatIconWrapper color="#FFA500">
+            <FiVideo />
+          </StatIconWrapper>
+          <StatContent>
+            <StatValue>{viewingRoomBots}</StatValue>
+            <StatLabel>Viewing Room Bots</StatLabel>
+          </StatContent>
+        </StatCard>
       </StatsBar>
       
       <FiltersContainer>
@@ -632,6 +647,7 @@ export default function ManageSkolrbotsPage() {
               <option value="learning">Learning</option>
               <option value="assessment">Assessment</option>
               <option value="reading_room">Reading Room</option>
+              <option value="viewing_room">Viewing Room</option>
             </StyledSelectBox>
           </StyledFormGroup>
           
@@ -682,8 +698,7 @@ export default function ManageSkolrbotsPage() {
             }
           </EmptyText>
           {!debouncedSearchTerm && (
-            <ModernButton
-              variant="primary"
+            <ModernButton               variant="primary"
               onClick={handleCreateNewChatbot}
             >
               <FiPlus />

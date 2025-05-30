@@ -22,20 +22,8 @@ import {
   FiClipboard
 } from 'react-icons/fi';
 import { ActivityWidget } from './ModernDashboardWidgets';
-import { 
-  PageWrapper,
-  Container,
-  Grid,
-  Section,
-  StatsCard,
-  SectionTitle,
-  Flex,
-  Button,
-  ButtonGroup,
-  Heading,
-  Text,
-  Stack
-} from '@/components/ui';
+import { ModernButton, ButtonGroup } from '@/components/shared/ModernButton';
+import { PageWrapper, Container, Grid, Section, StatsCard, SectionTitle, Flex, Heading, Text, Stack } from '@/components/ui';;
 import { RoomEngagementChart } from './RoomEngagementChart';
 
 // Custom styled components for dashboard-specific elements
@@ -331,33 +319,33 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({ stats, recentA
             </WelcomeSection>
             
             <Section spacing="md">
-              <ButtonGroup spacing="small" align="center">
-                <Button
+              <ButtonGroup>
+                <ModernButton
                   variant="primary"
                   size="medium"
-                  icon={<FiMessageSquare />}
                   onClick={() => router.push('/teacher-dashboard/chatbots')}
                 >
+                  <FiMessageSquare />
                   Create Skolrbot
-                </Button>
+                </ModernButton>
                 <WorkflowArrow />
-                <Button
+                <ModernButton
                   variant="secondary"
                   size="medium"
-                  icon={<FiPlus />}
                   onClick={() => router.push('/teacher-dashboard/rooms')}
                 >
+                  <FiPlus />
                   Create Room
-                </Button>
+                </ModernButton>
                 <WorkflowArrow />
-                <Button
-                  variant="success"
+                <ModernButton
+                  variant="primary"
                   size="medium"
-                  icon={<FiClipboard />}
                   onClick={() => router.push('/teacher-dashboard/assessments')}
                 >
+                  <FiClipboard />
                   Assess Progress
-                </Button>
+                </ModernButton>
               </ButtonGroup>
             </Section>
           </Header>

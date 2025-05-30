@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import styled from 'styled-components';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Container, Card, Button, Input, Alert } from '@/styles/StyledComponents';
+import { Container, Card, Input, Alert } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 const PageWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.xxl};
@@ -182,13 +183,13 @@ function JoinPageContent() {
             <Text>
               To join the room with code <strong>{roomCode || '...'}</strong>, you&apos;ll need a student account.
             </Text>
-            <Button 
+            <ModernButton 
               onClick={() => router.push(`/auth?type=student&redirect=/join?code=${roomCode}`)}
               style={{ width: '100%' }}
               size="large"
             >
               Create or Log In to Student Account
-            </Button>
+            </ModernButton>
             {roomCode && (
               <Text style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
                 You are trying to join room: <strong>{roomCode}</strong>
@@ -219,9 +220,9 @@ function JoinPageContent() {
               maxLength={6}
               required
             />
-            <Button type="submit" disabled={isLoading} style={{ width: '100%' }} size="large">
+            <ModernButton type="submit" disabled={isLoading} style={{ width: '100%' }} size="large">
               {isLoading ? 'Joining...' : 'Join Class'}
-            </Button>
+            </ModernButton>
           </Form>
         </JoinCard>
       </Container>

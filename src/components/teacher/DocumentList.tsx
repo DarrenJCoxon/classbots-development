@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
-import { Card, Button } from '@/styles/StyledComponents';
+import { Card } from '@/styles/StyledComponents';
 import { GlassCard } from '@/components/shared/GlassCard';
 import { ModernButton } from '@/components/shared/ModernButton';
 import type { Document as KnowledgeDocument, DocumentStatus, DocumentType } from '@/types/knowledge-base.types'; // MODIFIED: Added DocumentType
@@ -700,8 +700,7 @@ export default function DocumentList({
     <>
       {/* Documents now auto-process on upload - show pending status */}
       {(doc.status === 'uploaded' || doc.status === 'fetched') && (
-        <ModernButton
-          size="small"
+        <ModernButton           size="small"
           variant="ghost"
           disabled
           title="Document will be processed automatically"
@@ -710,8 +709,7 @@ export default function DocumentList({
         </ModernButton>
       )}
       {(doc.status === 'processing' || doc.status === 'completed' || doc.status === 'error') && (
-        <ModernButton
-          size="small"
+        <ModernButton           size="small"
           variant="ghost"
           onClick={() => onViewStatus(doc.document_id)}
           title="View detailed processing status"
@@ -719,8 +717,7 @@ export default function DocumentList({
           View Status
         </ModernButton>
       )}
-      <ModernButton
-        size="small"
+      <ModernButton         size="small"
         variant="danger" 
         onClick={() => handleDelete(doc.document_id, doc.file_name)}
         disabled={deletingId === doc.document_id}

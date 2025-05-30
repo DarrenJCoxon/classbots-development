@@ -198,13 +198,14 @@ export default function TestChatPage() {
 
   return (
     <PageWrapper>
-      <Container $isReadingRoom={chatbot.bot_type === 'reading_room'} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <Header $isReadingRoom={chatbot.bot_type === 'reading_room'}>
+      <Container $isReadingRoom={chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room'} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Header $isReadingRoom={chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room'}>
           <ChatbotInfo>
             <h1>Test: {chatbot.name}</h1>
             <p>
               You are interacting with your chatbot for testing purposes.
               {chatbot.bot_type === 'reading_room' && ' This is a Reading Room bot with document viewer.'}
+              {chatbot.bot_type === 'viewing_room' && ' This is a Viewing Room bot with video viewer.'}
             </p>
           </ChatbotInfo>
           <ModernButton variant="ghost" onClick={handleBack} size="small">
@@ -212,7 +213,7 @@ export default function TestChatPage() {
           </ModernButton>
         </Header>
         
-        {chatbot.bot_type === 'reading_room' ? (
+        {(chatbot.bot_type === 'reading_room' || chatbot.bot_type === 'viewing_room') ? (
           <SplitScreenContainer>
             <DocumentSection>
               <ReadingDocumentViewer 

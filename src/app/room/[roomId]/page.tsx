@@ -606,6 +606,7 @@ export default function RoomPage() {
                   <h3>
                     {chatbot.bot_type === 'assessment' && '📝 '}
                     {chatbot.bot_type === 'reading_room' && '📖 '}
+                    {chatbot.bot_type === 'viewing_room' && '📹 '}
                     {chatbot.bot_type === 'learning' && '🤖 '}
                     {chatbot.name}
                   </h3>
@@ -622,14 +623,17 @@ export default function RoomPage() {
                       background: 
                         chatbot.bot_type === 'assessment' ? '#fef3c7' :
                         chatbot.bot_type === 'reading_room' ? '#dbeafe' :
+                        chatbot.bot_type === 'viewing_room' ? '#fff3cd' :
                         '#e0e7ff',
                       color: 
                         chatbot.bot_type === 'assessment' ? '#92400e' :
                         chatbot.bot_type === 'reading_room' ? '#1e40af' :
+                        chatbot.bot_type === 'viewing_room' ? '#856404' :
                         '#3730a3'
                     }}>
                       {chatbot.bot_type === 'assessment' ? 'Assessment Bot' :
                        chatbot.bot_type === 'reading_room' ? 'Reading Room' :
+                       chatbot.bot_type === 'viewing_room' ? 'Viewing Room' :
                        'Learning Bot'}
                     </div>
                   )}
@@ -653,6 +657,7 @@ export default function RoomPage() {
                   >
                     {chatbot.bot_type === 'assessment' ? 'Start Assessment' :
                      chatbot.bot_type === 'reading_room' ? 'Start Reading' :
+                     chatbot.bot_type === 'viewing_room' ? 'Start Viewing' :
                      'Start Chat'}
                   </ModernButton>
                 </ChatbotCard>

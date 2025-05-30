@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { createClient } from '@/lib/supabase/client';
 import { Card, Alert } from '@/styles/StyledComponents';
-import { Button, IconButton } from '@/components/ui';
+import { ModernButton, IconButton } from '@/components/shared/ModernButton';;
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import { SafetyMessage } from '@/components/shared/SafetyMessage';
 import ChatInput from '@/components/shared/ChatInput';
@@ -903,85 +903,81 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   }, [scrollToBottom]);
 
   // --- REALTIME SUBSCRIPTION FOR SAFETY MESSAGES ---
-  // Temporarily disabled due to CHANNEL_ERROR - using API polling instead
-  // useEffect(() => {
-  //   console.log('[Chat.tsx RT] Realtime subscription disabled - using API polling');
-  // }, []);
-  
-  // Manual check for safety messages every 10 seconds for debugging
   useEffect(() => {
     if (!roomId || !userId) return;
     
-    const checkSafetyMessages = async () => {
-      try {
-        console.log('[Chat.tsx DEBUG] Manually checking for safety messages...');
-        const response = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[Chat.tsx DEBUG] Safety message API response:', data);
-          
-          if (data.found && data.message) {
-            console.log('[Chat.tsx DEBUG] Safety message details:', {
-              messageId: data.message.message_id,
-              content: data.message.content?.substring(0, 200),
-              metadata: data.message.metadata,
-              countryCode: data.message.metadata?.countryCode,
-              effectiveCountryCode: data.message.metadata?.effectiveCountryCode,
-              helplines: data.message.metadata?.helplines
-            });
-          }
-          
-          if (data.found && data.message) {
-            console.log('[Chat.tsx DEBUG] 🚨 FOUND SAFETY MESSAGE VIA API:', data.message.message_id);
-            
-            // Add the safety message to the UI
-            setMessages(prevMessages => {
-              // Check if message already exists
-              if (prevMessages.some(msg => msg.message_id === data.message.message_id)) {
-                console.log('[Chat.tsx DEBUG] Safety message already exists in UI, skipping');
-                return prevMessages;
-              }
-              
-              console.log('[Chat.tsx DEBUG] Adding safety message to UI:', data.message.message_id);
-              
-              // Remove any safety placeholders
-              const withoutPlaceholders = prevMessages.filter(msg => 
-                !msg.metadata?.isSafetyPlaceholder
-              );
-              
-              // Add the new safety message and sort
-              const updatedMessages = [...withoutPlaceholders, data.message];
-              return updatedMessages.sort((a, b) => 
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              );
-            });
-            
-            setTimeout(scrollToBottom, 100);
-          } else {
-            console.log('[Chat.tsx DEBUG] No safety messages found via API');
-          }
-        } else {
-          console.log('[Chat.tsx DEBUG] Safety message API error:', response.status);
-        }
-      } catch (error) {
-        console.error('[Chat.tsx DEBUG] Error checking safety messages:', error);
-      }
-    };
+    console.log('[Chat.tsx RT Safety] Setting up realtime subscription for safety messages');
     
-    // DISABLED: This was causing duplicate API calls
-    // The safety message check is already handled by fetchSafetyMessages
-    // checkSafetyMessages();
-    // const interval = setInterval(checkSafetyMessages, 5000);
+    // Subscribe to safety messages for this user and room
+    const safetyChannel = supabase
+      .channel(`safety-messages-${userId}-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `room_id=eq.${roomId} AND user_id=eq.${userId} AND role=eq.system`
+        },
+        (payload) => {
+          console.log('[Chat.tsx RT Safety] New system message detected:', payload);
+          
+          const newMessage = payload.new as ChatMessage;
+          
+          // Check if it's a safety message
+          if (newMessage.metadata?.isSystemSafetyResponse === true) {
+            console.log('[Chat.tsx RT Safety] Confirmed safety message:', newMessage.message_id);
+            handleRealtimeMessage(newMessage);
+            setTimeout(scrollToBottom, 100);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Chat.tsx RT Safety] Subscription status:', status);
+      });
     
     return () => {
-      // clearInterval(interval);
+      console.log('[Chat.tsx RT Safety] Cleaning up safety message subscription');
+      supabase.removeChannel(safetyChannel);
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, supabase, handleRealtimeMessage, scrollToBottom]);
+  
+  // Also subscribe to the broadcast channel used by monitoring.ts
+  useEffect(() => {
+    if (!userId) return;
+    
+    console.log('[Chat.tsx RT Broadcast] Setting up broadcast subscription for safety alerts');
+    
+    const broadcastChannel = supabase
+      .channel(`safety-alert-${userId}`)
+      .on('broadcast', { event: 'safety-message' }, (payload) => {
+        console.log('[Chat.tsx RT Broadcast] Received safety broadcast:', payload);
+        
+        const { room_id, message_id, chatbot_id } = payload.payload || {};
+        
+        // Only process if it's for this room and chatbot
+        if (room_id === roomId && (!chatbot_id || chatbot_id === chatbot?.chatbot_id)) {
+          console.log('[Chat.tsx RT Broadcast] Safety broadcast is for this chat, fetching message');
+          
+          // Fetch the actual safety message
+          fetchSafetyMessages();
+        }
+      })
+      .subscribe((status) => {
+        console.log('[Chat.tsx RT Broadcast] Broadcast subscription status:', status);
+      });
+    
+    return () => {
+      console.log('[Chat.tsx RT Broadcast] Cleaning up broadcast subscription');
+      supabase.removeChannel(broadcastChannel);
+    };
+  }, [userId, roomId, chatbot?.chatbot_id, supabase, fetchSafetyMessages]);
+  
+  // IMPORTANT: NO POLLING - Using real-time subscriptions only for safety messages
+  // The safety message delivery is handled by:
+  // 1. Postgres changes subscription (lines 906-943)
+  // 2. Broadcast channel subscription (lines 945-974)
+  // 3. fetchSafetyMessages is called on mount and when broadcasts are received
   
 
   const handleSendMessage = async (content: string) => {
@@ -1149,38 +1145,11 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   setIsLoading(false);
                   setTimeout(scrollToBottom, 50);
                   
-                  // Start polling for the safety message
-                  const checkForSafetyMessage = async (attempt = 0, maxAttempts = 5) => {
-                    if (attempt >= maxAttempts) {
-                      console.log(`[Chat.tsx] Max safety message polling attempts (${maxAttempts}) reached`);
-                      return;
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                    console.log(`[Chat.tsx] Polling for safety message (attempt ${attempt + 1}/${maxAttempts})`);
-                    
-                    try {
-                      fetchSafetyMessages(); // Don't await to avoid blocking
-                      
-                      // Check if we found any safety messages
-                      const hasSafetyMessages = messages.some(msg => 
-                        msg.role === 'system' && 
-                        msg.metadata?.isSystemSafetyResponse === true &&
-                        !msg.metadata?.isSafetyPlaceholder
-                      );
-                      
-                      if (!hasSafetyMessages && attempt < maxAttempts - 1) {
-                        checkForSafetyMessage(attempt + 1, maxAttempts);
-                      }
-                    } catch (error) {
-                      console.error(`[Chat.tsx] Error polling for safety message:`, error);
-                      if (attempt < maxAttempts - 1) {
-                        checkForSafetyMessage(attempt + 1, maxAttempts);
-                      }
-                    }
-                  };
-                  
-                  checkForSafetyMessage();
+                  // NO POLLING - Safety message will be delivered via real-time subscriptions
+                  // The safety message is inserted by the server and will be delivered via:
+                  // 1. Postgres changes subscription (listening for system messages)
+                  // 2. Broadcast channel subscription (listening for safety alerts)
+                  console.log('[Chat.tsx] Safety intervention triggered. Waiting for real-time safety message delivery...');
                   return; // Skip normal error handling
                 }
               } catch (parseError) {
@@ -1450,7 +1419,7 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   
   return (
     <ChatContainer>
-      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <Button onClick={() => fetchMessages()} size="small" variant="ghost" gradient={false}>Retry</Button> </ErrorContainer> )}
+      {fetchError && ( <ErrorContainer variant="error"> {`Error loading: ${fetchError}`} <ModernButton onClick={() => fetchMessages()} size="small" variant="ghost">Retry</ModernButton> </ErrorContainer> )}
       <MessagesList ref={messagesListRef}>
         {isFetchingMessages && messages.length === 0 ? ( 
           <LoadingIndicator><LoadingSpinner /> Loading...</LoadingIndicator> 
@@ -1531,16 +1500,14 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
           <AssessmentInfo>
             When you're ready, submit your conversation for assessment. Make sure you've answered all questions fully.
           </AssessmentInfo>
-          <Button 
+          <ModernButton 
             onClick={handleSubmitAssessment} 
             disabled={isLoading || isSubmittingAssessment || messages.filter(m => m.role === 'user').length < 2}
             variant="primary"
             size="medium"
-            loading={isSubmittingAssessment}
-            gradient={false}
           >
             {isSubmittingAssessment ? 'Submitting Assessment...' : 'Submit for Assessment'}
-          </Button>
+          </ModernButton>
         </AssessmentSection>
       )}
     </ChatContainer>

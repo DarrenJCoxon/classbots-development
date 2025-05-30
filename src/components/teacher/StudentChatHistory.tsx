@@ -298,8 +298,7 @@ export default function StudentChatHistory({
 
           {hasMore && (
             <LoadMoreButtonWrapper>
-              <ModernButton
-                variant="ghost"
+              <ModernButton                 variant="ghost"
                 onClick={handleLoadMore}
                 disabled={loading}
               >

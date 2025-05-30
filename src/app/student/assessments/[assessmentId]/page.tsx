@@ -4,13 +4,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-    Container, 
-    Card, 
-    Button, 
-    Alert, 
-    Badge
-} from '@/styles/StyledComponents';
+import { Container, Card, Alert, Badge } from '@/styles/StyledComponents';
+import { ModernButton } from '@/components/shared/ModernButton';
 import { ChatMessage as ChatMessageComponent } from '@/components/shared/ChatMessage';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { 
@@ -242,13 +237,13 @@ export default function StudentAssessmentDetailPage() {
 
   if (error) {
     return (
-      <PageWrapper><Container><Alert variant="error">{error}</Alert><Button onClick={() => router.push('/student/dashboard')} style={{ marginTop: '16px' }}>Back to Dashboard</Button></Container></PageWrapper>
+      <PageWrapper><Container><Alert variant="error">{error}</Alert><ModernButton onClick={() => router.push('/student/dashboard')} style={{ marginTop: '16px' }}>Back to Dashboard</ModernButton></Container></PageWrapper>
     );
   }
 
   if (!assessment) {
     return (
-      <PageWrapper><Container><Alert variant="info">Assessment details not found.</Alert><Button onClick={() => router.push('/student/dashboard')} style={{ marginTop: '16px' }}>Back to Dashboard</Button></Container></PageWrapper>
+      <PageWrapper><Container><Alert variant="info">Assessment details not found.</Alert><ModernButton onClick={() => router.push('/student/dashboard')} style={{ marginTop: '16px' }}>Back to Dashboard</ModernButton></Container></PageWrapper>
     );
   }
 
@@ -270,9 +265,9 @@ export default function StudentAssessmentDetailPage() {
       <Container>
         <Header>
           <PageTitle>Assessment Feedback</PageTitle>
-          <Button variant="outline" onClick={() => router.push('/student/dashboard')}>
+          <ModernButton variant="ghost" onClick={() => router.push('/student/dashboard')}>
             ← Back to Dashboard
-          </Button>
+          </ModernButton>
         </Header>
 
         <MainGrid>

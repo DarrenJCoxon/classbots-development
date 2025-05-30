@@ -4,7 +4,7 @@
 import { useState, KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import { Alert } from '@/styles/StyledComponents';
-import { Button } from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
 
 // ... (InputContainer, InputForm, TextInput, SendButton, ErrorAlert styled components remain the same)
 
@@ -176,16 +176,13 @@ export default function ChatInput({ onSend, isLoading, error, onClearError, hint
           disabled={isLoading}
         />
         <ButtonGroup>
-          <Button
-            type="submit"
+          <ModernButton             type="submit"
             disabled={isLoading || !message.trim()}
             variant="primary"
             size="medium"
-            loading={isLoading}
-            gradient={false}
           >
             {isLoading ? 'Sending...' : 'Send'}
-          </Button>
+          </ModernButton>
           {onClear && (
             <ClearButton
               type="button"

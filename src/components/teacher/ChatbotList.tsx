@@ -3,21 +3,8 @@
 
 import Link from 'next/link';
 import styled from 'styled-components';
-import { 
-  Grid,
-  Card,
-  CardBody,
-  Button,
-  LinkButton,
-  Text,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableHeaderCell,
-  Badge
-} from '@/components/ui';
+import { ModernButton } from '@/components/shared/ModernButton';
+import { Grid, Card, CardBody, Text, Table, TableHeader, TableBody, TableRow, TableCell, TableHeaderCell, Badge } from '@/components/ui';;
 import { ModernChatbotCard } from './ModernChatbotCard';
 import type { Chatbot } from '@/types/database.types';
 
@@ -146,27 +133,27 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
               <TableCell>{formatDate(chatbot.updated_at || chatbot.created_at)}</TableCell>
               <TableCell>
                 <ActionButtonsContainer>
-                  <LinkButton
-                    href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}
-                    size="small"
-                    variant="primary"
-                  >
-                    Test
-                  </LinkButton>
-                  <Button
-                    size="small"
+                  <Link href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/test-chat`}>
+                    <ModernButton
+                      size="small"
+                      variant="primary"
+                      as="span"
+                    >
+                      Test
+                    </ModernButton>
+                  </Link>
+                  <ModernButton                     size="small"
                     variant="ghost"
                     onClick={() => onEdit(chatbot.chatbot_id)}
                   >
                     Edit
-                  </Button>
-                  <Button
-                    size="small"
+                  </ModernButton>
+                  <ModernButton                     size="small"
                     variant="ghost"
                     onClick={() => onDelete(chatbot.chatbot_id, chatbot.name)}
                   >
                     Delete
-                  </Button>
+                  </ModernButton>
                 </ActionButtonsContainer>
               </TableCell>
             </TableRow>
