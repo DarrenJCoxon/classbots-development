@@ -57,6 +57,7 @@ interface MessageBubbleProps {
   $isSystemSafetyResponse?: boolean;
   $isSafetyPlaceholder?: boolean;
   $pendingSafetyResponse?: boolean;
+  $isContentFilter?: boolean;
 }
 const MessageBubble = styled.div<MessageBubbleProps>`
   max-width: 80%;
@@ -66,18 +67,20 @@ const MessageBubble = styled.div<MessageBubbleProps>`
       ? `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.small} ${theme.borderRadius.xl}`
       : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.small}`
   };
-  background: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder }) => {
+  background: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder, $isContentFilter }) => {
     if ($isAssessmentFeedback) return theme.colors.blue + '20'; // Light blue for feedback
     if ($isAssessmentPlaceholder) return theme.colors.backgroundDark;
     if ($isSystemSafetyResponse) return theme.colors.red + '10'; // Very light red for safety messages
     if ($isSafetyPlaceholder) return theme.colors.backgroundDark;
+    if ($isContentFilter) return theme.colors.secondary + '15'; // Light purple for content filter
     return $isUser ? theme.colors.primary : theme.colors.backgroundCard;
   }};
-  color: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder }) => {
+  color: ${({ theme, $isUser, $isAssessmentFeedback, $isAssessmentPlaceholder, $isSystemSafetyResponse, $isSafetyPlaceholder, $isContentFilter }) => {
     if ($isAssessmentFeedback) return theme.colors.blue; // Darker blue text
     if ($isAssessmentPlaceholder) return theme.colors.textMuted;
     if ($isSystemSafetyResponse) return theme.colors.text; // Normal text color for safety message
     if ($isSafetyPlaceholder) return theme.colors.textMuted;
+    if ($isContentFilter) return theme.colors.text; // Normal text for content filter
     return $isUser ? 'white' : theme.colors.text;
   }};
   box-shadow: ${({ theme }) => theme.shadows.sm};
@@ -114,6 +117,10 @@ const MessageBubble = styled.div<MessageBubbleProps>`
   `}
   ${({ $pendingSafetyResponse }) => $pendingSafetyResponse && css`
     opacity: 0.7;
+  `}
+  ${({ $isContentFilter, theme }) => $isContentFilter && css`
+    border-left: 3px solid ${theme.colors.secondary};
+    background: linear-gradient(135deg, ${theme.colors.secondary}10 0%, ${theme.colors.primary}05 100%);
   `}
 `;
 
@@ -288,10 +295,13 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
     const isSystemSafetyResponse = !!metadata?.isSystemSafetyResponse;
     const isSafetyPlaceholder = !!metadata?.isSafetyPlaceholder;
     const pendingSafetyResponse = !!metadata?.pendingSafetyResponse;
+    const isContentFilter = !!metadata?.isContentFilter;
     
     let senderNameToDisplay = chatbotName;
     if (isUser) {
         senderNameToDisplay = 'You';
+    } else if (isContentFilter) {
+        senderNameToDisplay = 'Skolr Safety System';
     } else if (isSystemSafetyResponse || isSafetyPlaceholder) {
         // Use a specific name for safety messages - prioritize displayCountryCode (set by API),
         // then fallback to effectiveCountryCode, then countryCode
@@ -471,6 +481,7 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
               $isSystemSafetyResponse={isSystemSafetyResponse}
               $isSafetyPlaceholder={isSafetyPlaceholder}
               $pendingSafetyResponse={pendingSafetyResponse}
+              $isContentFilter={isContentFilter}
             >
                 <MessageHeader>
                     <SenderName>{senderNameToDisplay}</SenderName>

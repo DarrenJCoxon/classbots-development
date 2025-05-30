@@ -9,6 +9,7 @@ import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes 
 import type { ChatMessage, Room } from '@/types/database.types';
 import { filterMessageContent, isUserUnder13, getUnder13SystemPrompt, logFilteredContent } from '@/lib/safety/content-filter';
 import { moderateContent } from '@/lib/safety/ai-moderation';
+import { getKindFilterMessage, getKindModerationMessage } from '@/lib/safety/kind-messages';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // This is still the internal command identifier used by the backend
@@ -341,10 +342,12 @@ export async function POST(request: NextRequest) {
           supabaseAdmin
         );
         
-        // Return a friendly message to the user
+        // Return a friendly message to the user using kind messages
+        const kindMessage = getKindFilterMessage(filterResult.reason || '');
+        
         return NextResponse.json({ 
           error: 'Message blocked', 
-          message: 'For your safety, your message was blocked. Please don\'t share personal information or external contact details.',
+          message: kindMessage,
           reason: filterResult.reason 
         }, { status: 400 });
       }
@@ -373,15 +376,11 @@ export async function POST(request: NextRequest) {
           // Continue processing - safety system will handle this appropriately
         } else {
           // Not a safety concern, or not self-harm related - block it
-          let userMessage = 'Your message was blocked due to inappropriate content. Please keep conversations respectful and educational.';
-          
-          if (moderationResult.jailbreakDetected) {
-            userMessage = 'Your message appears to be attempting to manipulate the system. Please use this tool for its intended educational purpose.';
-          } else if (moderationResult.severity === 'high' && !mightBeSafetyConcern) {
-            userMessage = 'Your message contains content that violates our community guidelines. This has been reported for review.';
-          } else if (moderationResult.categories.includes('harassment') || moderationResult.categories.includes('hate')) {
-            userMessage = 'Please be respectful in your messages. Harassment and hate speech are not tolerated.';
-          }
+          const userMessage = getKindModerationMessage(
+            moderationResult.categories, 
+            moderationResult.severity, 
+            moderationResult.jailbreakDetected || false
+          );
           
           return NextResponse.json({ 
             error: 'Message blocked', 

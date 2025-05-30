@@ -1112,12 +1112,17 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   setMessages(prev => prev.filter(m => m.message_id !== tempOptimisticLocalId));
                   
                   // Add a system message explaining the filter
+                  let contentFilterMessage = errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.';
+                  
+                  // Add emoji and additional context to make it more friendly
+                  contentFilterMessage = `🛡️ ${contentFilterMessage}\n\nI'm here to help you learn! Try asking your question in a different way, and remember to keep your personal information private. 😊`;
+                  
                   const filterMessage: ChatMessage = {
                     message_id: `filter-${Date.now()}`,
                     room_id: roomId,
                     user_id: userId,
                     role: 'system',
-                    content: errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.',
+                    content: contentFilterMessage,
                     created_at: new Date().toISOString(),
                     metadata: {
                       isContentFilter: true,
