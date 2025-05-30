@@ -3,7 +3,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { ModernNav } from '@/components/teacher/ModernNav';
-import { FiBook, FiMessageCircle, FiCheckCircle, FiArrowRight, FiInfo } from 'react-icons/fi';
+import { FiBook, FiMessageCircle, FiCheckCircle, FiArrowRight, FiInfo, FiVideo, FiUsers } from 'react-icons/fi';
 import { ModernButton } from '@/components/shared/ModernButton';
 
 // Styled Components
@@ -93,7 +93,7 @@ const IntroText = styled.p`
 
 const BotTypesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 32px;
   margin-bottom: 60px;
 `;
@@ -315,7 +315,7 @@ export default function GuidePage() {
             <PageTitle>Skolr Guide</PageTitle>
             <PageSubtitle>Create Powerful AI Assistants for Your Classroom</PageSubtitle>
             <IntroText>
-              Skolr offers three types of AI chatbots to enhance your teaching. Each type serves a unique purpose 
+              Skolr offers four types of AI chatbots to enhance your teaching. Each type serves a unique purpose 
               in supporting student learning. Here's everything you need to know to get started.
             </IntroText>
           </HeroSection>
@@ -370,9 +370,33 @@ export default function GuidePage() {
             </BotTypeCard>
 
             <BotTypeCard 
+              $borderColor="rgba(251, 191, 36, 0.2)"
+              $shadowColor="rgba(251, 191, 36, 0.1)"
+              $delay="0.3s"
+            >
+              <BotIcon $background="linear-gradient(135deg, #FBB024, #F59E0B)">
+                <FiVideo />
+              </BotIcon>
+              <BotTitle $color="#F59E0B">Viewing Room</BotTitle>
+              <BotDescription>
+                Watch educational videos alongside an AI tutor. Students can ask questions about 
+                the video content in real-time and complete linked assessments.
+              </BotDescription>
+              <FeatureList>
+                <FeatureItem $color="#F59E0B">YouTube & Vimeo video support</FeatureItem>
+                <FeatureItem $color="#F59E0B">Real-time Q&A about video content</FeatureItem>
+                <FeatureItem $color="#F59E0B">Link to assessment bots</FeatureItem>
+                <FeatureItem $color="#F59E0B">Track viewing engagement</FeatureItem>
+              </FeatureList>
+              <ModernButton variant="secondary" style={{ width: '100%' }}>
+                Best for: Video-based learning
+              </ModernButton>
+            </BotTypeCard>
+
+            <BotTypeCard 
               $borderColor="rgba(200, 72, 175, 0.2)"
               $shadowColor="rgba(200, 72, 175, 0.1)"
-              $delay="0.3s"
+              $delay="0.4s"
             >
               <BotIcon $background="linear-gradient(135deg, #C848AF, #A43691)">
                 <FiCheckCircle />
@@ -454,6 +478,136 @@ export default function GuidePage() {
             </StepsContainer>
           </StepsSection>
 
+          <StepsSection>
+            <SectionTitle>How to Enroll Students</SectionTitle>
+            <StepsContainer>
+              <StepItem>
+                <StepNumber>1</StepNumber>
+                <StepContent>
+                  <StepTitle>Create a Classroom</StepTitle>
+                  <StepDescription>
+                    Go to "Classrooms" and click "Create New Room". Give it a name like "Year 9 English" 
+                    or "Period 3 Science". Each room gets a unique 6-character code.
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>2</StepNumber>
+                <StepContent>
+                  <StepTitle>Share the Room Code</StepTitle>
+                  <StepDescription>
+                    Give students the 6-character room code (e.g., "ABC123"). They can join by:
+                    • Going to skolr.app and clicking "Join Room"
+                    • Entering the room code
+                    • Creating their student account (name, email, password)
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>3</StepNumber>
+                <StepContent>
+                  <StepTitle>Or Use Magic Links</StepTitle>
+                  <StepDescription>
+                    For younger students or quick access:
+                    • Go to your classroom and click "Students"
+                    • Click "Generate Magic Link" for individual students
+                    • Share the link - students click to join instantly
+                    • No passwords required!
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>4</StepNumber>
+                <StepContent>
+                  <StepTitle>Bulk Import (CSV)</StepTitle>
+                  <StepDescription>
+                    For whole classes:
+                    • Prepare a CSV file with columns: name, email, username
+                    • Go to your classroom → Students → Import CSV
+                    • Students are automatically enrolled
+                    • They can log in with username or email
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>5</StepNumber>
+                <StepContent>
+                  <StepTitle>Manage Student Access</StepTitle>
+                  <StepDescription>
+                    • View all enrolled students in the classroom dashboard
+                    • See who's active and their last login
+                    • Remove students or reset their passwords if needed
+                    • Archive inactive students to keep lists clean
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+            </StepsContainer>
+          </StepsSection>
+
+          <StepsSection>
+            <SectionTitle>Using Viewing Rooms</SectionTitle>
+            <StepsContainer>
+              <StepItem>
+                <StepNumber>1</StepNumber>
+                <StepContent>
+                  <StepTitle>Create a Viewing Room Bot</StepTitle>
+                  <StepDescription>
+                    Select "Viewing Room" when creating a new chatbot. Give it a descriptive name 
+                    like "Photosynthesis Video Lesson" or "Shakespeare Documentary".
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>2</StepNumber>
+                <StepContent>
+                  <StepTitle>Add Your Video</StepTitle>
+                  <StepDescription>
+                    Paste a YouTube or Vimeo URL in the video field. The AI will be able to answer 
+                    questions about the video content as students watch.
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>3</StepNumber>
+                <StepContent>
+                  <StepTitle>Link an Assessment (Optional)</StepTitle>
+                  <StepDescription>
+                    Create an assessment bot for the video topic, then link it to your viewing room. 
+                    Students will see a "Start Assessment" button after watching.
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>4</StepNumber>
+                <StepContent>
+                  <StepTitle>Student Experience</StepTitle>
+                  <StepDescription>
+                    Students see the video on the left and chat on the right (desktop) or video on top 
+                    (mobile). They can pause and ask questions at any time, making learning interactive.
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+
+              <StepItem>
+                <StepNumber>5</StepNumber>
+                <StepContent>
+                  <StepTitle>Review Engagement</StepTitle>
+                  <StepDescription>
+                    Check chat histories to see what questions students asked during the video. 
+                    This reveals which concepts they found challenging or interesting.
+                  </StepDescription>
+                </StepContent>
+              </StepItem>
+            </StepsContainer>
+          </StepsSection>
+
           <TipsSection>
             <SectionTitle>Pro Tips for Success</SectionTitle>
             <TipsList>
@@ -481,8 +635,8 @@ export default function GuidePage() {
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Combine Types:</strong> Use different chatbot types together - a reading bot 
-                  for texts, followed by an assessment bot to check understanding.
+                  <strong>Combine Types:</strong> Use different chatbot types together - a viewing room 
+                  for video content linked to an assessment bot to check understanding.
                 </span>
               </TipItem>
               <TipItem>
@@ -497,6 +651,20 @@ export default function GuidePage() {
                 <span>
                   <strong>Safety First:</strong> Our AI monitors all conversations for safety. Review 
                   flagged chats promptly to support students who may need help.
+                </span>
+              </TipItem>
+              <TipItem>
+                <FiInfo />
+                <span>
+                  <strong>Room Codes:</strong> Keep room codes secure. Share them only with your students 
+                  and consider changing them periodically for security.
+                </span>
+              </TipItem>
+              <TipItem>
+                <FiInfo />
+                <span>
+                  <strong>Video Selection:</strong> For viewing rooms, choose educational videos that are 
+                  age-appropriate and align with your curriculum objectives.
                 </span>
               </TipItem>
             </TipsList>
