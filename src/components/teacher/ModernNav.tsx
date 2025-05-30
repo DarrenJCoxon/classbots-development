@@ -17,7 +17,8 @@ import {
   FiLogOut,
   FiMenu,
   FiX,
-  FiHelpCircle
+  FiHelpCircle,
+  FiShield
 } from 'react-icons/fi';
 
 interface NavItem {
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { label: 'Skolrbots', href: '/teacher-dashboard/chatbots', icon: <FiMessageSquare /> },
   { label: 'Assessments', href: '/teacher-dashboard/assessments', icon: <FiBookOpen /> },
   { label: 'Concerns', href: '/teacher-dashboard/concerns', icon: <FiAlertTriangle /> },
+  { label: 'Content Filters', href: '/teacher-dashboard/content-filters', icon: <FiShield /> },
   { label: 'Guide', href: '/teacher-dashboard/guide', icon: <FiHelpCircle /> },
   { label: 'Profile', href: '/teacher-dashboard/profile', icon: <FiUser /> },
 ];
