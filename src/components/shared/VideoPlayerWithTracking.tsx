@@ -14,6 +14,11 @@ const VideoContainer = styled.div`
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    border-radius: 8px;
+    min-height: 280px; /* Ensure minimum height on mobile */
+  }
 `;
 
 const VideoWrapper = styled.div`

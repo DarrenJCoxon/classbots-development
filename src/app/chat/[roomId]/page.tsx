@@ -96,6 +96,11 @@ const DocumentSection = styled.div`
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: 0; /* Remove padding on mobile for more video space */
+    border-radius: 8px;
+  }
 `;
 
 const ChatSection = styled.div`
@@ -118,14 +123,35 @@ const SplitScreenContainer = styled.div`
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     height: auto;
+    grid-template-rows: 1fr auto; /* Explicit rows for mobile */
     
     ${DocumentSection} {
-      height: 70vh; /* Large enough for most PDF pages */
+      height: 45vh; /* Reduced to ensure both video and chat are visible */
+      min-height: 280px; /* Ensure minimum height for video */
+      max-height: 500px; /* Cap height on larger mobile devices */
       overflow: auto;
     }
     
     ${ChatSection} {
-      min-height: 400px;
+      min-height: 350px;
+      height: 45vh; /* Give chat a defined height on mobile */
+      max-height: 500px;
+    }
+  }
+  
+  /* Specific adjustments for portrait orientation on mobile */
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) and (orientation: portrait) {
+    grid-template-rows: minmax(280px, 45vh) minmax(350px, 1fr);
+    gap: 12px;
+    
+    ${DocumentSection} {
+      height: auto;
+      min-height: 280px;
+    }
+    
+    ${ChatSection} {
+      height: auto;
+      min-height: 350px;
     }
   }
 `;
