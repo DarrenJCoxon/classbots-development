@@ -16,6 +16,7 @@ interface ConcernSummaryForStudent extends Pick<FlaggedMessage, 'flag_id' | 'con
 interface StudentProfile {
   user_id: string;
   full_name: string;
+  email?: string;
 }
 
 interface StudentRoomDetailsResponse {

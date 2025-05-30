@@ -89,6 +89,64 @@ export async function GET(request: NextRequest) { // MODIFIED: Added request par
         throw fetchError;
       }
 
+      // Get student enrollment counts for each chatbot
+      if (chatbots && chatbots.length > 0) {
+        const chatbotIds = chatbots.map(c => c.chatbot_id);
+        
+        // Get student counts grouped by chatbot
+        const { data: enrollmentCounts, error: countError } = await supabaseAdmin
+          .from('room_chatbots')
+          .select('chatbot_id, room_id')
+          .in('chatbot_id', chatbotIds);
+          
+        if (!countError && enrollmentCounts) {
+          // Get unique room IDs
+          const roomIds = [...new Set(enrollmentCounts.map(rc => rc.room_id))];
+          
+          if (roomIds.length > 0) {
+            // Get student counts per room
+            const { data: roomStudentCounts, error: roomCountError } = await supabaseAdmin
+              .from('room_memberships')
+              .select('room_id')
+              .in('room_id', roomIds)
+              .eq('is_archived', false);
+              
+            if (!roomCountError && roomStudentCounts) {
+              // Create a map of room_id to student count
+              const roomStudentMap = new Map<string, number>();
+              roomStudentCounts.forEach(rm => {
+                const currentCount = roomStudentMap.get(rm.room_id) || 0;
+                roomStudentMap.set(rm.room_id, currentCount + 1);
+              });
+              
+              // Create a map of chatbot_id to total student count
+              const chatbotStudentMap = new Map<string, number>();
+              enrollmentCounts.forEach(rc => {
+                const studentCount = roomStudentMap.get(rc.room_id) || 0;
+                const currentTotal = chatbotStudentMap.get(rc.chatbot_id) || 0;
+                chatbotStudentMap.set(rc.chatbot_id, currentTotal + studentCount);
+              });
+              
+              // Add student counts to chatbot objects
+              const chatbotsWithCounts = chatbots.map(chatbot => ({
+                ...chatbot,
+                student_count: chatbotStudentMap.get(chatbot.chatbot_id) || 0
+              }));
+              
+              return NextResponse.json(chatbotsWithCounts);
+            }
+          }
+        }
+        
+        // If we couldn't get counts, return chatbots with 0 counts
+        const chatbotsWithZeroCounts = chatbots.map(chatbot => ({
+          ...chatbot,
+          student_count: 0
+        }));
+        
+        return NextResponse.json(chatbotsWithZeroCounts);
+      }
+
       return NextResponse.json(chatbots || []);
     } catch (queryError) {
       console.error('Error executing chatbot query:', queryError);

@@ -58,8 +58,34 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const payload: ProcessAssessmentPayload = await request.json();
+    // Ensure request has a body
+    if (!request.body) {
+      console.error(`[API /assessment/process] [ReqID: ${requestId}] No request body provided`);
+      return NextResponse.json({ error: 'No request body provided' }, { status: 400 });
+    }
+    
+    let payload: ProcessAssessmentPayload;
+    try {
+      payload = await request.json();
+    } catch (jsonError) {
+      console.error(`[API /assessment/process] [ReqID: ${requestId}] Invalid JSON in request body:`, jsonError);
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
     const { student_id: userId, chatbot_id, room_id, message_ids_to_assess } = payload;
+    
+    // Validate required fields
+    if (!userId || !chatbot_id || !room_id || !message_ids_to_assess || !Array.isArray(message_ids_to_assess)) {
+      console.error(`[API /assessment/process] [ReqID: ${requestId}] Missing required fields in payload`);
+      return NextResponse.json({ 
+        error: 'Missing required fields. Need: student_id, chatbot_id, room_id, message_ids_to_assess' 
+      }, { status: 400 });
+    }
+    
+    if (message_ids_to_assess.length === 0) {
+      console.error(`[API /assessment/process] [ReqID: ${requestId}] No messages to assess`);
+      return NextResponse.json({ error: 'No messages provided to assess' }, { status: 400 });
+    }
+    
     const isTestByTeacher = isTeacherTestRoom(room_id);
 
     console.log(`[API /assessment/process] Payload: userId=${userId}, chatbot_id=${chatbot_id}, room_id=${room_id}, isTestByTeacher=${isTestByTeacher}, messages_count=${message_ids_to_assess.length}`);

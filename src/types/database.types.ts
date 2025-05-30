@@ -110,6 +110,40 @@ export interface Profile extends BaseTable {
   username?: string | null; // Username for student login
   last_pin_change?: string | null; // When PIN was last changed
   pin_change_by?: string | null; // Who changed the PIN
+  avatar_url?: string | null;
+  is_anonymous?: boolean;
+  year_group?: string | null; // Year/Grade level (only for students)
+}
+
+// Teacher profile view interface
+export interface TeacherProfile extends BaseTable {
+  user_id: string;
+  email: string;
+  role: 'teacher';
+  school_id?: string | null;
+  full_name?: string;
+  avatar_url?: string | null;
+  country_code?: string | null;
+}
+
+// Student profile view interface
+export interface StudentProfile extends BaseTable {
+  user_id: string;
+  email: string;
+  role: 'student';
+  school_id?: string | null;
+  full_name?: string;
+  avatar_url?: string | null;
+  username?: string | null;
+  pin_code?: string | null;
+  last_pin_change?: string | null;
+  pin_change_by?: string | null;
+  is_anonymous?: boolean;
+  country_code?: string | null;
+  display_name?: string; // Computed field
+  first_name?: string | null; // Computed field
+  surname?: string | null; // Computed field
+  year_group?: string | null; // Year/Grade level
 }
 
 // THIS IS THE Document INTERFACE WITHIN database.types.ts
@@ -216,6 +250,8 @@ export interface ReadingChatMessage extends BaseTable {
 export interface Database {
   schools: School;
   profiles: Profile;
+  teacher_profiles: TeacherProfile; // View
+  student_profiles: StudentProfile; // View
   chatbots: Chatbot;
   rooms: Room;
   room_chatbots: RoomChatbot;
@@ -228,6 +264,7 @@ export interface Database {
   skolrread_sessions: SkolrReadSession;
   student_reading_sessions: StudentReadingSession;
   reading_chat_messages: ReadingChatMessage;
+  reading_documents: ReadingDocument;
 }
 
 // --- API Payload Types ---

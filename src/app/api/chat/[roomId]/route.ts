@@ -629,6 +629,8 @@ export async function POST(request: NextRequest) {
 
     if (isStudent && chatbotConfig.bot_type === 'assessment' && trimmedContent.toLowerCase() === ASSESSMENT_TRIGGER_COMMAND) {
         console.log(`[API Chat POST] Assessment trigger detected for student ${user.id}, bot ${chatbot_id}, room ${roomId}.`);
+        console.log(`[API Chat POST] Student chatbot instance ID: ${studentChatbotInstanceId || 'not set'}`);
+        console.log(`[API Chat POST] Message saved with ID: ${currentMessageId}`);
         // Use admin client for message IDs
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabaseAdmin
             .from('chat_messages')
@@ -643,6 +645,7 @@ export async function POST(request: NextRequest) {
             console.error(`[API Chat POST] Error fetching message IDs for assessment context: ${contextMsgsError.message}`);
         }
         const messageIdsToAssess = (contextMessagesForAssessment || []).map(m => m.message_id).reverse();
+        console.log(`[API Chat POST] Found ${messageIdsToAssess.length} messages to assess for student ${user.id}`);
         const assessmentPayload = { student_id: user.id, chatbot_id: chatbot_id, room_id: roomId, message_ids_to_assess: messageIdsToAssess };
         console.log(`[API Chat POST] Calling /api/assessment/process with improved handling.`);
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
@@ -694,9 +697,26 @@ export async function POST(request: NextRequest) {
             .then(result => {
                 console.log(`[API Chat POST] Assessment processing successful:`, result);
             })
-            .catch(error => {
+            .catch(async (error) => {
                 console.error(`[API Chat POST] Final assessment processing error:`, error);
-                // We could add a fallback response here if needed
+                // Add a fallback error message to the chat
+                try {
+                    await supabaseAdmin
+                        .from('chat_messages')
+                        .insert({
+                            room_id: roomId,
+                            user_id: user.id,
+                            role: 'system',
+                            content: 'Assessment processing encountered an error. Please try again or contact your teacher if the problem persists.',
+                            metadata: {
+                                chatbotId: chatbot_id,
+                                isAssessmentError: true,
+                                errorDetails: error instanceof Error ? error.message : String(error)
+                            }
+                        });
+                } catch (insertError) {
+                    console.error(`[API Chat POST] Failed to insert error message:`, insertError);
+                }
             });
         
         return NextResponse.json({ type: "assessment_pending", message: "Your responses are being submitted for assessment. Feedback will appear here shortly." });

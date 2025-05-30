@@ -808,10 +808,10 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
     if (userId && chatbot?.chatbot_id && roomId) {
       console.log('[Chat] Initial fetchMessages call from useEffect');
       fetchMessages();
-      // Also check for any existing safety messages on mount
-      fetchSafetyMessages();
+      // Do NOT fetch safety messages on mount - they should only appear in real-time
+      // when triggered by concerning content in the current chat session
     }
-  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages, fetchSafetyMessages]);
+  }, [userId, chatbot?.chatbot_id, roomId, fetchMessages]);
   
   // Also subscribe to regular chat message inserts for real-time chat
   useEffect(() => {
@@ -977,7 +977,10 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   // The safety message delivery is handled by:
   // 1. Postgres changes subscription (lines 906-943)
   // 2. Broadcast channel subscription (lines 945-974)
-  // 3. fetchSafetyMessages is called on mount and when broadcasts are received
+  // 3. fetchSafetyMessages is ONLY called when broadcasts are received, NOT on mount
+  // 
+  // Safety messages should ONLY appear in the chat where the concerning content was detected,
+  // not in new chat instances or when switching between chatbots
   
 
   const handleSendMessage = async (content: string) => {
@@ -1388,8 +1391,29 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
       await handleSendMessage(ASSESSMENT_TRIGGER_COMMAND);
     } catch (err) {
       console.error('[Chat.tsx] Assessment submission error:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to submit assessment';
+      // Properly handle the error - ensure it's not an Event object
+      let errorMsg = 'Failed to submit assessment';
+      if (err && typeof err === 'object' && 'message' in err) {
+        errorMsg = String(err.message);
+      } else if (typeof err === 'string') {
+        errorMsg = err;
+      }
       setError(errorMsg);
+      
+      // Add an error message to the chat
+      const errorMessage: ChatMessage = {
+        message_id: `assessment-error-${Date.now()}`,
+        room_id: roomId,
+        user_id: userId,
+        role: 'system',
+        content: 'Failed to submit assessment. Please try again or contact your teacher if the problem persists.',
+        created_at: new Date().toISOString(),
+        metadata: {
+          chatbotId: chatbot.chatbot_id,
+          isAssessmentError: true
+        }
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsSubmittingAssessment(false);
     }

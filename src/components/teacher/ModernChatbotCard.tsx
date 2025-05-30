@@ -16,7 +16,8 @@ import {
   FiToggleRight,
   FiBookOpen,
   FiClipboard,
-  FiVideo
+  FiVideo,
+  FiUsers
 } from 'react-icons/fi';
 import { GlassCard } from '@/components/shared/GlassCard';
 import Link from 'next/link';
@@ -24,7 +25,7 @@ import type { Chatbot } from '@/types/database.types';
 import { ModernButton } from '@/components/shared/ModernButton';
 
 interface ModernChatbotCardProps {
-  chatbot: Chatbot;
+  chatbot: Chatbot & { student_count?: number };
   onEdit: (chatbotId: string) => void;
   onDelete: (chatbotId: string, chatbotName: string) => void;
 }
@@ -463,10 +464,10 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
           
           <StatItem>
             <StatIcon>
-              <FiCpu />
+              <FiUsers />
             </StatIcon>
-            <StatValue>{getModelDisplayName(chatbot.model)}</StatValue>
-            <StatLabel>AI Model</StatLabel>
+            <StatValue>{chatbot.student_count || 0}</StatValue>
+            <StatLabel>Students</StatLabel>
           </StatItem>
           
           <StatItem>

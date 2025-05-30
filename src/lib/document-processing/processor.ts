@@ -103,7 +103,8 @@ export async function processDocument(document: Document): Promise<void> {
     console.log(`[PROCESSOR ${document.document_id}] Inserted ${insertedChunks.length} chunk records.`);
 
     // SAFER APPROACH: Process chunks in smaller batches for OpenAI embeddings
-    const openAIbatchSize = 20;
+    // Increased from 20 to 100 for better performance (OpenAI supports up to 2048)
+    const openAIbatchSize = 100;
     let usingMockEmbeddings = false;
     let embeddings: number[][] = [];
 
@@ -129,8 +130,9 @@ export async function processDocument(document: Document): Promise<void> {
           .eq('document_id', document.document_id);
       }
       if (chunks.length > openAIbatchSize) {
-        // Avoid hitting rate limits too quickly if there are many batches
-        await new Promise(resolve => setTimeout(resolve, 500)); 
+        // Reduced delay from 500ms to 100ms for better performance
+        // OpenAI rate limits are generous for embeddings
+        await new Promise(resolve => setTimeout(resolve, 100)); 
       }
     }
     console.log(`[PROCESSOR ${document.document_id}] Generated ${embeddings.length} embeddings. ${usingMockEmbeddings ? '(Used MOCK embeddings for some)' : '(Used REAL embeddings)'}`);

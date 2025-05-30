@@ -29,8 +29,9 @@ export async function upsertVectors(
   }
 
   try {
-    // Use a smaller batch size to avoid timeouts
-    const batchSize = 25; // Reduced from 50 to 25
+    // Increased batch size for better performance
+    // Pinecone can handle up to 100 vectors per batch
+    const batchSize = 100;
     
     console.log(`Upserting ${vectors.length} vectors in batches of ${batchSize}`);
     
@@ -41,7 +42,7 @@ export async function upsertVectors(
       try {
         // Add retries for resilience
         let retries = 0;
-        const maxRetries = 3;
+        const maxRetries = 2; // Reduced from 3 to 2 for faster failure
         let success = false;
         
         while (!success && retries < maxRetries) {
@@ -72,8 +73,8 @@ export async function upsertVectors(
             }
             
             if (retries < maxRetries) {
-              // Exponential backoff: 1s, 2s, 4s, etc.
-              const delay = Math.pow(2, retries) * 1000;
+              // Fixed delay of 500ms instead of exponential backoff
+              const delay = 500;
               console.log(`Waiting ${delay}ms before retry...`);
               await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -115,8 +116,11 @@ export async function upsertVectors(
         }
       }
       
-      // Add a slightly longer delay between batches to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Reduced delay from 500ms to 100ms for better performance
+      // Only add delay if there are more batches
+      if (i + batchSize < vectors.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
     
     console.log(`Completed upserting vectors to Pinecone`);

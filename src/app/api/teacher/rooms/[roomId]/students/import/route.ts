@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/connection-pool';
 import { parse } from 'csv-parse/sync';
 import { v4 as uuidv4 } from 'uuid'; // Used for generating unique IDs in magic links
 import crypto from 'crypto';
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest, { params }: any) {
     
     // Authentication
     const supabase = await createServerSupabaseClient();
-    const supabaseAdmin = createAdminClient();
+    // Use connection pool for better performance
+    const supabaseAdmin = getAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -136,6 +138,18 @@ export async function POST(request: NextRequest, { params }: any) {
     console.log('[CSV Import API] First record keys:', records[0] ? Object.keys(records[0]) : 'No records');
     console.log('[CSV Import API] First 3 records:', records.slice(0, 3));
     
+    // Pre-fetch all existing usernames to avoid individual queries in the loop
+    console.log('[CSV Import API] Pre-fetching existing usernames...');
+    const { data: existingUsernameRecords } = await supabaseAdmin
+      .from('student_profiles')
+      .select('username')
+      .not('username', 'is', null);
+    
+    const existingUsernamesSet = new Set(
+      existingUsernameRecords?.map(r => r.username) || []
+    );
+    console.log(`[CSV Import API] Found ${existingUsernamesSet.size} existing usernames`);
+    
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
       console.log(`[CSV Import API] Processing record ${i}:`, record);
@@ -193,19 +207,20 @@ export async function POST(request: NextRequest, { params }: any) {
         let userId: string | undefined;
         const baseUsername = `${firstName.toLowerCase()}.${surname.toLowerCase()}`.replace(/[^a-z.]/g, '');
         
-        // Check if username already exists and add random numbers if needed
+        // Check if username already exists using pre-fetched set
         let username = baseUsername;
-        const { data: existingUsernames } = await supabaseAdmin
-          .from('student_profiles')
-          .select('username')
-          .ilike('username', `${baseUsername}%`);
+        let counter = 1;
         
-        if (existingUsernames && existingUsernames.length > 0) {
-          // Username exists, add 3 random numbers
-          const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
-          username = `${baseUsername}${randomSuffix}`;
-          console.log(`[CSV Import API] Username ${baseUsername} already exists, using ${username}`);
+        // Use the pre-fetched set for fast lookups
+        while (existingUsernamesSet.has(username)) {
+          username = `${baseUsername}${counter}`;
+          counter++;
         }
+        
+        // Add to set to prevent duplicates within this batch
+        existingUsernamesSet.add(username);
+        
+        console.log(`[CSV Import API] Generated username: ${username}`);
         
         const pinCode = Math.floor(1000 + Math.random() * 9000).toString();
         
@@ -243,8 +258,8 @@ export async function POST(request: NextRequest, { params }: any) {
             userId = newUser.user.id;
             console.log(`[CSV Import API] Created user with ID: ${userId}`);
             
-            // Wait for triggers to process
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Reduced delay from 500ms to 50ms - triggers are fast
+            await new Promise(resolve => setTimeout(resolve, 50));
           } catch (createError) {
             console.error(`[CSV Import API] Error creating user:`, createError);
             throw createError;
