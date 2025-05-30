@@ -55,12 +55,20 @@ export const AI_MODERATION_MESSAGES = {
   mild_profanity: "Oops! Let's keep our language school-appropriate. I know you can express yourself without those words. What's on your mind? 😊💬",
   
   // System manipulation
-  role_manipulation: "I'm your friendly learning assistant, and that's the role I'm happiest in! I can't pretend to be something else, but I CAN help you learn amazing things. What shall we explore? 🎭➡️📚"
+  role_manipulation: "I'm your friendly learning assistant, and that's the role I'm happiest in! I can't pretend to be something else, but I CAN help you learn amazing things. What shall we explore? 🎭➡️📚",
+  
+  // Sexual content - CRITICAL for minor safety
+  sexual_content: "I'm here to help you with your studies, not discuss topics like that. 📚 If you have questions about health or relationships, it's best to talk with a trusted adult like a parent, teacher, or school counselor. What subject can I help you learn about today?",
+  
+  sexual_education: "Those are important topics, but I'm designed to help with your schoolwork! 🎓 For questions about health and development, please speak with a trusted adult like a parent, teacher, or school nurse. They can give you proper guidance. What academic subject would you like help with?",
+  
+  inappropriate_relationship: "I'm your learning assistant, and I'm here to help you succeed in school! 📖 For personal questions like that, it's best to talk with a trusted adult. What homework or study topic can I help you with instead?"
 };
 
 // Function to get appropriate message based on filter reason
 export function getKindFilterMessage(reason: string): string {
   // Check for specific reasons
+  if (reason.includes('sexual') || reason.includes('inappropriate content')) return AI_MODERATION_MESSAGES.sexual_content;
   if (reason.includes('phone')) return CONTENT_FILTER_MESSAGES.phone_number;
   if (reason.includes('email')) return CONTENT_FILTER_MESSAGES.email_address;
   if (reason.includes('address')) return CONTENT_FILTER_MESSAGES.physical_address;
@@ -84,6 +92,11 @@ export function getKindModerationMessage(categories: string[], severity: string,
   
   if (severity === 'high') {
     return AI_MODERATION_MESSAGES.high_severity;
+  }
+  
+  // Check for sexual content first (most important for minor safety)
+  if (categories.includes('sexual') || categories.includes('sexual/minors') || categories.includes('sexual_content')) {
+    return AI_MODERATION_MESSAGES.sexual_content;
   }
   
   if (categories.includes('harassment')) {

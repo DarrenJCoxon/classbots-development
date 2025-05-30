@@ -7,6 +7,7 @@ import type { AssessmentStatusEnum } from '@/types/database.types';
 interface StudentWithAssessments {
   user_id: string;
   full_name: string;
+  year_group: string | null;
   room_id: string;
   room_name: string;
   assessments: Array<{
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
     // Get student profiles
     const { data: studentProfiles, error: profilesError } = await adminSupabase
       .from('student_profiles')
-      .select('user_id, full_name')
+      .select('user_id, full_name, year_group')
       .in('user_id', studentIds);
 
     if (profilesError) {
@@ -167,6 +168,7 @@ export async function GET(request: NextRequest) {
         studentsMap.set(key, {
           user_id: membership.student_id,
           full_name: profile?.full_name || 'Unknown Student',
+          year_group: profile?.year_group || null,
           room_id: membership.room_id,
           room_name: room?.room_name || 'Unknown Room',
           assessments: [],

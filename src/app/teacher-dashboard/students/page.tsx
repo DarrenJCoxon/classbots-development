@@ -23,6 +23,7 @@ interface StudentAssessment {
 interface StudentWithAssessments {
   user_id: string;
   full_name: string;
+  year_group: string | null;
   room_id: string;
   room_name: string;
   assessments: StudentAssessment[];
@@ -145,15 +146,36 @@ const TableCell = styled.td`
   vertical-align: top;
 `;
 
-const StudentName = styled.div`
+const StudentName = styled.button`
   font-weight: 600;
-  color: ${({ theme }) => theme.colors.text};
+  color: ${({ theme }) => theme.colors.primary};
   margin-bottom: ${({ theme }) => theme.spacing.xs};
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: ${({ theme }) => theme.colors.blue};
+  }
 `;
 
 const RoomName = styled.div`
   font-size: 0.875rem;
   color: ${({ theme }) => theme.colors.textLight};
+`;
+
+const YearGroup = styled.div`
+  font-size: 0.75rem;
+  color: ${({ theme }) => theme.colors.textMuted};
+  padding: 2px 8px;
+  background: rgba(152, 93, 215, 0.1);
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  display: inline-block;
+  margin-top: ${({ theme }) => theme.spacing.xs};
 `;
 
 const AssessmentGrid = styled.div`
@@ -259,13 +281,34 @@ const MobileHeader = styled.div`
 const MobileStudentInfo = styled.div`
   .name {
     font-weight: 600;
-    color: ${({ theme }) => theme.colors.text};
+    color: ${({ theme }) => theme.colors.primary};
     margin-bottom: ${({ theme }) => theme.spacing.xs};
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+    
+    &:hover {
+      color: ${({ theme }) => theme.colors.blue};
+    }
   }
   
   .room {
     font-size: 0.875rem;
     color: ${({ theme }) => theme.colors.textLight};
+    margin-bottom: ${({ theme }) => theme.spacing.xs};
+  }
+  
+  .year-group {
+    font-size: 0.75rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    padding: 2px 8px;
+    background: rgba(152, 93, 215, 0.1);
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    display: inline-block;
   }
 `;
 
@@ -369,6 +412,10 @@ export default function StudentsPage() {
     router.push(`/teacher-dashboard/assessments/${assessmentId}`);
   };
 
+  const handleStudentClick = (studentId: string, roomId: string) => {
+    router.push(`/teacher-dashboard/rooms/${roomId}/students/${studentId}`);
+  };
+
   const filteredStudents = data?.students || [];
   const totalStudents = data?.students.length || 0;
   const totalAssessments = data?.students.reduce((sum, student) => sum + student.assessments.length, 0) || 0;
@@ -454,6 +501,7 @@ export default function StudentsPage() {
                     <thead>
                       <tr>
                         <TableHeader>Student</TableHeader>
+                        <TableHeader>Year Group</TableHeader>
                         <TableHeader>Assessments</TableHeader>
                         <TableHeader>Average Grade</TableHeader>
                       </tr>
@@ -462,8 +510,17 @@ export default function StudentsPage() {
                       {filteredStudents.map((student) => (
                         <tr key={`${student.user_id}-${student.room_id}`}>
                           <TableCell>
-                            <StudentName>{student.full_name}</StudentName>
+                            <StudentName onClick={() => handleStudentClick(student.user_id, student.room_id)}>
+                              {student.full_name}
+                            </StudentName>
                             <RoomName>{student.room_name}</RoomName>
+                          </TableCell>
+                          <TableCell>
+                            {student.year_group ? (
+                              <YearGroup>{student.year_group}</YearGroup>
+                            ) : (
+                              <span style={{ color: '#999', fontSize: '0.875rem' }}>Not set</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             {student.assessments.length > 0 ? (
@@ -504,8 +561,16 @@ export default function StudentsPage() {
                     <MobileCard key={`${student.user_id}-${student.room_id}`}>
                       <MobileHeader>
                         <MobileStudentInfo>
-                          <div className="name">{student.full_name}</div>
+                          <button 
+                            className="name"
+                            onClick={() => handleStudentClick(student.user_id, student.room_id)}
+                          >
+                            {student.full_name}
+                          </button>
                           <div className="room">{student.room_name}</div>
+                          {student.year_group && (
+                            <div className="year-group">{student.year_group}</div>
+                          )}
                         </MobileStudentInfo>
                         {student.average_grade !== null && (
                           <AverageGrade>{Math.round(student.average_grade)}%</AverageGrade>

@@ -149,6 +149,32 @@ const CONCERN_THRESHOLD = 3;
 
 // Keywords organized by category
 const CONCERN_KEYWORDS: Record<string, string[]> = {
+  sexual_content: [
+    // General sexual terms that shouldn't be discussed with minors
+    'how to kiss', 'kissing boys', 'kissing girls', 'kissing someone', 'make out', 'making out', 
+    'french kiss', 'french kissing', 'tongue kiss', 'deep kiss', 'passionate kiss',
+    'sex', 'sexual', 'sexuality', 'intercourse', 'intimate', 'intimacy', 'foreplay',
+    'oral sex', 'anal sex', 'vaginal sex', 'sexual acts', 'sexual activity', 'sexual experience',
+    'lose my virginity', 'losing virginity', 'first time', 'virgin', 'virginity',
+    'sexual positions', 'sex positions', 'how to have sex', 'having sex', 'getting laid',
+    'hook up', 'hooking up', 'one night stand', 'sexual encounter', 'sexual relationship',
+    'turn me on', 'turns me on', 'aroused', 'horny', 'sexual feelings', 'sexual urges',
+    'masturbate', 'masturbation', 'touching myself', 'pleasure myself', 'self pleasure',
+    'orgasm', 'climax', 'come', 'cumming', 'ejaculate', 'ejaculation',
+    'erection', 'hard on', 'boner', 'arousal', 'sexual arousal', 'sexually excited',
+    'wet dream', 'nocturnal emission', 'sexual fantasy', 'sexual thoughts', 'dirty thoughts',
+    'sexual desire', 'lust', 'lustful', 'seduction', 'seduce', 'seducing', 'flirting',
+    'sexual harassment', 'inappropriate touching', 'unwanted advances', 'sexual pressure',
+    'birth control', 'contraception', 'pregnancy', 'getting pregnant', 'teen pregnancy',
+    'sexually transmitted', 'std', 'sti', 'sexual health', 'sexual education',
+    // Body parts in sexual context
+    'breasts', 'boobs', 'tits', 'nipples', 'penis', 'dick', 'cock', 'vagina', 'pussy',
+    'ass', 'butt', 'buttocks', 'genitals', 'private parts', 'down there',
+    // Dating/relationship terms that can be inappropriate for minors
+    'sexual partner', 'sexual relationship', 'friends with benefits', 'casual sex',
+    'sleeping together', 'sleeping with', 'bed together', 'naked together', 'undress',
+    'take off clothes', 'get naked', 'strip', 'stripping', 'nude', 'nudity'
+  ],
   self_harm: [
     'hate myself', 'don\'t want to live', 'don\'t want to be alive', 'don\'t want to be here', 'don\'t want to exist',
     'not worth going on', 'no point in living', 'no point going on', 'rather be dead', 'should end it',

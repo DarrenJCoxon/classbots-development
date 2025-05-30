@@ -62,7 +62,19 @@ const JAILBREAK_PATTERNS = [
   /solve\s+(this|my)\s+(homework|assignment|test|exam)/i,
   /write\s+(my|the)\s+(essay|paper|assignment)/i,
   /complete\s+(my|this)\s+(homework|assignment)/i,
-  /do\s+my\s+(homework|assignment|work)/i
+  /do\s+my\s+(homework|assignment|work)/i,
+  
+  // Sexual content - CRITICAL for minor safety
+  /how\s+to\s+(kiss|make\s+out|have\s+sex)/i,
+  /(kissing|making\s+out\s+with)\s+(boys|girls|someone)/i,
+  /(sex|sexual|intimate|virginity|masturbat)/i,
+  /(horny|aroused|turn.*on|sexual\s+feelings)/i,
+  /(penis|vagina|breasts|genitals|private\s+parts)/i,
+  /(oral\s+sex|anal\s+sex|sexual\s+positions)/i,
+  /(hook\s+up|friends\s+with\s+benefits|one\s+night\s+stand)/i,
+  /(naked|nude|undress|take\s+off\s+clothes)/i,
+  /(sexual\s+harassment|inappropriate\s+touching)/i,
+  /(pregnancy|birth\s+control|std|sti)/i
 ];
 
 /**
