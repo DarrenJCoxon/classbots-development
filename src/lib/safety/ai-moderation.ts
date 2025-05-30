@@ -248,19 +248,31 @@ export async function moderateContent(
     const isFlagged = openAIFlagged || jailbreakCheck.detected;
     
     // Step 4: Determine severity
+    // Convert categories and scores to plain objects, handling null values
+    const categoriesObj: Record<string, boolean> = {};
+    const scoresObj: Record<string, number> = {};
+    
+    for (const [key, value] of Object.entries(categories)) {
+      categoriesObj[key] = value === true; // Convert null to false
+    }
+    
+    for (const [key, value] of Object.entries(scores)) {
+      scoresObj[key] = value || 0; // Convert null to 0
+    }
+    
     const severity = isFlagged 
-      ? determineSeverity(categories, scores, jailbreakCheck.detected)
+      ? determineSeverity(categoriesObj, scoresObj, jailbreakCheck.detected)
       : 'low';
     
     // Step 5: Format human-readable reason
-    const reason = formatReason(categories, jailbreakCheck.patterns);
+    const reason = formatReason(categoriesObj, jailbreakCheck.patterns);
     
     const moderationResult: ModerationResult = {
       isFlagged,
       categories: flaggedCategories,
       severity,
       reason,
-      scores,
+      scores: scoresObj,
       jailbreakDetected: jailbreakCheck.detected
     };
     
@@ -403,16 +415,29 @@ export async function moderateContentBatch(
       }
       
       const isFlagged = result.flagged || jailbreakCheck.detected;
+      
+      // Convert categories and scores to plain objects
+      const categoriesObj: Record<string, boolean> = {};
+      const scoresObj: Record<string, number> = {};
+      
+      for (const [key, value] of Object.entries(result.categories)) {
+        categoriesObj[key] = value === true;
+      }
+      
+      for (const [key, value] of Object.entries(result.category_scores)) {
+        scoresObj[key] = value || 0;
+      }
+      
       const severity = isFlagged 
-        ? determineSeverity(result.categories, result.category_scores, jailbreakCheck.detected)
+        ? determineSeverity(categoriesObj, scoresObj, jailbreakCheck.detected)
         : 'low';
       
       return {
         isFlagged,
         categories: flaggedCategories,
         severity,
-        reason: formatReason(result.categories, jailbreakCheck.patterns),
-        scores: result.category_scores,
+        reason: formatReason(categoriesObj, jailbreakCheck.patterns),
+        scores: scoresObj,
         jailbreakDetected: jailbreakCheck.detected
       };
     });
