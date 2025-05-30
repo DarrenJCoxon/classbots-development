@@ -9,7 +9,25 @@ import openai from './client';
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
     const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
+      model: "text-embedding-3-small", // This is already the fastest model
+      input: text,
+      encoding_format: "float",
+    });
+
+    return response.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    throw new Error('Failed to generate embedding');
+  }
+}
+
+/**
+ * Alternative: Use ada-002 model which is faster but slightly less accurate
+ */
+export async function generateEmbeddingFast(text: string): Promise<number[]> {
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-ada-002", // Faster, cheaper, but less accurate
       input: text,
       encoding_format: "float",
     });

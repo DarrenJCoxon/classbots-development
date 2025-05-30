@@ -7,12 +7,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Container, Card } from '@/styles/StyledComponents';
 import DocumentUploader from '@/components/teacher/DocumentUploader';
-import DocumentList from '@/components/teacher/DocumentList';
+import DocumentListWithBatch from '@/components/teacher/DocumentListWithBatch';
 import EmbeddingStatus from '@/components/teacher/EmbeddingStatus';
 import EnhancedRagScraper from '@/components/teacher/EnhancedRagScraper';
 import { GlassCard } from '@/components/shared/GlassCard';
 import { ModernButton } from '@/components/shared/ModernButton';
 import { PageTransition } from '@/components/shared/PageTransition';
+import FastProcessingToggle from '@/components/teacher/FastProcessingToggle';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types'; // Ensure path
 
 const PageWrapper = styled.div`
@@ -153,6 +154,7 @@ export default function KnowledgeBasePage() {
   const [docsError, setDocsError] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [useFastMode, setUseFastMode] = useState<boolean>(false);
   // Removed grid view - list only
   
   const params = useParams();
@@ -263,13 +265,14 @@ export default function KnowledgeBasePage() {
       const response = await fetch(`/api/teacher/chatbots/${chatbotId}/vectorize`, { // Assuming vectorize endpoint remains nested
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId }),
+        body: JSON.stringify({ documentId, fastMode: useFastMode }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to start document processing');
       }
-      setSuccessMessage("Document processing started.");
+      const result = await response.json();
+      setSuccessMessage(`Document processing started in ${result.mode || 'standard'} mode.`);
       setDocuments(prevDocs => 
         prevDocs.map(doc => 
           doc.document_id === documentId ? { ...doc, status: 'processing' } : doc
@@ -279,6 +282,33 @@ export default function KnowledgeBasePage() {
     } catch (err) {
       console.error('Error processing document:', err);
       setDocsError(err instanceof Error ? err.message : 'Could not process document.');
+    }
+  };
+
+  const handleBatchProcessDocuments = async (documentIds: string[]) => {
+    setDocsError(null);
+    setSuccessMessage(null);
+    try {
+      const response = await fetch(`/api/teacher/chatbots/${chatbotId}/vectorize-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds, fastMode: useFastMode }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to start batch processing');
+      }
+      const result = await response.json();
+      setSuccessMessage(`Started processing ${result.documentsQueued} documents in ${result.mode} mode.`);
+      // Update documents to processing state
+      setDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          documentIds.includes(doc.document_id) ? { ...doc, status: 'processing' } : doc
+        )
+      );
+    } catch (err) {
+      console.error('Error batch processing documents:', err);
+      setDocsError(err instanceof Error ? err.message : 'Could not process documents.');
     }
   };
 
@@ -383,6 +413,10 @@ export default function KnowledgeBasePage() {
         
         <Section variant="light" hoverable={undefined}>
             <h2>Uploaded Documents</h2>
+            <FastProcessingToggle 
+              checked={useFastMode} 
+              onChange={setUseFastMode} 
+            />
             {getViewingDocument() && (
               <EmbeddingStatus 
                 document={getViewingDocument()!} 
@@ -397,11 +431,13 @@ export default function KnowledgeBasePage() {
             {docsLoading && documents.length === 0 ? ( // Show loading only if no docs are displayed yet
               <LoadingContainer><p>Loading documents...</p></LoadingContainer>
             ) : (
-              <DocumentList 
+              <DocumentListWithBatch 
                 documents={documents}
                 onProcessDocument={handleProcessDocument}
                 onDeleteDocument={handleDeleteDocument}
                 onViewStatus={setViewingDocumentId}
+                onBatchProcess={handleBatchProcessDocuments}
+                fastMode={useFastMode}
               />
             )}
         </Section>

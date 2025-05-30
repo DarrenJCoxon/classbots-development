@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { processDocument as processDocumentFile } from '@/lib/document-processing/processor';
+import { processDocumentFast } from '@/lib/document-processing/fast-processor';
 import type { Document } from '@/types/knowledge-base.types';
 
 export const dynamic = 'force-dynamic';
@@ -135,11 +136,23 @@ export async function POST(request: NextRequest) {
     
     console.log(`[API vectorize POST] Document ${documentId} status updated successfully`);
 
-    // Process in the background using the imported function
-    processDocumentFile(document as Document)
-      .catch(error => console.error(`Background processing error for doc ${document.document_id}:`, error));
+    // Check if fast mode is requested
+    const useFastMode = body.fastMode === true;
+    console.log(`[API vectorize POST] Using ${useFastMode ? 'FAST' : 'standard'} processing mode`);
 
-    return NextResponse.json({ message: 'Document processing started' });
+    // Process in the background using the appropriate function
+    if (useFastMode) {
+      processDocumentFast(document as Document)
+        .catch(error => console.error(`Background FAST processing error for doc ${document.document_id}:`, error));
+    } else {
+      processDocumentFile(document as Document)
+        .catch(error => console.error(`Background processing error for doc ${document.document_id}:`, error));
+    }
+
+    return NextResponse.json({ 
+      message: 'Document processing started',
+      mode: useFastMode ? 'fast' : 'standard'
+    });
   } catch (error) {
     console.error('Error in document processing endpoint (POST):', error);
     return NextResponse.json(

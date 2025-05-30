@@ -698,14 +698,16 @@ export default function DocumentList({
 
   const renderActions = (doc: KnowledgeDocument) => (
     <>
-      {/* Documents now auto-process on upload - show pending status */}
-      {(doc.status === 'uploaded' || doc.status === 'fetched') && (
-        <ModernButton           size="small"
+      {/* Show process button for pending/error documents */}
+      {(doc.status === 'uploaded' || doc.status === 'fetched' || doc.status === 'error') && (
+        <ModernButton           
+          size="small"
           variant="ghost"
-          disabled
-          title="Document will be processed automatically"
+          onClick={() => handleProcess(doc.document_id)}
+          disabled={processingId === doc.document_id}
+          title="Process this document"
         >
-          Auto-processing...
+          {processingId === doc.document_id ? 'Processing...' : 'Process'}
         </ModernButton>
       )}
       {(doc.status === 'processing' || doc.status === 'completed' || doc.status === 'error') && (
