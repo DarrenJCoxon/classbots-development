@@ -7,6 +7,7 @@ import { queryVectors } from '@/lib/pinecone/utils';
 import { checkMessageSafety, initialConcernCheck } from '@/lib/safety/monitoring';
 import { createErrorResponse, createSuccessResponse, handleApiError, ErrorCodes } from '@/lib/utils/api-responses';
 import type { ChatMessage, Room } from '@/types/database.types';
+import { filterMessageContent, isUserUnder13, getUnder13SystemPrompt, logFilteredContent } from '@/lib/safety/content-filter';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // This is still the internal command identifier used by the backend
@@ -322,6 +323,31 @@ export async function POST(request: NextRequest) {
     const trimmedContent = content?.trim();
     if (!trimmedContent || typeof trimmedContent !== 'string') return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
     if (!chatbot_id) return NextResponse.json({ error: 'Chatbot ID is required' }, { status: 400 });
+    
+    // Content filtering for under-13 users (assume all students need filtering for now)
+    if (isStudent) {
+      const filterResult = filterMessageContent(trimmedContent, true, true);
+      
+      if (filterResult.isBlocked) {
+        console.log(`[API Chat POST] Content filtered for user ${user.id}: ${filterResult.reason}`);
+        
+        // Log the filtered content for compliance
+        await logFilteredContent(
+          user.id,
+          roomId,
+          trimmedContent,
+          filterResult.reason || 'Unknown reason',
+          supabaseAdmin
+        );
+        
+        // Return a friendly message to the user
+        return NextResponse.json({ 
+          error: 'Message blocked', 
+          message: 'For your safety, your message was blocked. Please don\'t share personal information or external contact details.',
+          reason: filterResult.reason 
+        }, { status: 400 });
+      }
+    }
     
     // Extra logging for instance ID debugging
     console.log(`[API Chat POST] Request data:
@@ -854,9 +880,12 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
         console.log(`[API Chat POST] Added country-specific (${teacherCountryCode}) safety guidance to system prompt`);
     }
 
+    // Add under-13 specific instructions for students
+    const under13Instructions = isStudent ? getUnder13SystemPrompt() : '';
+    
     // Assemble the full system prompt with all necessary components
     // This is CRITICAL - we need all these components for proper functioning
-    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${under13Instructions}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
 
     // Enhanced logging to track system prompt and RAG usage
     console.log(`[PROMPT] Final system prompt assembled with following components:`);
