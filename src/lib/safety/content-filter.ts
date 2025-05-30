@@ -128,6 +128,60 @@ const INAPPROPRIATE_CONTENT_PATTERNS = [
   }
 ];
 
+// Sexual Content Patterns - Critical for minor safety
+const SEXUAL_CONTENT_PATTERNS = [
+  {
+    pattern: /\b(?:how to kiss|kissing boys|kissing girls|kissing someone)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:make out|making out|french kiss|french kissing)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:sex|sexual|sexuality|intercourse|intimate|intimacy)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:masturbate|masturbation|touching myself|pleasure myself)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:penis|dick|cock|vagina|pussy|breasts|boobs|tits)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:horny|aroused|turn.*on|sexual feelings|sexual urges)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:virginity|lose my virginity|losing virginity|first time)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:hook up|hooking up|one night stand|sexual encounter)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:naked|nude|nudity|undress|take off clothes|get naked)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  },
+  {
+    pattern: /\b(?:birth control|contraception|pregnancy|getting pregnant)\b/gi,
+    reason: 'sexual content',
+    replacement: '[INAPPROPRIATE CONTENT REMOVED]'
+  }
+];
+
 // External Links
 const EXTERNAL_LINK_PATTERN = {
   pattern: /https?:\/\/(?!(?:www\.)?skolr\.app)[^\s]+/gi,
@@ -184,6 +238,16 @@ export function filterMessageContent(
 
   // Check for inappropriate content
   for (const filter of INAPPROPRIATE_CONTENT_PATTERNS) {
+    const matches = message.match(filter.pattern);
+    if (matches) {
+      flaggedPatterns.push(filter.reason);
+      shouldBlock = true;
+      cleanedMessage = cleanedMessage.replace(filter.pattern, filter.replacement);
+    }
+  }
+
+  // Check for sexual content (always block for minors)
+  for (const filter of SEXUAL_CONTENT_PATTERNS) {
     const matches = message.match(filter.pattern);
     if (matches) {
       flaggedPatterns.push(filter.reason);
@@ -256,7 +320,7 @@ IMPORTANT: You are chatting with a student who may be under 13 years old. You mu
 }
 
 /**
- * Log filtered content for compliance
+ * Log filtered content for compliance and concerns dashboard
  */
 export async function logFilteredContent(
   userId: string,
@@ -266,6 +330,19 @@ export async function logFilteredContent(
   supabaseAdmin: any
 ): Promise<void> {
   try {
+    // First, get the room details to find the teacher_id
+    const { data: room, error: roomError } = await supabaseAdmin
+      .from('rooms')
+      .select('teacher_id')
+      .eq('room_id', roomId)
+      .single();
+
+    if (roomError || !room) {
+      console.error('[Content Filter] Failed to get room details:', roomError);
+      return;
+    }
+
+    // Log to filtered_messages table for compliance
     await supabaseAdmin
       .from('filtered_messages')
       .insert({
@@ -275,6 +352,50 @@ export async function logFilteredContent(
         filter_reason: filterReason,
         created_at: new Date().toISOString()
       });
+
+    // Determine concern type based on filter reason
+    let concernType = 'inappropriate_content';
+    let concernLevel = 3; // Medium severity by default
+    
+    if (filterReason.includes('sexual content')) {
+      concernType = 'sexual_content';
+      concernLevel = 4; // Higher severity for sexual content
+    } else if (filterReason.includes('violence') || filterReason.includes('self-harm')) {
+      concernType = 'violence';
+      concernLevel = 4;
+    } else if (filterReason.includes('mental health')) {
+      concernType = 'self_harm';
+      concernLevel = 5; // Highest severity
+    } else if (filterReason.includes('personal information') || filterReason.includes('phone') || filterReason.includes('email') || filterReason.includes('address')) {
+      concernType = 'personal_info_shared';
+      concernLevel = 2;
+    }
+
+    // Create a flagged message entry for the concerns dashboard
+    const { error: flagError } = await supabaseAdmin
+      .from('flagged_messages')
+      .insert({
+        message_id: `filtered-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        student_id: userId,
+        teacher_id: room.teacher_id,
+        room_id: roomId,
+        concern_type: concernType,
+        concern_level: concernLevel,
+        analysis_explanation: `Content filter: ${filterReason}`,
+        context_messages: {
+          originalMessage: originalMessage,
+          filterReason: filterReason,
+          filteredAt: new Date().toISOString()
+        },
+        status: 'pending'
+      });
+
+    if (flagError) {
+      console.error('[Content Filter] Failed to create flagged message:', flagError);
+    } else {
+      console.log('[Content Filter] Successfully logged filtered content to concerns dashboard');
+    }
+
   } catch (error) {
     console.error('[Content Filter] Error logging filtered content:', error);
   }

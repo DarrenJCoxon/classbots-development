@@ -345,9 +345,29 @@ export async function POST(request: NextRequest) {
         // Return a friendly message to the user using kind messages
         const kindMessage = getKindFilterMessage(filterResult.reason || '');
         
+        // Insert a system message to show the kind message in chat
+        const systemMessageId = `system-filter-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        await supabaseAdmin
+          .from('chat_messages')
+          .insert({
+            message_id: systemMessageId,
+            room_id: roomId,
+            user_id: user.id,
+            role: 'system',
+            content: kindMessage,
+            created_at: new Date().toISOString(),
+            metadata: {
+              isSystemMessage: true,
+              isContentFilterMessage: true,
+              filterReason: filterResult.reason,
+              chatbotId: chatbot_id
+            }
+          });
+        
         return NextResponse.json({ 
           error: 'Message blocked', 
           message: kindMessage,
+          systemMessageId: systemMessageId,
           reason: filterResult.reason 
         }, { status: 400 });
       }
@@ -382,9 +402,30 @@ export async function POST(request: NextRequest) {
             moderationResult.jailbreakDetected || false
           );
           
+          // Insert a system message to show the kind message in chat
+          const systemMessageId = `system-moderation-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          await supabaseAdmin
+            .from('chat_messages')
+            .insert({
+              message_id: systemMessageId,
+              room_id: roomId,
+              user_id: user.id,
+              role: 'system',
+              content: userMessage,
+              created_at: new Date().toISOString(),
+              metadata: {
+                isSystemMessage: true,
+                isAIModerationMessage: true,
+                moderationCategories: moderationResult.categories,
+                moderationSeverity: moderationResult.severity,
+                chatbotId: chatbot_id
+              }
+            });
+          
           return NextResponse.json({ 
             error: 'Message blocked', 
             message: userMessage,
+            systemMessageId: systemMessageId,
             reason: `AI moderation: ${moderationResult.categories.join(', ')}`,
             severity: moderationResult.severity
           }, { status: 400 });

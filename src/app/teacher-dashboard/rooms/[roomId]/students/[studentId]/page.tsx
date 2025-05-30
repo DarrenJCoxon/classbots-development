@@ -468,7 +468,7 @@ export default function StudentRoomDetailPage() {
         <Header>
           <StudentInfoBar>
             <h1>{student.full_name || 'Student'}</h1>
-            <p>{student.email || 'No email provided'}</p>
+            {student.email && <p>{student.email}</p>}
             
             {/* Student Access Section */}
             <div style={{ marginTop: '15px' }}>
