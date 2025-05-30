@@ -93,9 +93,13 @@ const IntroText = styled.p`
 
 const BotTypesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 32px;
   margin-bottom: 60px;
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const BotTypeCard = styled.div<{ $borderColor?: string; $shadowColor?: string; $delay?: string }>`
@@ -109,10 +113,17 @@ const BotTypeCard = styled.div<{ $borderColor?: string; $shadowColor?: string; $
   animation: fadeInUp 0.6s ease-out;
   animation-delay: ${props => props.$delay || '0s'};
   animation-fill-mode: backwards;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 48px ${props => props.$shadowColor || 'rgba(152, 93, 215, 0.15)'};
+  }
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.desktop}) {
+    padding: 24px;
   }
 `;
 
@@ -148,6 +159,7 @@ const BotDescription = styled.p`
   color: ${({ theme }) => theme.colors.text};
   line-height: 1.6;
   margin-bottom: 24px;
+  flex: 1;
 `;
 
 const FeatureList = styled.ul`
