@@ -214,7 +214,7 @@ const initialChatbotState: Chatbot = {
     description: '',
     system_prompt: `You are a helpful AI assistant.`,
     teacher_id: '',
-    model: 'openai/gpt-4.1-nano',
+    model: 'openai/gpt-4.1-mini',
     max_tokens: 1000,
     temperature: 0.7,
     enable_rag: false,
@@ -579,13 +579,13 @@ export default function ConfigureChatbotPage() {
 
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
-              <StyledSelect id="model" name="model" value={chatbot.model || 'qwen/qwen3-235b-a22b'} onChange={handleChange}>
-                  <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1 Nano</option>
-                  <option value="google/gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
-                  <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
-                  <option value="qwen/qwen3-235b-a22b">Qwen3 235B A22B</option> 
+              <StyledSelect id="model" name="model" value={chatbot.model || 'openai/gpt-4.1-mini'} onChange={handleChange}>
+                  <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                  <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
+                  <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Llama-3.1</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok-3 Mini</option> 
               </StyledSelect>
-              <HelpText>This model is used for general chat. Assessment evaluation will use Qwen3 235B.</HelpText>
+              <HelpText>This model is used for the Skolr's direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.</HelpText>
             </FormGroup>
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>

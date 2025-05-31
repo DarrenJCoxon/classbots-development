@@ -60,17 +60,30 @@ const ActivityList = styled.div`
   gap: 12px;
 `;
 
-const ActivityItem = styled(motion.div)`
+const ActivityItem = styled(motion.div)<{ $clickable?: boolean }>`
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: ${({ $clickable }) => $clickable ? 'pointer' : 'default'};
+  transition: all 0.2s ease;
   
   &:last-child {
     border-bottom: none;
     padding-bottom: 0;
   }
+  
+  ${({ $clickable }) => $clickable && `
+    &:hover {
+      background-color: ${({ theme }: any) => theme.colors.backgroundLight};
+      margin-left: -12px;
+      margin-right: -12px;
+      padding-left: 12px;
+      padding-right: 12px;
+      border-radius: 8px;
+    }
+  `}
 `;
 
 const ActivityIcon = styled.div<{ variant?: string }>`
@@ -268,6 +281,7 @@ interface ModernDashboardProps {
     type: 'student' | 'room' | 'assessment' | 'concern';
     content: string;
     time: string;
+    navigationPath?: string;
   }>;
   teacherName: string | null;
 }
@@ -413,6 +427,12 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({ stats, recentA
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
+                      $clickable={!!activity.navigationPath}
+                      onClick={() => {
+                        if (activity.navigationPath) {
+                          router.push(activity.navigationPath);
+                        }
+                      }}
                     >
                       <ActivityIcon variant={activity.variant}>
                         {activity.icon}

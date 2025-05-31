@@ -725,7 +725,7 @@ export default function ManageSkolrsPage() {
             name: editChatbot.name,
             description: editChatbot.description || '',
             system_prompt: editChatbot.system_prompt,
-            model: editChatbot.model || 'openai/gpt-4.1-nano',
+            model: editChatbot.model || 'openai/gpt-4.1-mini',
             max_tokens: editChatbot.max_tokens || undefined,
             temperature: editChatbot.temperature || undefined,
             enable_rag: editChatbot.enable_rag || false,

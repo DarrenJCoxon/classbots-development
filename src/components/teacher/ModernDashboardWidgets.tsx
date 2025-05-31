@@ -2,6 +2,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { 
   FiUsers, 
   FiMessageSquare, 
@@ -236,11 +237,21 @@ const ProgressFill = styled(motion.div)<{ variant?: WidgetVariant }>`
 `;
 
 // Activity feed item
-const ActivityItem = styled(motion.div)`
+const ActivityItem = styled(motion.div)<{ $clickable?: boolean }>`
   display: flex;
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: ${({ $clickable }) => $clickable ? 'pointer' : 'default'};
+  transition: background-color 0.2s ease;
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  
+  &:hover {
+    background-color: ${({ $clickable, theme }) => 
+      $clickable ? 'rgba(152, 93, 215, 0.05)' : 'transparent'};
+  }
   
   &:last-child {
     border-bottom: none;
@@ -404,8 +415,17 @@ export const ActivityWidget: React.FC<{
     content: string;
     time: string;
     variant?: WidgetProps['variant'];
+    navigationPath?: string;
   }>;
 }> = ({ title, activities }) => {
+  const router = useRouter();
+  
+  const handleActivityClick = (navigationPath?: string) => {
+    if (navigationPath) {
+      router.push(navigationPath);
+    }
+  };
+  
   return (
     <WidgetContainer
       initial={{ opacity: 0, y: 20 }}
@@ -430,6 +450,8 @@ export const ActivityWidget: React.FC<{
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
+            $clickable={!!activity.navigationPath}
+            onClick={() => handleActivityClick(activity.navigationPath)}
           >
             <ActivityIcon variant={activity.variant}>
               {activity.icon}

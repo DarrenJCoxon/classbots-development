@@ -21,6 +21,7 @@ interface Activity {
   type: 'student' | 'room' | 'assessment' | 'concern';
   content: string;
   time: string;
+  navigationPath?: string; // Optional navigation path for clickable items
 }
 
 export default function TeacherDashboardPage() {
@@ -85,7 +86,8 @@ export default function TeacherDashboardPage() {
             id: `join-${join.student_id}-${join.room_id}`,
             type: 'student',
             content: `${studentName} joined ${roomName}`,
-            time: formatTimeAgo(new Date(join.created_at))
+            time: formatTimeAgo(new Date(join.created_at)),
+            navigationPath: `/teacher-dashboard/rooms/${join.room_id}/students/${join.student_id}`
           });
         });
         
@@ -141,7 +143,8 @@ export default function TeacherDashboardPage() {
             id: `assessment-${assessment.assessment_id}`,
             type: 'assessment',
             content: `${studentName} completed ${chatbotName} in ${roomName}`,
-            time: formatTimeAgo(new Date(assessment.assessed_at))
+            time: formatTimeAgo(new Date(assessment.assessed_at)),
+            navigationPath: `/teacher-dashboard/assessments/${assessment.assessment_id}`
           });
         });
         
@@ -180,7 +183,8 @@ export default function TeacherDashboardPage() {
             id: `concern-${concern.flag_id}`,
             type: 'concern',
             content: `Safety alert in ${roomName}`,
-            time: formatTimeAgo(new Date(concern.created_at))
+            time: formatTimeAgo(new Date(concern.created_at)),
+            navigationPath: `/teacher-dashboard/concerns/${concern.flag_id}`
           });
         });
       }

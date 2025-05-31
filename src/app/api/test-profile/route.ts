@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       name: 'Test Bot ' + Date.now(),
       system_prompt: 'You are a helpful assistant.',
       teacher_id: user.id,
-      model: 'openai/gpt-4.1-nano',
+      model: 'openai/gpt-4.1-mini',
       max_tokens: 1000,
       temperature: 0.7,
       enable_rag: false,

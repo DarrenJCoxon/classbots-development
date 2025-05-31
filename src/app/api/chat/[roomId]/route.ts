@@ -867,7 +867,7 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-        model: modelToUseFromConfig = 'openai/gpt-4.1-nano',
+        model: modelToUseFromConfig = 'openai/gpt-4.1-mini',
         temperature: temperatureToUse = 0.7,
         max_tokens: maxTokensToUse = 1000,
         enable_rag: enableRagFromConfig = false

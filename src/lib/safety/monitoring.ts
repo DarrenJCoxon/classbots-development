@@ -144,7 +144,7 @@ const ALL_HELPLINES = { ...HELPLINE_DATA_JSON };
 // OpenRouter Configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Use the same model as defined in DEFAULT_CHATBOT_CONFIG
-const SAFETY_CHECK_MODEL = 'openai/gpt-4.1-nano';
+const SAFETY_CHECK_MODEL = 'openai/gpt-4.1-mini';
 const CONCERN_THRESHOLD = 3;
 
 // Keywords organized by category

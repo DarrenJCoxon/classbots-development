@@ -344,11 +344,11 @@ const DropdownDivider = styled.div`
 const getModelDisplayName = (model: string | undefined) => {
   if (!model) return 'Default';
   const modelNames: Record<string, string> = {
-    'x-ai/grok-3-mini-beta': 'Grok 3 Mini',
-    'qwen/qwen3-235b-a22b': 'Qwen3 235B',
+    'x-ai/grok-3-mini-beta': 'Grok-3 Mini',
     'google/gemini-2.5-flash-preview': 'Gemini 2.5 Flash',
-    'openai/gpt-4.1-nano': 'GPT 4.1 Nano',
-    'openai/gpt-4.1-mini': 'GPT 4.1 Mini',
+    'google/gemini-2.5-flash-preview-05-20': 'Gemini 2.5 Flash',
+    'openai/gpt-4.1-mini': 'GPT-4.1 Mini',
+    'nvidia/llama-3.1-nemotron-ultra-253b-v1': 'Llama-3.1',
   };
   // For any model not in the map, format it nicely
   if (!modelNames[model]) {

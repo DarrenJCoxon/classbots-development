@@ -34,7 +34,7 @@ export const ROUTES = {
 
 // Default Chatbot Config
 export const DEFAULT_CHATBOT_CONFIG = {
-  model: 'openai/gpt-4.1-nano', 
+  model: 'openai/gpt-4.1-mini', 
   maxTokens: 1500,
   temperature: 0.7,
 } as const;

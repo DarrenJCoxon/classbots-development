@@ -9,7 +9,7 @@ export interface ChatbotConfig {
   name: string;
   description?: string;
   systemPrompt: string;
-  model?: 'x-ai/grok-3-mini-beta' | 'google/gemini-2.5-flash-preview-05-20' | 'openai/gpt-4.1-nano' | 'openai/gpt-4.1-mini'; // MODIFIED
+  model?: 'openai/gpt-4.1-mini' | 'google/gemini-2.5-flash-preview-05-20' | 'nvidia/llama-3.1-nemotron-ultra-253b-v1' | 'x-ai/grok-3-mini-beta'; // MODIFIED
   maxTokens?: number;
   temperature?: number;
 }
