@@ -83,7 +83,7 @@ export default function ChatbotList({ chatbots, onEdit, onDelete, viewMode }: Ch
     return (
       <Card variant="minimal">
         <CardBody>
-          <Text align="center" color="light">No skolrbots found.</Text>
+          <Text align="center" color="light">No Skolrs found.</Text>
         </CardBody>
       </Card>
     );

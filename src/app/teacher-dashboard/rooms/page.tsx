@@ -303,7 +303,7 @@ export default function ManageRoomsPage() {
     >
         {chatbots.length === 0 && !error && (
           <Alert variant='info' style={{marginBottom: '24px'}}>
-              You need to create at least one chatbot before you can create a classroom room.
+              You need to create at least one Skolr before you can create a classroom room.
           </Alert>
         )}
 

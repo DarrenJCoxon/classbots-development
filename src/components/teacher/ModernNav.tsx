@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/teacher-dashboard', icon: <FiHome /> },
   { label: 'Rooms', href: '/teacher-dashboard/rooms', icon: <FiUsers /> },
   { label: 'Students', href: '/teacher-dashboard/students', icon: <FiUserCheck /> },
-  { label: 'Skolrbots', href: '/teacher-dashboard/chatbots', icon: <FiMessageSquare /> },
+  { label: 'Skolrs', href: '/teacher-dashboard/chatbots', icon: <FiMessageSquare /> },
   { label: 'Assessments', href: '/teacher-dashboard/assessments', icon: <FiBookOpen /> },
   { label: 'Concerns', href: '/teacher-dashboard/concerns', icon: <FiAlertTriangle /> },
   { label: 'Content Filters', href: '/teacher-dashboard/content-filters', icon: <FiShield /> },

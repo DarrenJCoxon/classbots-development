@@ -540,7 +540,7 @@ export default function Home() {
               <PathCardContent>
                 <PathCardTitle>I'm a Student</PathCardTitle>
                 <PathCardDescription>
-                  Access your learning rooms and chat with AI assistants
+                  Access your learning rooms and chat with Skolrs
                 </PathCardDescription>
               </PathCardContent>
               <PathCardAction $color={theme.colors.blue}>

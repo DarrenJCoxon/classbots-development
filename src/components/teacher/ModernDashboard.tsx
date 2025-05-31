@@ -326,7 +326,7 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({ stats, recentA
                   onClick={() => router.push('/teacher-dashboard/chatbots')}
                 >
                   <FiMessageSquare />
-                  Create Skolrbot
+                  Create Skolr
                 </ModernButton>
                 <WorkflowArrow />
                 <ModernButton
@@ -352,7 +352,7 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({ stats, recentA
           
           <Grid cols={3} gap="md">
             <StatsCard
-              title="Skolrbots"
+              title="Skolrs"
               value={stats.totalChatbots}
               subtitle="AI assistants"
               icon={<FiMessageSquare />}

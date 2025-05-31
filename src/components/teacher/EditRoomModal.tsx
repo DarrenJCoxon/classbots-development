@@ -248,7 +248,7 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
         setSelectedChatbots(data.map((rc: { chatbot_id: string }) => rc.chatbot_id));
       } catch (err) {
         console.error("EditRoomModal fetchRoomChatbots error:", err);
-        setError(err instanceof Error ? err.message : 'Failed to load current chatbots for this room.');
+        setError(err instanceof Error ? err.message : 'Failed to load current Skolrs for this room.');
       } finally {
         setIsLoading(false);
       }
@@ -286,13 +286,13 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
 
       if (!response.ok) {
         // Attempt to parse error JSON, but handle cases where it might not be JSON
-        let errorMsg = 'Failed to update room skolrbots';
+        let errorMsg = 'Failed to update room Skolrs';
         try {
             const errorData = await response.json();
             errorMsg = errorData.error || errorMsg;
         } catch {
             // If response is not JSON, use status text or a generic message
-            errorMsg = `Failed to update room skolrbots (status: ${response.status} ${response.statusText})`;
+            errorMsg = `Failed to update room Skolrs (status: ${response.status} ${response.statusText})`;
             console.error("PUT request failed with non-JSON response:", await response.text());
         }
         throw new Error(errorMsg);
@@ -321,11 +321,11 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
           {error && <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
         <Section>
-          <SectionTitle>Select Skolrbots for this Room</SectionTitle>
+          <SectionTitle>Select Skolrs for this Room</SectionTitle>
           {isLoading ? (
-            <div style={{textAlign: 'center', padding: '20px'}}>Loading skolrbots...</div>
+            <div style={{textAlign: 'center', padding: '20px'}}>Loading Skolrs...</div>
           ) : chatbots.length === 0 ? (
-            <p>No skolrbots available to assign. Please create a skolrbot first.</p>
+            <p>No Skolrs available to assign. Please create a Skolr first.</p>
           ) : (
             <ChatbotList>
               {chatbots.map(chatbot => (
@@ -384,7 +384,7 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
             onClick={handleSubmit} 
             disabled={isSubmitting || isLoading || (chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading) }
             // Disable save if loading, submitting, or if chatbots are available but none are selected (unless still loading initial selection)
-            title={chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading ? "Select at least one skolrbot" : undefined}
+            title={chatbots.length > 0 && selectedChatbots.length === 0 && !isLoading ? "Select at least one Skolr" : undefined}
           >
             {isSubmitting ? 'Saving...' : 'Save Changes'}
           </ModernButton>

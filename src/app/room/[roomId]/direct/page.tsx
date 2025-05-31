@@ -263,7 +263,7 @@ export default function DirectRoomAccess() {
         </HeaderBar>
         
         {chatbots.length === 0 ? (
-          <Alert variant="info">No chatbots available in this room</Alert>
+          <Alert variant="info">No Skolrs available in this room</Alert>
         ) : (
           <>
             <div style={{ marginBottom: '1rem' }}>

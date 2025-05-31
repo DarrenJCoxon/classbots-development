@@ -717,7 +717,7 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
               <FiMessageSquare />
             </StatIcon>
             <StatValue>{chatbotCount}</StatValue>
-            <StatLabel>Chatbots</StatLabel>
+            <StatLabel>Skolrs</StatLabel>
           </StatItem>
           
           <StatItem>
@@ -734,7 +734,7 @@ export const ModernRoomCard: React.FC<ModernRoomCardProps> = ({
             {room.room_chatbots.map((rc, index) => (
               <ChatbotChip key={rc.chatbots?.chatbot_id || index}>
                 <FiBookOpen />
-                {rc.chatbots?.name || 'Unknown Chatbot'}
+                {rc.chatbots?.name || 'Unknown Skolr'}
               </ChatbotChip>
             ))}
           </ChatbotsList>

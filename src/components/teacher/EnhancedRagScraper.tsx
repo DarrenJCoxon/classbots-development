@@ -170,7 +170,7 @@ export default function EnhancedRagScraper({ chatbotId, onScrapeSuccess }: Enhan
 
   const handleScrape = async () => {
     if (!url.trim() || !chatbotId) {
-      setError(`Missing required data: ${!url.trim() ? 'No URL entered' : 'No chatbot ID provided'}`);
+      setError(`Missing required data: ${!url.trim() ? 'No URL entered' : 'No Skolr ID provided'}`);
       return;
     }
     

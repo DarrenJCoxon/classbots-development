@@ -528,7 +528,7 @@ export default function ConfigureChatbotPage() {
           <form onSubmit={handleSubmit}>
             {/* ... (chatbot configuration form fields: name, description, bot_type, etc.) ... */}
             <FormGroup>
-              <Label htmlFor="name">Chatbot Name</Label>
+              <Label htmlFor="name">Skolr Name</Label>
               <Input id="name" name="name" value={chatbot.name || ``} onChange={handleChange} required />
             </FormGroup>
             <FormGroup>
@@ -536,16 +536,16 @@ export default function ConfigureChatbotPage() {
               <Input id="description" name="description" value={chatbot.description || ``} onChange={handleChange} />
             </FormGroup>
             <FormGroup>
-              <Label htmlFor="bot_type">Bot Type</Label>
+              <Label htmlFor="bot_type">Skolr Type</Label>
               <StyledSelect id="bot_type" name="bot_type" value={displayBotType} onChange={handleChange}>
-                <option value="learning">Learning Bot</option>
-                <option value="assessment">Assessment Bot</option>
-                <option value="reading_room">Reading Room Bot</option>
+                <option value="learning">Learning Skolr</option>
+                <option value="assessment">Assessment Skolr</option>
+                <option value="reading_room">Reading Room Skolr</option>
               </StyledSelect>
               <HelpText>
                 {displayBotType === 'reading_room' 
-                  ? `Reading Room bots help students read documents. Upload a PDF for students to read alongside AI assistance.`
-                  : `'Learning' bots are for general interaction. 'Assessment' bots can evaluate student responses based on criteria you define.`
+                  ? `Reading Room Skolrs help students read documents. Upload a PDF for students to read alongside AI assistance.`
+                  : `'Learning' Skolrs are for general interaction. 'Assessment' Skolrs can evaluate student responses based on criteria you define.`
                 }</HelpText>
             </FormGroup>
             {displayBotType === 'assessment' && (
@@ -559,7 +559,7 @@ export default function ConfigureChatbotPage() {
             <FormGroup>
               <Label htmlFor="system_prompt">{`System Prompt (AI's Persona & Core Instructions)`}</Label>
               <TextArea id="system_prompt" name="system_prompt" value={chatbot.system_prompt || ``} onChange={handleChange} required rows={displayBotType === 'assessment' ? 3 : 5} placeholder={ displayBotType === 'assessment' ? `e.g., 'You are an assessment assistant...'` : `e.g., 'You are a friendly history tutor...'` }/>
-              <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Bots, instructions from 'Assessment Criteria' are key.`}</HelpText>
+              <HelpText>{`This defines the AI's general behavior.`}{displayBotType === 'assessment' && ` For Assessment Skolrs, instructions from 'Assessment Criteria' are key.`}</HelpText>
             </FormGroup>
 
             <FormGroup>
@@ -621,7 +621,7 @@ export default function ConfigureChatbotPage() {
             </ModernButton>
           </form>
 
-          {/* Reading Document Section - for Reading Room bots only */}
+          {/* Reading Document Section - for Reading Room Skolrs only */}
           {!isCreateMode && displayBotType === 'reading_room' && chatbot.chatbot_id && (
             <>
               <Divider />
@@ -642,7 +642,7 @@ export default function ConfigureChatbotPage() {
             </>
           )}
 
-          {/* Knowledge Base Section - for both Learning and Reading Room bots */}
+          {/* Knowledge Base Section - for both Learning and Reading Room Skolrs */}
           {!isCreateMode && (displayBotType === 'learning' || displayBotType === 'reading_room') && chatbot.enable_rag && chatbot.chatbot_id && (
             <>
                 <Divider />
@@ -734,7 +734,7 @@ export default function ConfigureChatbotPage() {
             </>
           )}
           
-          {/* Reference Materials Section removed for Reading Room bots - not needed */}
+          {/* Reference Materials Section removed for Reading Room Skolrs - not needed */}
           
           {isCreateMode && displayBotType === 'learning' && (
             <HelpText style={{marginTop: '20px', textAlign: 'center', fontStyle: 'italic'}}>Save this chatbot first to enable knowledge base document uploads.</HelpText>

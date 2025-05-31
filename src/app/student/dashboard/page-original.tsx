@@ -625,7 +625,7 @@ export default function StudentDashboardPage() {
                       <h3>{room.room_name}</h3>
                       <span className="room-code">{room.room_code}</span>
                       <p className="chatbot-count">
-                        {room.chatbots.length} {room.chatbots.length === 1 ? 'chatbot' : 'chatbots'} available
+                        {room.chatbots.length} {room.chatbots.length === 1 ? 'Skolr' : 'Skolrs'} available
                       </p>
                     </div>
                     <ModernButton 

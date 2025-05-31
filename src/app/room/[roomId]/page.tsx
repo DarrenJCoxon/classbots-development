@@ -558,9 +558,9 @@ export default function RoomPage() {
           <RoomInfo>
             <h1>{room.room_name}</h1>
             <p>
-              {chatbots.length === 0 ? 'No chatbots available' : 
-               chatbots.length === 1 ? '1 chatbot available' :
-               `${chatbots.length} chatbots available`}
+              {chatbots.length === 0 ? 'No Skolrs available' : 
+               chatbots.length === 1 ? '1 Skolr available' :
+               `${chatbots.length} Skolrs available`}
             </p>
             <div className="room-code">Room Code: {room.room_code}</div>
           </RoomInfo>
@@ -573,10 +573,10 @@ export default function RoomPage() {
 
         {chatbots.length === 0 ? (
           <EmptyState>
-            <h3>No Chatbots Available</h3>
-            <p>This room doesn&apos;t have any chatbots assigned yet.</p>
+            <h3>No Skolrs Available</h3>
+            <p>This room doesn&apos;t have any Skolrs assigned yet.</p>
             {userRole === 'teacher' && (
-              <p>Go back to the dashboard to assign chatbots to this room.</p>
+              <p>Go back to the dashboard to assign Skolrs to this room.</p>
             )}
           </EmptyState>
         ) : (
@@ -631,10 +631,10 @@ export default function RoomPage() {
                         chatbot.bot_type === 'viewing_room' ? '#856404' :
                         '#3730a3'
                     }}>
-                      {chatbot.bot_type === 'assessment' ? 'Assessment Bot' :
+                      {chatbot.bot_type === 'assessment' ? 'Assessment' :
                        chatbot.bot_type === 'reading_room' ? 'Reading Room' :
                        chatbot.bot_type === 'viewing_room' ? 'Viewing Room' :
-                       'Learning Bot'}
+                       'Learning'}
                     </div>
                   )}
                   

@@ -163,7 +163,7 @@ export default function TestChatPage() {
       <PageWrapper>
         <Container style={{ textAlign: 'center', paddingTop: '50px' }}>
           <LoadingSpinner size="large" />
-          <p style={{ marginTop: '16px' }}>Loading chatbot for testing...</p>
+          <p style={{ marginTop: '16px' }}>Loading Skolr for testing...</p>
         </Container>
       </PageWrapper>
     );
@@ -175,7 +175,7 @@ export default function TestChatPage() {
         <Container>
           <Alert variant="error" style={{ marginBottom: '16px' }}>{error}</Alert>
           <ModernButton variant="ghost" onClick={handleBack} size="small">
-            ← Back to Chatbots List
+            ← Back to Skolrs List
           </ModernButton>
         </Container>
       </PageWrapper>
@@ -187,9 +187,9 @@ export default function TestChatPage() {
     return (
       <PageWrapper>
         <Container>
-          <Alert variant="info">Chatbot not available for testing.</Alert>
+          <Alert variant="info">Skolr not available for testing.</Alert>
            <ModernButton variant="ghost" onClick={handleBack} size="small">
-            ← Back to Chatbots List
+            ← Back to Skolrs List
           </ModernButton>
         </Container>
       </PageWrapper>
@@ -203,13 +203,13 @@ export default function TestChatPage() {
           <ChatbotInfo>
             <h1>Test: {chatbot.name}</h1>
             <p>
-              You are interacting with your chatbot for testing purposes.
-              {chatbot.bot_type === 'reading_room' && ' This is a Reading Room bot with document viewer.'}
-              {chatbot.bot_type === 'viewing_room' && ' This is a Viewing Room bot with video viewer.'}
+              You are interacting with your Skolr for testing purposes.
+              {chatbot.bot_type === 'reading_room' && ' This is a Reading Room Skolr with document viewer.'}
+              {chatbot.bot_type === 'viewing_room' && ' This is a Viewing Room Skolr with video viewer.'}
             </p>
           </ChatbotInfo>
           <ModernButton variant="ghost" onClick={handleBack} size="small">
-            ← Back to Chatbots List
+            ← Back to Skolrs List
           </ModernButton>
         </Header>
         

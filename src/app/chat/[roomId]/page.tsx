@@ -334,11 +334,11 @@ export default function ChatPage() {
     if (!roomId || !chatbotIdFromUrl) {
       console.warn("[ChatPage] fetchRoomData: Aborting fetch - RoomID or ChatbotID is missing.", { roomId, chatbotIdFromUrl });
       if (roomId && chatbotIdFromUrl === null) {
-          setError("Chatbot ID is required in the URL (e.g., ?chatbot=...).");
+          setError("Skolr ID is required in the URL (e.g., ?chatbot=...).");
       } else if (!roomId && chatbotIdFromUrl){
           setError("Room ID is missing from the URL path.");
       } else if (!roomId && !chatbotIdFromUrl) {
-          setError("Both Room ID and Chatbot ID are missing from the URL.");
+          setError("Both Room ID and Skolr ID are missing from the URL.");
       }
       setLoading(false);
       return;
@@ -498,7 +498,7 @@ export default function ChatPage() {
       }
       if (!roomData) {
         initialFetchDoneRef.current = false;
-        throw new Error('No data returned for room/chatbot. Check IDs and permissions.');
+        throw new Error('No data returned for room/Skolr. Check IDs and permissions.');
       }
 
       if (userRole === 'student') {
@@ -531,7 +531,7 @@ export default function ChatPage() {
         }
       } else {
         initialFetchDoneRef.current = false;
-        throw new Error('Chatbot details missing in fetched room data.');
+        throw new Error('Skolr details missing in fetched room data.');
       }
       initialFetchDoneRef.current = true; // Mark as done only on full success
     } catch (err) {

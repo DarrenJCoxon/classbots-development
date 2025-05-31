@@ -1,4 +1,4 @@
-// Modern chatbot card component with glassmorphism matching ModernRoomCard
+// Modern Skolr card component with glassmorphism matching ModernRoomCard
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -419,7 +419,7 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
                   setIsDropdownOpen(false);
                 }}>
                   <FiEdit />
-                  Edit Chatbot
+                  Edit Skolr
                 </DropdownItem>
                 <DropdownItem as={Link} href={`/teacher-dashboard/chatbots/${chatbot.chatbot_id}/knowledge-base`}>
                   <FiDatabase />
@@ -431,7 +431,7 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
                   setIsDropdownOpen(false);
                 }}>
                   <FiTrash2 />
-                  Delete Chatbot
+                  Delete Skolr
                 </DropdownItem>
               </DropdownMenu>
             )}
@@ -459,7 +459,7 @@ export const ModernChatbotCard: React.FC<ModernChatbotCardProps> = ({
                        chatbot.bot_type === 'viewing_room' ? 'Viewing' : 
                        chatbot.bot_type === 'assessment' ? 'Assessment' : 
                        'Learning'}</StatValue>
-            <StatLabel>Bot Type</StatLabel>
+            <StatLabel>Type</StatLabel>
           </StatItem>
           
           <StatItem>

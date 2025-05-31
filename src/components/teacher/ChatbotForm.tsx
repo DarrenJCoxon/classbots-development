@@ -216,8 +216,8 @@ interface ChatbotFormData {
   bot_type: BotType;
   assessment_criteria_text: string;
   welcome_message: string;
-  video_url?: string; // For viewing room bots
-  linked_assessment_bot_id?: string; // For linking to assessment bot
+  video_url?: string; // For viewing room Skolrs
+  linked_assessment_bot_id?: string; // For linking to assessment Skolr
   chatbot_id?: string; // For edit mode
 }
 
@@ -275,11 +275,11 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     }
 
     if (formData.bot_type === 'assessment' && !formData.assessment_criteria_text.trim()) {
-      errors.assessment_criteria_text = 'Assessment criteria is required for assessment bots';
+      errors.assessment_criteria_text = 'Assessment criteria is required for assessment Skolrs';
     }
 
     if (formData.bot_type === 'viewing_room' && formData.video_url && !editMode) {
-      // Validate video URL for viewing room bots during creation
+      // Validate video URL for viewing room Skolrs during creation
       const validation = validateVideoUrl(formData.video_url);
       if (!validation.valid) {
         errors.video_url = validation.error || 'Invalid video URL';
@@ -360,19 +360,19 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseData.error || `Failed to ${editMode ? 'update' : 'create'} chatbot`);
+        throw new Error(responseData.error || `Failed to ${editMode ? 'update' : 'create'} Skolr`);
       }
 
       onSuccess(responseData.chatbot_id);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create chatbot');
+      setError(err instanceof Error ? err.message : 'Failed to create Skolr');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Function to fetch documents for the chatbot
+  // Function to fetch documents for the Skolr
   const fetchDocuments = useCallback(async () => {
     if (!editMode || !initialData?.chatbot_id) return;
     
@@ -421,7 +421,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     return () => clearInterval(pollingInterval);
   }, [editMode, initialData?.chatbot_id, formData.enable_rag, formData.bot_type, documents, fetchDocuments]);
   
-  // Fetch assessment bots when form is for viewing room bot
+  // Fetch assessment Skolrs when form is for viewing room Skolr
   useEffect(() => {
     if (formData.bot_type === 'viewing_room') {
       const fetchAssessmentBots = async () => {
@@ -435,7 +435,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
             })));
           }
         } catch (error) {
-          console.error('Error fetching assessment bots:', error);
+          console.error('Error fetching assessment Skolrs:', error);
         }
       };
       fetchAssessmentBots();
@@ -530,7 +530,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     <Overlay>
       <FormCard>
         <Header>
-          <Title>{editMode ? 'Edit Skolrbot' : 'Create New Skolrbot'}</Title>
+          <Title>{editMode ? 'Edit Skolr' : 'Create New Skolr'}</Title>
           <CloseButton onClick={onClose} aria-label="Close modal">×</CloseButton>
         </Header>
 
@@ -541,7 +541,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
           <form onSubmit={handleSubmit} id="chatbotCreateForm">
             {/* ... other FormGroups for name, bot_type, assessment_criteria, description, system_prompt ... */}
             <FormGroup>
-              <Label htmlFor="name">Skolrbot Name</Label>
+              <Label htmlFor="name">Skolr Name</Label>
               <Input
                 id="name"
                 name="name"
@@ -559,7 +559,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
             </FormGroup>
 
             <FormGroup>
-              <Label htmlFor="bot_type">Bot Type</Label>
+              <Label htmlFor="bot_type">Skolr Type</Label>
               <StyledSelect
                 id="bot_type"
                 name="bot_type"
@@ -567,10 +567,10 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 onChange={handleChange}
                 key="bot_type_select"
               >
-                <option value="learning">Learning Bot</option>
-                <option value="assessment">Assessment Bot</option>
-                <option value="reading_room">Reading Room Bot</option>
-                <option value="viewing_room">Viewing Room Bot</option>
+                <option value="learning">Learning Skolr</option>
+                <option value="assessment">Assessment Skolr</option>
+                <option value="reading_room">Reading Room Skolr</option>
+                <option value="viewing_room">Viewing Room Skolr</option>
               </StyledSelect>
               <HelpText>
                 {formData.bot_type === 'reading_room' 
@@ -716,7 +716,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 </ExampleTemplateContainer>
                 
                 <RubricInfoText>
-                  For more complex rubrics, you will be able to upload a document (e.g., PDF, DOCX) with detailed criteria after creating the bot (on the chatbot&apos;s configuration page). For now, please provide a text-based summary here.
+                  For more complex rubrics, you will be able to upload a document (e.g., PDF, DOCX) with detailed criteria after creating the Skolr (on the Skolr&apos;s configuration page). For now, please provide a text-based summary here.
                 </RubricInfoText>
               </AssessmentCriteriaSection>
             )}
@@ -728,7 +728,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="A brief summary of what this chatbot does"
+                placeholder="A brief summary of what this Skolr does"
                 className={!!validationErrors.description ? 'is-invalid' : ''}
               />
               {validationErrors.description && (
@@ -763,7 +763,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
               )}
               <HelpText>
                   This defines the AI&apos;s general behavior.
-                  {formData.bot_type === 'assessment' && " For Assessment Bots, assessment-specific instructions are primarily driven by the Assessment Criteria you define above."}
+                  {formData.bot_type === 'assessment' && " For Assessment Skolrs, assessment-specific instructions are primarily driven by the Assessment Criteria you define above."}
               </HelpText>
             </FormGroup>
 
@@ -785,7 +785,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                 </Alert>
               )}
               <HelpText>
-                This will be the first message the student sees from the bot.
+                This will be the first message the student sees from the Skolr.
               </HelpText>
             </FormGroup>
             {/* END ADDED Welcome Message Field */}
@@ -804,7 +804,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   <option value="x-ai/grok-3-mini-beta">Grok 3 Mini Beta</option>
               </StyledSelect>
               <HelpText>
-                  This model is used for the chatbot&apos;s direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.
+                  This model is used for the Skolr&apos;s direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.
               </HelpText>
             </FormGroup>
 
@@ -829,13 +829,13 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                           ? 'Enable Knowledge Base: Allow the AI to use additional reference materials for context.'
                           : formData.bot_type === 'viewing_room'
                           ? 'Enable Knowledge Base: Video transcript will be automatically added, plus you can add more documents.'
-                          : 'Enable RAG: Allow chatbot to use uploaded documents to answer questions.'}
+                          : 'Enable RAG: Allow Skolr to use uploaded documents to answer questions.'}
                       </span>
                   </div>
                   <HelpText>
                       {(formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room')
                         ? 'Add supplementary materials like teacher guides, answer keys, or background information to help the AI provide better support.'
-                        : 'If enabled, you can upload documents to this chatbot\'s knowledge base after creation (on the chatbot\'s configuration page).'}
+                        : 'If enabled, you can upload documents to this Skolr\'s knowledge base after creation (on the Skolr\'s configuration page).'}
                   </HelpText>
                   
                   {formData.enable_rag && (
@@ -896,7 +896,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                         <Alert variant="info" style={{ marginTop: '12px', marginBottom: '12px' }}>
                           {(formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room')
                             ? `💡 Step 2 (Optional): After ${formData.bot_type === 'reading_room' ? 'uploading the reading document' : 'adding the video URL'}, you can add supplementary materials here like teacher guides or answer keys.`
-                            : 'After creating your chatbot, you\'ll be able to upload documents and scrape webpages for the knowledge base.'}
+                            : 'After creating your Skolr, you\'ll be able to upload documents and scrape webpages for the knowledge base.'}
                         </Alert>
                       )}
                     </>
@@ -921,7 +921,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   />
                 ) : (
                   <Alert variant="info">
-                    💡 Step 1: Create your Reading Room bot first. After clicking "Create Skolrbot", you'll be automatically redirected to upload the reading document.
+                    💡 Step 1: Create your Reading Room Skolr first. After clicking "Create Skolr", you'll be automatically redirected to upload the reading document.
                   </Alert>
                 )}
               </FormGroup>
@@ -971,7 +971,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
 
             {formData.bot_type === 'viewing_room' && (
               <FormGroup>
-                <Label htmlFor="linked_assessment_bot_id">🎯 Link to Assessment Bot (Optional)</Label>
+                <Label htmlFor="linked_assessment_bot_id">🎯 Link to Assessment Skolr (Optional)</Label>
                 <HelpText>
                   After students complete the video, they can be prompted to take an assessment.
                 </HelpText>
@@ -1033,7 +1033,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   {validationErrors.temperature}
                 </Alert>
               )}
-              <HelpText>0.0 = most deterministic, 2.0 = most creative. Default is 0.7 for the skolrbot&apos;s replies.</HelpText>
+              <HelpText>0.0 = most deterministic, 2.0 = most creative. Default is 0.7 for the Skolr&apos;s replies.</HelpText>
             </FormGroup>
           </form>
         </FormContent>
@@ -1052,7 +1052,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
             variant="primary"
             disabled={isSubmitting}
           >
-            {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Skolrbot')}
+            {isSubmitting ? (editMode ? 'Saving...' : 'Creating...') : (editMode ? 'Save Changes' : 'Create Skolr')}
           </ModernButton>
         </Footer>
       </FormCard>

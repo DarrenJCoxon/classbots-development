@@ -327,7 +327,7 @@ export default function GuidePage() {
             <PageTitle>Skolr Guide</PageTitle>
             <PageSubtitle>Create Powerful AI Assistants for Your Classroom</PageSubtitle>
             <IntroText>
-              Skolr offers four types of AI chatbots to enhance your teaching. Each type serves a unique purpose 
+              Skolr offers four types of AI Skolrs to enhance your teaching. Each type serves a unique purpose 
               in supporting student learning. Here's everything you need to know to get started.
             </IntroText>
           </HeroSection>
@@ -341,7 +341,7 @@ export default function GuidePage() {
               <BotIcon $background="linear-gradient(135deg, #4CBEF3, #3AA0D1)">
                 <FiMessageCircle />
               </BotIcon>
-              <BotTitle $color="#4CBEF3">Learning Chatbot</BotTitle>
+              <BotTitle $color="#4CBEF3">Learning Skolr</BotTitle>
               <BotDescription>
                 Interactive AI tutors that engage students in dynamic conversations about any topic. 
                 Perfect for exploration, revision, and deep learning.
@@ -365,9 +365,9 @@ export default function GuidePage() {
               <BotIcon $background="linear-gradient(135deg, #985DD7, #7A4BB5)">
                 <FiBook />
               </BotIcon>
-              <BotTitle $color="#985DD7">Reading Chatbot</BotTitle>
+              <BotTitle $color="#985DD7">Reading Skolr</BotTitle>
               <BotDescription>
-                Specialised bots that help students engage with specific texts. Upload any document 
+                Specialised Skolrs that help students engage with specific texts. Upload any document 
                 and create an AI expert on that content.
               </BotDescription>
               <FeatureList>
@@ -397,7 +397,7 @@ export default function GuidePage() {
               <FeatureList>
                 <FeatureItem $color="#F59E0B">YouTube & Vimeo video support</FeatureItem>
                 <FeatureItem $color="#F59E0B">Real-time Q&A about video content</FeatureItem>
-                <FeatureItem $color="#F59E0B">Link to assessment bots</FeatureItem>
+                <FeatureItem $color="#F59E0B">Link to assessment Skolrs</FeatureItem>
                 <FeatureItem $color="#F59E0B">Track viewing engagement</FeatureItem>
               </FeatureList>
               <ModernButton variant="secondary" style={{ width: '100%' }}>
@@ -413,7 +413,7 @@ export default function GuidePage() {
               <BotIcon $background="linear-gradient(135deg, #C848AF, #A43691)">
                 <FiCheckCircle />
               </BotIcon>
-              <BotTitle $color="#C848AF">Assessment Chatbot</BotTitle>
+              <BotTitle $color="#C848AF">Assessment Skolr</BotTitle>
               <BotDescription>
                 Conduct one-on-one assessments through natural conversation. Get detailed insights 
                 into student understanding without traditional testing.
@@ -431,15 +431,15 @@ export default function GuidePage() {
           </BotTypesGrid>
 
           <StepsSection>
-            <SectionTitle>How to Create Your First Chatbot</SectionTitle>
+            <SectionTitle>How to Create Your First Skolr</SectionTitle>
             <StepsContainer>
               <StepItem>
                 <StepNumber>1</StepNumber>
                 <StepContent>
-                  <StepTitle>Navigate to Chatbots</StepTitle>
+                  <StepTitle>Navigate to Skolrs</StepTitle>
                   <StepDescription>
-                    From your teacher dashboard, click on "Chatbots" in the navigation menu. 
-                    You'll see all your existing chatbots and a button to create new ones.
+                    From your teacher dashboard, click on "Skolrs" in the navigation menu. 
+                    You'll see all your existing Skolrs and a button to create new ones.
                   </StepDescription>
                 </StepContent>
               </StepItem>
@@ -447,9 +447,9 @@ export default function GuidePage() {
               <StepItem>
                 <StepNumber>2</StepNumber>
                 <StepContent>
-                  <StepTitle>Choose Your Chatbot Type</StepTitle>
+                  <StepTitle>Choose Your Skolr Type</StepTitle>
                   <StepDescription>
-                    Click "Create New Chatbot" and select the type that best fits your needs. 
+                    Click "Create New Skolr" and select the type that best fits your needs. 
                     Each type has different configuration options tailored to its purpose.
                   </StepDescription>
                 </StepContent>
@@ -460,7 +460,7 @@ export default function GuidePage() {
                 <StepContent>
                   <StepTitle>Configure Basic Settings</StepTitle>
                   <StepDescription>
-                    Give your chatbot a name, select the subject area, and write clear instructions. 
+                    Give your Skolr a name, select the subject area, and write clear instructions. 
                     The instructions tell the AI how to interact with students and what to focus on.
                   </StepDescription>
                 </StepContent>
@@ -471,8 +471,8 @@ export default function GuidePage() {
                 <StepContent>
                   <StepTitle>Add to Your Classrooms</StepTitle>
                   <StepDescription>
-                    Once created, assign your chatbot to one or more classrooms. Students in those 
-                    rooms will immediately have access to interact with the bot.
+                    Once created, assign your Skolr to one or more classrooms. Students in those 
+                    rooms will immediately have access to interact with the Skolr.
                   </StepDescription>
                 </StepContent>
               </StepItem>
@@ -482,7 +482,7 @@ export default function GuidePage() {
                 <StepContent>
                   <StepTitle>Monitor & Refine</StepTitle>
                   <StepDescription>
-                    Track student interactions, view chat histories, and refine your chatbot's 
+                    Track student interactions, view chat histories, and refine your Skolr's 
                     instructions based on how students are using it. You can edit settings at any time.
                   </StepDescription>
                 </StepContent>
@@ -566,9 +566,9 @@ export default function GuidePage() {
               <StepItem>
                 <StepNumber>1</StepNumber>
                 <StepContent>
-                  <StepTitle>Create a Viewing Room Bot</StepTitle>
+                  <StepTitle>Create a Viewing Room Skolr</StepTitle>
                   <StepDescription>
-                    Select "Viewing Room" when creating a new chatbot. Give it a descriptive name 
+                    Select "Viewing Room" when creating a new Skolr. Give it a descriptive name 
                     like "Photosynthesis Video Lesson" or "Shakespeare Documentary".
                   </StepDescription>
                 </StepContent>
@@ -590,7 +590,7 @@ export default function GuidePage() {
                 <StepContent>
                   <StepTitle>Link an Assessment (Optional)</StepTitle>
                   <StepDescription>
-                    Create an assessment bot for the video topic, then link it to your viewing room. 
+                    Create an assessment Skolr for the video topic, then link it to your viewing room. 
                     Students will see a "Start Assessment" button after watching.
                   </StepDescription>
                 </StepContent>
@@ -626,35 +626,35 @@ export default function GuidePage() {
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Clear Instructions:</strong> Write detailed instructions for your chatbot. 
+                  <strong>Clear Instructions:</strong> Write detailed instructions for your Skolr. 
                   Include the student year group, key topics to cover, and the tone you want.
                 </span>
               </TipItem>
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Start Simple:</strong> Begin with one chatbot per subject and expand as 
+                  <strong>Start Simple:</strong> Begin with one Skolr per subject and expand as 
                   you see how students engage with the technology.
                 </span>
               </TipItem>
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Regular Updates:</strong> Update your chatbot instructions based on common 
+                  <strong>Regular Updates:</strong> Update your Skolr instructions based on common 
                   student questions or misconceptions you observe.
                 </span>
               </TipItem>
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Combine Types:</strong> Use different chatbot types together - a viewing room 
-                  for video content linked to an assessment bot to check understanding.
+                  <strong>Combine Types:</strong> Use different Skolr types together - a viewing room 
+                  for video content linked to an assessment Skolr to check understanding.
                 </span>
               </TipItem>
               <TipItem>
                 <FiInfo />
                 <span>
-                  <strong>Student Feedback:</strong> Ask students which chatbots they find most helpful 
+                  <strong>Student Feedback:</strong> Ask students which Skolrs they find most helpful 
                   and adjust your approach accordingly.
                 </span>
               </TipItem>
@@ -693,7 +693,7 @@ export default function GuidePage() {
               size="large"
               onClick={() => window.location.href = '/teacher-dashboard/chatbots'}
             >
-              Create Your First Chatbot
+              Create Your First Skolr
               <FiArrowRight />
             </ModernButton>
           </CTASection>

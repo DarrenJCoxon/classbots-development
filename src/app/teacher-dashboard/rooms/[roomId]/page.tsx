@@ -555,7 +555,7 @@ export default function TeacherRoomDetailPage() {
         </Header>
 
         <Section>
-          <SectionTitle>Assigned Chatbots ({chatbots.length})</SectionTitle>
+          <SectionTitle>Assigned Skolrs ({chatbots.length})</SectionTitle>
           {chatbots.length > 0 ? (
             <ChatbotGrid>
               {chatbots.map(bot => (
@@ -574,16 +574,16 @@ export default function TeacherRoomDetailPage() {
                     bot.bot_type === 'viewing_room' ? 'magenta' :
                     'default'
                   }>
-                    {bot.bot_type === 'assessment' ? 'Assessment Bot' :
+                    {bot.bot_type === 'assessment' ? 'Assessment' :
                      bot.bot_type === 'reading_room' ? 'Reading Room' :
                      bot.bot_type === 'viewing_room' ? 'Viewing Room' :
-                     'Learning Bot'}
+                     'Learning'}
                   </Badge>
                 </ChatbotCard>
               ))}
             </ChatbotGrid>
           ) : (
-            <EmptyStateText>No chatbots are currently assigned to this room.</EmptyStateText>
+            <EmptyStateText>No Skolrs are currently assigned to this room.</EmptyStateText>
           )}
         </Section>
 

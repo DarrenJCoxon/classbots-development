@@ -331,7 +331,7 @@ export default function AssessmentsListPage() {
                 <tr>
                   <th>Student</th>
                   <th>Room</th>
-                  <th>Assessment Bot</th>
+                  <th>Assessment Skolr</th>
                   <th>AI Grade</th>
                   <th>Teacher Grade</th>
                   <th>Status</th>

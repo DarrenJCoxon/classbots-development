@@ -226,7 +226,7 @@ export default function EnhancedRagUploader({ chatbotId, onUploadSuccess }: Enha
 
   const handleUpload = async () => {
     if (!file || !chatbotId) {
-      setError(`Missing required data: ${!file ? 'No file selected' : 'No chatbot ID provided'}`);
+      setError(`Missing required data: ${!file ? 'No file selected' : 'No Skolr ID provided'}`);
       return;
     }
     

@@ -202,7 +202,7 @@ export default function KnowledgeBasePage() {
           router.push('/auth');
         }, 3000);
       } else {
-        setPageError(err instanceof Error ? err.message : 'Failed to fetch chatbot information');
+        setPageError(err instanceof Error ? err.message : 'Failed to fetch Skolr information');
       }
     }
   }, [chatbotId, supabase, router]);
@@ -238,7 +238,7 @@ export default function KnowledgeBasePage() {
     if (chatbotId) {
         loadInitialData();
     } else {
-        setPageError("Chatbot ID is missing from the URL.");
+        setPageError("Skolr ID is missing from the URL.");
         setLoading(false);
     }
   }, [chatbotId, fetchChatbotInfo, fetchDocuments]);
@@ -356,7 +356,7 @@ export default function KnowledgeBasePage() {
             <Container>
                 <ModernAlert $variant="error" style={{marginTop: '20px'}}>{pageError}</ModernAlert>
                 <ModernButton onClick={() => router.push('/teacher-dashboard/chatbots')} style={{marginTop: '16px'}}>
-                    Back to Chatbots
+                    Back to Skolrs
                 </ModernButton>
             </Container>
         </PageWrapper>
@@ -368,13 +368,13 @@ export default function KnowledgeBasePage() {
       <PageTransition>
         <Container>
         <Header>
-          <Title>Knowledge Base: {chatbotName || "Chatbot"}</Title>
+          <Title>Knowledge Base: {chatbotName || "Skolr"}</Title>
           <BackButton 
             variant="ghost" 
             size="medium"
             onClick={() => router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`)}
           >
-            ← Back to Chatbot Config
+            ← Back to Skolr Config
           </BackButton>
         </Header>
         
@@ -383,7 +383,7 @@ export default function KnowledgeBasePage() {
         
         <Section variant="light" hoverable={undefined}>
           <h2>Add Content to Knowledge Base</h2>
-          <p>Add content by uploading documents or scraping webpages. This content will be processed and made available for your chatbot to use when RAG is enabled.</p>
+          <p>Add content by uploading documents or scraping webpages. This content will be processed and made available for your Skolr to use when RAG is enabled.</p>
           
           <EnhancedRagScraper
             chatbotId={chatbotId}

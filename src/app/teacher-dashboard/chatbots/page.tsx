@@ -353,7 +353,7 @@ const StyledSelectBox = styled(StyledSelect)`
 `;
 
 
-export default function ManageSkolrbotsPage() {
+export default function ManageSkolrsPage() {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -383,7 +383,7 @@ export default function ManageSkolrbotsPage() {
   }, [searchTerm]);
 
   const fetchChatbots = useCallback(async () => {
-    console.log('[SkolrbotsPage] Fetching skolrbots with filters:', 
+    console.log('[SkolrsPage] Fetching Skolrs with filters:', 
         { debouncedSearchTerm, selectedBotType, selectedRagStatus, sortBy });
     setIsLoading(true);
     setError(null);
@@ -404,7 +404,7 @@ export default function ManageSkolrbotsPage() {
 
       const response = await fetch(`/api/teacher/chatbots?${params.toString()}`);
       if (!response.ok) {
-        let errorMessage = `Failed to fetch skolrbots (status ${response.status})`;
+        let errorMessage = `Failed to fetch Skolrs (status ${response.status})`;
         try {
             const errData = await response.json();
             errorMessage = errData.error || errorMessage;
@@ -415,12 +415,12 @@ export default function ManageSkolrbotsPage() {
       if (Array.isArray(data)) {
         setChatbots(data as Chatbot[]);
       } else {
-        console.warn('[SkolrbotsPage] API returned non-array data for skolrbots:', data);
+        console.warn('[SkolrsPage] API returned non-array data for Skolrs:', data);
         setChatbots([]);
       }
     } catch (err) {
-      console.error('[SkolrbotsPage] Error fetching skolrbots:', err);
-      setError(err instanceof Error ? err.message : 'Could not load your skolrbots.');
+      console.error('[SkolrsPage] Error fetching Skolrs:', err);
+      setError(err instanceof Error ? err.message : 'Could not load your Skolrs.');
       setChatbots([]);
     } finally {
       setIsLoading(false);
@@ -440,18 +440,18 @@ export default function ManageSkolrbotsPage() {
         setShowEditModal(true);
         setIsCreating(false);
       } else {
-        console.error(`Skolrbot with ID ${chatbotId} not found`);
-        setError(`Skolrbot with ID ${chatbotId} not found`);
+        console.error(`Skolr with ID ${chatbotId} not found`);
+        setError(`Skolr with ID ${chatbotId} not found`);
       }
   }, [chatbots]);
 
   const handleDeleteChatbot = useCallback(async (chatbotId: string, chatbotName: string) => {
-      if (window.confirm(`Are you sure you want to delete the skolrbot "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
+      if (window.confirm(`Are you sure you want to delete the Skolr "${chatbotName}"? This will also delete associated documents and knowledge base entries if RAG was used.`)) {
           setError(null);
           try {
               const response = await fetch(`/api/teacher/chatbots?chatbotId=${chatbotId}`, { method: 'DELETE' }); 
               if (!response.ok) {
-                  let errorMessage = `Failed to delete skolrbot (status ${response.status})`;
+                  let errorMessage = `Failed to delete Skolr (status ${response.status})`;
                   try {
                       const errData = await response.json();
                       errorMessage = errData.error || errorMessage;
@@ -459,10 +459,10 @@ export default function ManageSkolrbotsPage() {
                   throw new Error(errorMessage);
               }
               const result = await response.json();
-              alert(result.message || `Skolrbot "${chatbotName}" deleted successfully.`);
+              alert(result.message || `Skolr "${chatbotName}" deleted successfully.`);
               fetchChatbots(); 
           } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : 'Failed to delete skolrbot.';
+              const errorMessage = err instanceof Error ? err.message : 'Failed to delete Skolr.';
               setError(errorMessage);
           }
       }
@@ -491,7 +491,7 @@ export default function ManageSkolrbotsPage() {
         if (response.ok) {
           const newBot = await response.json();
           
-          // For Reading Room and Viewing Room bots, redirect to edit page to upload documents/video
+          // For Reading Room and Viewing Room Skolrs, redirect to edit page to upload documents/video
           if (newBot.bot_type === 'reading_room' || newBot.bot_type === 'viewing_room') {
             router.push(`/teacher-dashboard/chatbots/${chatbotId}/edit`);
             return; // Don't refresh the list since we're navigating away
@@ -514,7 +514,7 @@ export default function ManageSkolrbotsPage() {
   const viewingRoomBots = chatbots.filter(bot => bot.bot_type === 'viewing_room').length;
 
   if (isLoading && chatbots.length === 0) {
-    return <FullPageLoader message="Loading your skolrbots..." variant="dots" />;
+    return <FullPageLoader message="Loading your Skolrs..." variant="dots" />;
   }
 
 
@@ -525,13 +525,13 @@ export default function ManageSkolrbotsPage() {
       transition={{ duration: 0.4 }}
     >
       <ListHeader>
-        <Title>My Skolrbots</Title>
+        <Title>My Skolrs</Title>
         <HeaderActions>
           <SearchBar>
             <SearchIcon />
             <SearchInput
               type="text"
-              placeholder="Search skolrbots..."
+              placeholder="Search Skolrs..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -557,7 +557,7 @@ export default function ManageSkolrbotsPage() {
             onClick={handleCreateNewChatbot}
           >
             <FiPlus />
-            Create Skolrbot
+            Create Skolr
           </ModernButton>
         </HeaderActions>
       </ListHeader>
@@ -573,7 +573,7 @@ export default function ManageSkolrbotsPage() {
           </StatIconWrapper>
           <StatContent>
             <StatValue>{totalChatbots}</StatValue>
-            <StatLabel>Total Skolrbots</StatLabel>
+            <StatLabel>Total Skolrs</StatLabel>
           </StatContent>
         </StatCard>
         
@@ -587,7 +587,7 @@ export default function ManageSkolrbotsPage() {
           </StatIconWrapper>
           <StatContent>
             <StatValue>{learningBots}</StatValue>
-            <StatLabel>Learning Bots</StatLabel>
+            <StatLabel>Learning Skolrs</StatLabel>
           </StatContent>
         </StatCard>
         
@@ -601,7 +601,7 @@ export default function ManageSkolrbotsPage() {
           </StatIconWrapper>
           <StatContent>
             <StatValue>{assessmentBots}</StatValue>
-            <StatLabel>Assessment Bots</StatLabel>
+            <StatLabel>Assessment Skolrs</StatLabel>
           </StatContent>
         </StatCard>
         
@@ -615,7 +615,7 @@ export default function ManageSkolrbotsPage() {
           </StatIconWrapper>
           <StatContent>
             <StatValue>{readingRoomBots}</StatValue>
-            <StatLabel>Reading Room Bots</StatLabel>
+            <StatLabel>Reading Room Skolrs</StatLabel>
           </StatContent>
         </StatCard>
         
@@ -629,7 +629,7 @@ export default function ManageSkolrbotsPage() {
           </StatIconWrapper>
           <StatContent>
             <StatValue>{viewingRoomBots}</StatValue>
-            <StatLabel>Viewing Room Bots</StatLabel>
+            <StatLabel>Viewing Room Skolrs</StatLabel>
           </StatContent>
         </StatCard>
       </StatsBar>
@@ -689,12 +689,12 @@ export default function ManageSkolrbotsPage() {
             <FiPlus />
           </EmptyIcon>
           <EmptyTitle>
-            {debouncedSearchTerm ? 'No skolrbots found' : 'No skolrbots yet'}
+            {debouncedSearchTerm ? 'No Skolrs found' : 'No Skolrs yet'}
           </EmptyTitle>
           <EmptyText>
             {debouncedSearchTerm 
               ? 'Try adjusting your search or filters'
-              : 'Create your first skolrbot to get started'
+              : 'Create your first Skolr to get started'
             }
           </EmptyText>
           {!debouncedSearchTerm && (
@@ -702,7 +702,7 @@ export default function ManageSkolrbotsPage() {
               onClick={handleCreateNewChatbot}
             >
               <FiPlus />
-              Create Your First Skolrbot
+              Create Your First Skolr
             </ModernButton>
           )}
         </EmptyState>
@@ -715,7 +715,7 @@ export default function ManageSkolrbotsPage() {
         />
       )}
 
-      {/* Modal Form for Creating/Editing Skolrbots */}
+      {/* Modal Form for Creating/Editing Skolrs */}
       {showEditModal && (
         <ChatbotForm 
           onClose={handleFormClose} 

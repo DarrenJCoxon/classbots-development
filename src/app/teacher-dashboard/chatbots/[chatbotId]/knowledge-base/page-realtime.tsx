@@ -353,7 +353,7 @@ export default function KnowledgeBasePage() {
       <PageTransition>
         <Container>
         <Header>
-          <Title>Knowledge Base: {chatbotName || "Chatbot"}</Title>
+          <Title>Knowledge Base: {chatbotName || "Skolr"}</Title>
           <BackButton 
             variant="ghost" 
             size="medium"
