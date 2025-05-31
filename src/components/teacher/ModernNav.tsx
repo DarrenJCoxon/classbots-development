@@ -19,7 +19,8 @@ import {
   FiX,
   FiHelpCircle,
   FiShield,
-  FiUserCheck
+  FiUserCheck,
+  FiPlayCircle
 } from 'react-icons/fi';
 
 interface NavItem {
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Rooms', href: '/teacher-dashboard/rooms', icon: <FiUsers /> },
   { label: 'Students', href: '/teacher-dashboard/students', icon: <FiUserCheck /> },
   { label: 'Skolrs', href: '/teacher-dashboard/chatbots', icon: <FiMessageSquare /> },
+  { label: 'Courses', href: '/teacher-dashboard/courses', icon: <FiPlayCircle /> },
   { label: 'Assessments', href: '/teacher-dashboard/assessments', icon: <FiBookOpen /> },
   { label: 'Concerns', href: '/teacher-dashboard/concerns', icon: <FiAlertTriangle /> },
   { label: 'Content Filters', href: '/teacher-dashboard/content-filters', icon: <FiShield /> },

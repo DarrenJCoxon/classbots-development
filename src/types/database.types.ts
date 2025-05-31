@@ -364,3 +364,71 @@ export interface PaginatedAssessmentsResponse {
         totalPages: number;
     };
 }
+
+// --- Course Types ---
+export type VideoPlatform = 'youtube' | 'vimeo' | 'loom';
+
+export interface Course extends BaseTable {
+    course_id: string;
+    teacher_id: string;
+    title: string;
+    description?: string | null;
+    subject?: string | null;
+    year_group?: string | null;
+    is_published: boolean;
+    is_active: boolean;
+    thumbnail_url?: string | null;
+}
+
+export interface CourseLesson extends BaseTable {
+    lesson_id: string;
+    course_id: string;
+    title: string;
+    description?: string | null;
+    video_url: string;
+    video_platform?: VideoPlatform | null;
+    video_duration?: number | null; // duration in seconds
+    lesson_order: number;
+    is_active: boolean;
+}
+
+export interface CourseEnrollment {
+    enrollment_id: string;
+    course_id: string;
+    student_id: string;
+    enrolled_at: string;
+    completed_at?: string | null;
+    is_active: boolean;
+}
+
+export interface LessonProgress extends BaseTable {
+    progress_id: string;
+    enrollment_id: string;
+    lesson_id: string;
+    student_id: string;
+    watch_time: number; // seconds watched
+    completed: boolean;
+    completed_at?: string | null;
+    last_position: number; // last video position in seconds
+    started_at: string;
+}
+
+// Extended course type with relations
+export interface CourseWithDetails extends Course {
+    course_lessons?: CourseLesson[];
+    course_enrollments?: CourseEnrollment[];
+    lesson_count?: number;
+    student_count?: number;
+    completed_count?: number;
+}
+
+// Course stats view type
+export interface CourseStats {
+    course_id: string;
+    teacher_id: string;
+    title: string;
+    is_published: boolean;
+    lesson_count: number;
+    student_count: number;
+    completed_count: number;
+}
