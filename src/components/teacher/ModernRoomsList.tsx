@@ -411,7 +411,7 @@ export const ModernRoomsList: React.FC<ModernRoomsListProps> = ({
             
             <StatsCard
               icon={<FiMessageSquare />}
-              title="Active Chatbots"
+              title="Active Skolrs"
               value={totalChatbots}
               accentColor="secondary"
             />
