@@ -3,24 +3,63 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import styled from 'styled-components';
-import { Container } from '@/styles/StyledComponents'; // For basic layout if needed during redirect
-import LoadingSpinner from '@/components/shared/LoadingSpinner'; // For a brief loading display
+import styled, { keyframes } from 'styled-components';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 const RedirectPageWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 80vh; // Take up most of the viewport
+  min-height: 100vh;
   text-align: center;
-  padding: ${({ theme }) => theme.spacing.xl};
+  position: relative;
+  background: ${({ theme }) => theme.colors.background};
+  
+  /* Modern animated background */
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(76, 190, 243, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(152, 93, 215, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(200, 72, 175, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: -1;
+  }
+`;
+
+const LoadingContent = styled.div`
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 48px;
+  box-shadow: 0 8px 32px rgba(152, 93, 215, 0.1);
+  border: 1px solid rgba(152, 93, 215, 0.1);
+  text-align: center;
+  animation: ${fadeIn} 0.5s ease-out;
 `;
 
 const Message = styled.p`
-  margin-top: ${({ theme }) => theme.spacing.lg};
+  margin-top: 1.5rem;
   font-size: 1.1rem;
-  color: ${({ theme }) => theme.colors.textLight};
+  color: ${({ theme }) => theme.colors.text};
+  font-weight: 500;
 `;
 
 export default function StudentRedirectPage() {
@@ -34,11 +73,11 @@ export default function StudentRedirectPage() {
 
   // Display a loading/redirecting message while the redirect happens
   return (
-    <Container>
-      <RedirectPageWrapper>
+    <RedirectPageWrapper>
+      <LoadingContent>
         <LoadingSpinner size="large" />
         <Message>Redirecting to your dashboard...</Message>
-      </RedirectPageWrapper>
-    </Container>
+      </LoadingContent>
+    </RedirectPageWrapper>
   );
 }
