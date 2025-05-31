@@ -1,4 +1,5 @@
 // src/components/shared/LoadingSpinner.tsx
+// Updated: Modern loading spinner with animations
 'use client';
 
 import styled, { keyframes } from 'styled-components';
