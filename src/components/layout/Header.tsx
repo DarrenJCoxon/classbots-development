@@ -42,6 +42,18 @@ const HeaderContent = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-wrap: wrap;
     gap: ${({ theme }) => theme.spacing.sm};
+    /* Ensure logo and user section stay on first row */
+    > *:nth-child(1) { /* Logo */
+      flex: 1;
+      min-width: 0;
+    }
+    > *:nth-child(2) { /* Navigation */
+      order: 3;
+      width: 100%;
+    }
+    > *:nth-child(3) { /* User section */
+      flex-shrink: 0;
+    }
   }
 `;
 
@@ -54,7 +66,9 @@ const Logo = styled(Link)`
   align-items: center;
   gap: 4px;
   padding: 4px 0;
-  flex-shrink: 0;
+  flex-shrink: 1; /* Allow logo to shrink if needed */
+  min-width: 0; /* Allow shrinking below content size */
+  max-width: 100%; /* Prevent overflow */
   
   /* Create a proper container for logo images */
   > * {
@@ -70,7 +84,13 @@ const Logo = styled(Link)`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     gap: 0;
     padding: ${({ theme }) => theme.spacing.xs} 0;
+    flex: 1; /* Take available space but don't overflow */
     min-width: 0;
+    max-width: calc(100% - 120px); /* Leave space for user section */
+  }
+  
+  @media (max-width: 480px) {
+    max-width: calc(100% - 100px); /* More space on very small screens */
   }
 `;
 
@@ -78,10 +98,19 @@ const LogoImage = styled(Image)`
   height: auto;
   width: auto;
   object-fit: contain;
+  max-width: 100%; /* Ensure it doesn't overflow its container */
+  flex-shrink: 1; /* Allow it to shrink */
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    max-width: 120px;
+    max-width: 140px; /* Increased from 120px */
     max-height: 48px;
+    width: auto;
+    height: auto;
+  }
+  
+  @media (max-width: 480px) {
+    max-width: 120px;
+    max-height: 44px;
     width: auto;
     height: auto;
   }
@@ -122,10 +151,16 @@ const UserSection = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing.md};
+  flex-shrink: 0; /* Prevent shrinking */
   
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    min-width: 100px; /* Ensure consistent space */
+    gap: ${({ theme }) => theme.spacing.sm};
     justify-content: flex-end;
+    /* Reduced min-width to give more space to logo */
+  }
+  
+  @media (max-width: 480px) {
+    gap: ${({ theme }) => theme.spacing.xs};
   }
 `;
 
