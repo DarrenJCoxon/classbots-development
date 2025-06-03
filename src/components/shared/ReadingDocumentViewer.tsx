@@ -94,7 +94,7 @@ export default function ReadingDocumentViewer({
     }
   };
 
-  // For video content, use VideoPlayerWithTracking if we have tracking info
+  // For video content, use the appropriate player based on video type
   if (contentType === 'video' && documentUrl) {
     if (loading) {
       return (
@@ -125,14 +125,43 @@ export default function ReadingDocumentViewer({
       );
     }
     
-    // Always use VideoPlayerWithTracking for videos
+    // Parse the video URL to determine if it's external (YouTube/Vimeo) or self-hosted
     const videoInfo = parseVideoUrl(documentUrl);
-    return (
-      <VideoPlayerWithTracking
-        videoId={videoInfo.videoId || documentUrl}
-        trackProgress={false}
-      />
-    );
+    
+    if (videoInfo.platform !== 'unknown' && videoInfo.embedUrl) {
+      // External video (YouTube/Vimeo) - use iframe embed
+      return (
+        <div style={{ 
+          width: '100%', 
+          height: '100%', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}>
+          <iframe
+            src={videoInfo.embedUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              borderRadius: '8px'
+            }}
+            allowFullScreen
+            title="Video Content"
+          />
+        </div>
+      );
+    } else {
+      // Self-hosted video - use VideoPlayerWithTracking
+      // Extract video ID from self-hosted video URL
+      const videoId = documentUrl.split('/').pop()?.split('.')[0] || documentUrl;
+      return (
+        <VideoPlayerWithTracking
+          videoId={videoId}
+          trackProgress={false}
+        />
+      );
+    }
   }
   
   // For PDF content, use SimplePDFViewer

@@ -213,8 +213,8 @@ export const VideoPlayerWithTracking: React.FC<VideoPlayerProps> = ({
   const watchedSegments = useRef<Array<{start: number; end: number}>>([]);
   const currentSegmentStart = useRef<number | null>(null);
   
-  const videoUrl = `${videoServerUrl}/videos/${videoId}/720p.mp4`;
-  const thumbnailUrl = `${videoServerUrl}/thumbnails/${videoId}/thumbnail.jpg`;
+  const videoUrl = videoServerUrl ? `${videoServerUrl}/videos/${videoId}/720p.mp4` : '';
+  const thumbnailUrl = videoServerUrl ? `${videoServerUrl}/thumbnails/${videoId}/thumbnail.jpg` : '';
 
   useEffect(() => {
     const video = videoRef.current;
@@ -374,6 +374,18 @@ export const VideoPlayerWithTracking: React.FC<VideoPlayerProps> = ({
   };
 
   const percentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // If no video server URL is configured, show error
+  if (!videoServerUrl || !videoUrl) {
+    return (
+      <VideoContainer>
+        <ErrorMessage>
+          <h3>Configuration Error</h3>
+          <p>Video server URL is not configured. Please check your environment settings.</p>
+        </ErrorMessage>
+      </VideoContainer>
+    );
+  }
 
   return (
     <VideoContainer

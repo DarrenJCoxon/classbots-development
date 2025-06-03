@@ -511,7 +511,7 @@ export const ModernStudentNav: React.FC = () => {
           .from('student_profiles')
           .select('full_name, username')
           .eq('user_id', directAccessId)
-          .single();
+          .maybeSingle();
           
         if (profile) {
           setStudentProfile(profile);
@@ -524,7 +524,7 @@ export const ModernStudentNav: React.FC = () => {
             .from('student_profiles')
             .select('full_name, username')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
             
           if (profile) {
             setStudentProfile(profile);

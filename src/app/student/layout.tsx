@@ -124,7 +124,7 @@ export default function StudentLayoutWrapper({
           .from('student_profiles')
           .select('user_id, username, pin_code')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         console.log('User has authenticated, checking student profile:', { 
           userId: user.id, 

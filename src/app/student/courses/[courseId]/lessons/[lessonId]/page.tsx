@@ -7,6 +7,7 @@ import { FiArrowLeft, FiArrowRight, FiClock, FiDownload, FiFile } from 'react-ic
 import { PageWrapper, Container } from '@/components/ui';
 import { PageTransition } from '@/components/shared/PageTransition';
 import { VideoPlayerWithTracking } from '@/components/shared/VideoPlayerWithTracking';
+import { parseVideoUrl } from '@/lib/utils/video-utils';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import type { CourseLesson, Course } from '@/types/database.types';
 
@@ -254,6 +255,7 @@ export default function StudentLessonPage() {
   const [allLessons, setAllLessons] = useState<CourseLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   
   const router = useRouter();
   const params = useParams();
@@ -296,6 +298,17 @@ export default function StudentLessonPage() {
       setLoading(false);
     }
   };
+
+  // Set video ready state after lesson loads
+  useEffect(() => {
+    if (lesson && !loading) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        setVideoReady(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [lesson, loading]);
 
   const formatDuration = (seconds: number | null | undefined) => {
     if (!seconds) return 'Duration unknown';
@@ -425,12 +438,59 @@ export default function StudentLessonPage() {
           </LessonHeader>
 
           <VideoSection>
-            <VideoPlayerWithTracking
-              videoId={lesson.video_url || ''}
-              courseId={courseId}
-              lessonId={lessonId}
-              trackProgress={true}
-            />
+            {!videoReady ? (
+              <div style={{ 
+                width: '100%', 
+                aspectRatio: '16/9',
+                background: '#f5f5f5',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#666'
+              }}>
+                <LoadingSpinner size="medium" />
+              </div>
+            ) : (() => {
+              const videoUrl = lesson.video_url || '';
+              const videoInfo = parseVideoUrl(videoUrl);
+              
+              console.log('Video detection:', { videoUrl, platform: videoInfo.platform, embedUrl: videoInfo.embedUrl });
+              
+              // For external videos (YouTube/Vimeo), use iframe embed
+              if (videoInfo.platform !== 'unknown' && videoInfo.embedUrl) {
+                return (
+                  <div style={{ 
+                    width: '100%', 
+                    aspectRatio: '16/9',
+                    background: '#000',
+                    borderRadius: '8px',
+                    overflow: 'hidden'
+                  }}>
+                    <iframe
+                      src={videoInfo.embedUrl}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        border: 'none'
+                      }}
+                      allowFullScreen
+                      title={lesson.title}
+                    />
+                  </div>
+                );
+              } else {
+                // For self-hosted videos, use VideoPlayerWithTracking
+                return (
+                  <VideoPlayerWithTracking
+                    videoId={videoUrl}
+                    courseId={courseId}
+                    lessonId={lessonId}
+                    trackProgress={true}
+                  />
+                );
+              }
+            })()}
           </VideoSection>
 
           <ContentSection>
