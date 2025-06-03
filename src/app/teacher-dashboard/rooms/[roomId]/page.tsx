@@ -10,7 +10,7 @@ import { ModernButton } from '@/components/shared/ModernButton';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import StudentCsvUpload from '@/components/teacher/StudentCsvUpload';
 import ArchivePanel from '@/components/teacher/ArchivePanel';
-import type { Room, Chatbot, Profile } from '@/types/database.types'; // Base types
+import type { Room, Chatbot, Course, Profile } from '@/types/database.types'; // Base types
 
 // --- Data Structure for the Page State ---
 interface StudentInRoom extends Pick<Profile, 'user_id' | 'full_name'> {
@@ -22,6 +22,7 @@ interface StudentInRoom extends Pick<Profile, 'user_id' | 'full_name'> {
 interface RoomDetailsData {
   room: Room;
   chatbots: Pick<Chatbot, 'chatbot_id' | 'name' | 'description' | 'bot_type'>[];
+  courses: Pick<Course, 'course_id' | 'title' | 'description' | 'subject'>[];
   students: StudentInRoom[];
 }
 
@@ -534,7 +535,7 @@ export default function TeacherRoomDetailPage() {
     );
   }
 
-  const { room, chatbots, students } = roomDetails;
+  const { room, chatbots, courses, students } = roomDetails;
 
   return (
     <PageWrapper>
@@ -587,6 +588,24 @@ export default function TeacherRoomDetailPage() {
           )}
         </Section>
 
+        <Section>
+          <SectionTitle>Assigned Courses ({courses?.length || 0})</SectionTitle>
+          {courses && courses.length > 0 ? (
+            <ChatbotGrid>
+              {courses.map(course => (
+                <ChatbotCard key={course.course_id}>
+                  <h3>📚 {course.title}</h3>
+                  <p>{course.description || 'No description provided.'}</p>
+                  <Badge variant="cyan">
+                    {course.subject || 'Course'}
+                  </Badge>
+                </ChatbotCard>
+              ))}
+            </ChatbotGrid>
+          ) : (
+            <EmptyStateText>No courses are currently assigned to this room.</EmptyStateText>
+          )}
+        </Section>
 
         <Section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>

@@ -62,6 +62,19 @@ export async function GET(request: NextRequest) {
     const assignedChatbots = roomChatbotsData?.map(rc => rc.chatbots).filter(Boolean) || [];
     console.log(`[API GET /teacher/room-details] Fetched ${assignedChatbots.length} assigned chatbots for room ${roomId}.`);
 
+    // Fetch assigned courses
+    const { data: roomCoursesData, error: roomCoursesError } = await supabase
+      .from('room_courses')
+      .select('courses (course_id, title, description, subject)')
+      .eq('room_id', roomId);
+
+    if (roomCoursesError) {
+      console.error(`[API GET /teacher/room-details] Error fetching courses for room ${roomId}:`, roomCoursesError.message);
+      // Don't fail the whole request, proceed with empty courses array
+    }
+    const assignedCourses = roomCoursesData?.map(rc => rc.courses).filter(Boolean) || [];
+    console.log(`[API GET /teacher/room-details] Fetched ${assignedCourses.length} assigned courses for room ${roomId}.`);
+
 
     // Get query parameter to include archived students
     const includeArchived = searchParams.get('includeArchived') === 'true';
@@ -133,6 +146,7 @@ export async function GET(request: NextRequest) {
     const responsePayload = {
       room: roomData,
       chatbots: assignedChatbots,
+      courses: assignedCourses,
       students: studentsInRoom,
     };
 
