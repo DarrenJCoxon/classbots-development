@@ -193,9 +193,10 @@ interface RoomFormProps {
   courses: Course[];
   onClose: () => void;
   onSuccess: () => void;
+  onRefreshCourses?: () => void;
 }
 
-export default function RoomForm({ chatbots, courses, onClose, onSuccess }: RoomFormProps) {
+export default function RoomForm({ chatbots, courses, onClose, onSuccess, onRefreshCourses }: RoomFormProps) {
   const [formData, setFormData] = useState({
     room_name: '',
     chatbot_ids: [] as string[],
@@ -312,7 +313,19 @@ export default function RoomForm({ chatbots, courses, onClose, onSuccess }: Room
           </FormGroup>
 
           <FormGroup>
-            <Label>Select Courses (Optional)</Label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <Label style={{ margin: 0 }}>Select Courses (Optional)</Label>
+              {onRefreshCourses && (
+                <ModernButton
+                  variant="ghost"
+                  size="small"
+                  onClick={onRefreshCourses}
+                  style={{ padding: '4px 8px', fontSize: '12px' }}
+                >
+                  Refresh
+                </ModernButton>
+              )}
+            </div>
             {!courses || courses.length === 0 ? (
               <FormText>
                 No courses available. You can create courses in the Courses section and assign them later.

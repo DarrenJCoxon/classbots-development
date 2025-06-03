@@ -225,9 +225,10 @@ interface EditRoomModalProps {
   courses: Course[];
   onClose: () => void;
   onSuccess: () => void;
+  onRefreshCourses?: () => void;
 }
 
-export default function EditRoomModal({ room, chatbots, courses, onClose, onSuccess }: EditRoomModalProps) {
+export default function EditRoomModal({ room, chatbots, courses, onClose, onSuccess, onRefreshCourses }: EditRoomModalProps) {
   const [selectedChatbots, setSelectedChatbots] = useState<string[]>([]);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -386,7 +387,19 @@ export default function EditRoomModal({ room, chatbots, courses, onClose, onSucc
         </Section>
 
         <Section>
-          <SectionTitle>Select Courses for this Room (Optional)</SectionTitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <SectionTitle style={{ margin: 0 }}>Select Courses for this Room (Optional)</SectionTitle>
+            {onRefreshCourses && (
+              <ModernButton
+                variant="ghost"
+                size="small"
+                onClick={onRefreshCourses}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                Refresh
+              </ModernButton>
+            )}
+          </div>
           {isLoading ? (
             <div style={{textAlign: 'center', padding: '20px'}}>Loading courses...</div>
           ) : !courses || courses.length === 0 ? (

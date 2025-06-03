@@ -162,14 +162,32 @@ export default function ManageRoomsPage() {
   }>({ isOpen: false, id: null, name: '' });
   const [isArchiving, setIsArchiving] = useState(false);
 
+  const fetchCourses = useCallback(async () => {
+    try {
+      const coursesResponse = await fetch('/api/teacher/courses');
+      if (!coursesResponse.ok) {
+        const errData = await coursesResponse.json().catch(()=>({error: `Failed to parse courses error response (status ${coursesResponse.status})`}));
+        throw new Error(errData.error || `Failed to fetch courses (status ${coursesResponse.status})`);
+      }
+      const coursesJson = await coursesResponse.json();
+      // The API returns { courses: Course[] }
+      const coursesData: Course[] = coursesJson.courses || [];
+      // Only show published courses for room assignment
+      const publishedCourses = Array.isArray(coursesData) ? coursesData.filter(course => course.is_published) : [];
+      setCourses(publishedCourses);
+    } catch (err) {
+      console.error("Error fetching courses:", err);
+      // Don't set error state for courses failure, just log it
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [roomsResponse, chatbotsResponse, coursesResponse] = await Promise.all([
+      const [roomsResponse, chatbotsResponse] = await Promise.all([
         fetch('/api/teacher/rooms'),
-        fetch('/api/teacher/chatbots'),
-        fetch('/api/teacher/courses')
+        fetch('/api/teacher/chatbots')
       ]);
 
       if (!roomsResponse.ok) {
@@ -180,27 +198,22 @@ export default function ManageRoomsPage() {
         const errData = await chatbotsResponse.json().catch(()=>({error: `Failed to parse chatbots error response (status ${chatbotsResponse.status})`}));
         throw new Error(errData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`);
       }
-      if (!coursesResponse.ok) {
-        const errData = await coursesResponse.json().catch(()=>({error: `Failed to parse courses error response (status ${coursesResponse.status})`}));
-        throw new Error(errData.error || `Failed to fetch courses (status ${coursesResponse.status})`);
-      }
 
       const roomsData: TeacherRoom[] = await roomsResponse.json();
       const chatbotsData: Chatbot[] = await chatbotsResponse.json();
-      const coursesData: Course[] = await coursesResponse.json();
-
-      console.log('Courses data received:', coursesData);
       
       setRooms(roomsData);
       setChatbots(chatbotsData);
-      setCourses(Array.isArray(coursesData) ? coursesData : []);
+      
+      // Fetch courses separately
+      await fetchCourses();
     } catch (err) {
       console.error("Error fetching page data:", err);
       setError(err instanceof Error ? err.message : 'Could not load data.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchCourses]);
 
   useEffect(() => {
     fetchData();
@@ -359,6 +372,7 @@ export default function ManageRoomsPage() {
           courses={courses}
           onClose={() => setShowRoomForm(false)}
           onSuccess={handleRoomCreatedOrUpdated}
+          onRefreshCourses={fetchCourses}
         />
       )}
 
@@ -369,6 +383,7 @@ export default function ManageRoomsPage() {
           courses={courses}
           onClose={handleCloseEditRoom}
           onSuccess={handleRoomEditSuccess}
+          onRefreshCourses={fetchCourses}
         />
       )}
 
