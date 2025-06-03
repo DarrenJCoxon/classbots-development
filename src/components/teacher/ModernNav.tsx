@@ -462,10 +462,11 @@ export const ModernNav: React.FC = () => {
   }, [pathname]);
   
   useEffect(() => {
-    // Fetch teacher profile
-    const fetchProfile = async () => {
+    // Fetch teacher profile and concerns count
+    const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Fetch teacher profile
         const { data: profile } = await supabase
           .from('teacher_profiles')
           .select('full_name, email')
@@ -475,10 +476,19 @@ export const ModernNav: React.FC = () => {
         if (profile) {
           setTeacherProfile(profile);
         }
+        
+        // Fetch pending concerns count
+        const { count } = await supabase
+          .from('flagged_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('teacher_id', user.id)
+          .eq('status', 'pending');
+          
+        setConcernsCount(count || 0);
       }
     };
     
-    fetchProfile();
+    fetchData();
   }, [supabase]);
   
   const getInitials = (name: string | null) => {
@@ -491,8 +501,8 @@ export const ModernNav: React.FC = () => {
     router.push('/');
   };
   
-  // Mock badge count - replace with actual data
-  const concernsCount = 3;
+  // Dynamic concerns count
+  const [concernsCount, setConcernsCount] = useState(0);
 
   return (
     <>
