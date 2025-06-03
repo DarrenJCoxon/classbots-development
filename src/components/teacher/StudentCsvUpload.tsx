@@ -461,11 +461,15 @@ const ModalBody = styled.div`
             <Label>Required CSV format</Label>
             <FormText>
               Your CSV must have columns: <strong>First Name</strong>, <strong>Surname</strong>, and optionally <strong>Year Group</strong>
-              <br />
-              <a href="#" onClick={(e) => { e.preventDefault(); downloadTemplateCSV(); }} style={{ color: 'var(--color-primary)' }}>
-                Download Template CSV
-              </a>
             </FormText>
+            <ModernButton 
+              variant="ghost" 
+              size="small"
+              onClick={downloadTemplateCSV}
+              style={{ marginTop: '8px' }}
+            >
+              Download Template CSV
+            </ModernButton>
           </FormGroup>
 
           {error && <Alert variant="error">{error}</Alert>}
