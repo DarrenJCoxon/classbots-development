@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Alert } from '@/styles/StyledComponents';
 import { ModernButton } from '@/components/shared/ModernButton';
-import type { Room, Chatbot } from '@/types/database.types';
+import type { Room, Chatbot, Course } from '@/types/database.types';
 
 // ... (styled components remain the same)
 const Overlay = styled.div`
@@ -222,45 +222,59 @@ const DirectAccessUrl = styled.input`
 interface EditRoomModalProps {
   room: Room;
   chatbots: Chatbot[];
+  courses: Course[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: EditRoomModalProps) {
+export default function EditRoomModal({ room, chatbots, courses, onClose, onSuccess }: EditRoomModalProps) {
   const [selectedChatbots, setSelectedChatbots] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRoomChatbots = async () => {
-      setIsLoading(true); // Ensure loading state is true at the start
+    const fetchRoomAssociations = async () => {
+      setIsLoading(true);
       setError(null);
       try {
-        // MODIFIED API CALL
-        const response = await fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`);
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Failed to parse error from fetchRoomChatbots' }));
-            throw new Error(errorData.error || 'Failed to fetch room chatbots');
+        // Fetch both chatbots and courses in parallel
+        const [chatbotsResponse, coursesResponse] = await Promise.all([
+          fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`),
+          fetch(`/api/teacher/room-courses-associations?roomId=${room.room_id}`)
+        ]);
+
+        if (!chatbotsResponse.ok) {
+          const errorData = await chatbotsResponse.json().catch(() => ({ error: 'Failed to parse chatbots error' }));
+          throw new Error(errorData.error || 'Failed to fetch room chatbots');
+        }
+
+        if (!coursesResponse.ok) {
+          const errorData = await coursesResponse.json().catch(() => ({ error: 'Failed to parse courses error' }));
+          throw new Error(errorData.error || 'Failed to fetch room courses');
         }
         
-        const data = await response.json();
-        setSelectedChatbots(data.map((rc: { chatbot_id: string }) => rc.chatbot_id));
+        const chatbotsData = await chatbotsResponse.json();
+        const coursesData = await coursesResponse.json();
+        
+        setSelectedChatbots(chatbotsData.map((rc: { chatbot_id: string }) => rc.chatbot_id));
+        setSelectedCourses(coursesData.map((rc: { course_id: string }) => rc.course_id));
       } catch (err) {
-        console.error("EditRoomModal fetchRoomChatbots error:", err);
-        setError(err instanceof Error ? err.message : 'Failed to load current Skolrs for this room.');
+        console.error("EditRoomModal fetchRoomAssociations error:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load current assignments for this room.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (room?.room_id) { // Ensure room_id is present
-        fetchRoomChatbots();
+    if (room?.room_id) {
+        fetchRoomAssociations();
     } else {
         setError("Room information is missing.");
         setIsLoading(false);
     }
-  }, [room.room_id]); // Depend only on room.room_id
+  }, [room.room_id]);
 
   const handleToggleChatbot = (chatbotId: string) => {
     setSelectedChatbots(prev => 
@@ -270,36 +284,57 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
     );
   };
 
+  const handleToggleCourse = (courseId: string) => {
+    setSelectedCourses(prev => 
+      prev.includes(courseId)
+        ? prev.filter(id => id !== courseId)
+        : [...prev, courseId]
+    );
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // MODIFIED API CALL
-      const response = await fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatbot_ids: selectedChatbots }),
-      });
+      // Update both chatbots and courses in parallel
+      const [chatbotsResponse, coursesResponse] = await Promise.all([
+        fetch(`/api/teacher/room-chatbots-associations?roomId=${room.room_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatbot_ids: selectedChatbots }),
+        }),
+        fetch(`/api/teacher/room-courses-associations?roomId=${room.room_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course_ids: selectedCourses }),
+        })
+      ]);
 
-      if (!response.ok) {
-        // Attempt to parse error JSON, but handle cases where it might not be JSON
+      // Check chatbots response
+      if (!chatbotsResponse.ok) {
         let errorMsg = 'Failed to update room Skolrs';
         try {
-            const errorData = await response.json();
-            errorMsg = errorData.error || errorMsg;
+          const errorData = await chatbotsResponse.json();
+          errorMsg = errorData.error || errorMsg;
         } catch {
-            // If response is not JSON, use status text or a generic message
-            errorMsg = `Failed to update room Skolrs (status: ${response.status} ${response.statusText})`;
-            console.error("PUT request failed with non-JSON response:", await response.text());
+          errorMsg = `Failed to update room Skolrs (status: ${chatbotsResponse.status})`;
         }
         throw new Error(errorMsg);
       }
-      // If you expect JSON on successful PUT, parse it here. Otherwise, just call onSuccess.
-      // const successData = await response.json(); 
-      // console.log("Room chatbots updated:", successData);
+
+      // Check courses response
+      if (!coursesResponse.ok) {
+        let errorMsg = 'Failed to update room courses';
+        try {
+          const errorData = await coursesResponse.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {
+          errorMsg = `Failed to update room courses (status: ${coursesResponse.status})`;
+        }
+        throw new Error(errorMsg);
+      }
+
       onSuccess();
     } catch (err) {
       console.error("EditRoomModal handleSubmit error:", err);
@@ -341,6 +376,43 @@ export default function EditRoomModal({ room, chatbots, onClose, onSuccess }: Ed
                     {chatbot.description && (
                       <span style={{ marginLeft: '8px', color: '#777', fontSize: '0.9em' }}>
                         - {chatbot.description.length > 50 ? chatbot.description.substring(0, 50) + '...' : chatbot.description}
+                      </span>
+                    )}
+                  </label>
+                </ChatbotItem>
+              ))}
+            </ChatbotList>
+          )}
+        </Section>
+
+        <Section>
+          <SectionTitle>Select Courses for this Room (Optional)</SectionTitle>
+          {isLoading ? (
+            <div style={{textAlign: 'center', padding: '20px'}}>Loading courses...</div>
+          ) : !courses || courses.length === 0 ? (
+            <p style={{fontSize: '14px', color: '#666', margin: '12px 0'}}>
+              No courses available. You can create courses in the Courses section and assign them later.
+            </p>
+          ) : (
+            <ChatbotList>
+              {(courses || []).map(course => (
+                <ChatbotItem key={course.course_id}>
+                  <Checkbox
+                    type="checkbox"
+                    id={`course-edit-${course.course_id}`}
+                    checked={selectedCourses.includes(course.course_id)}
+                    onChange={() => handleToggleCourse(course.course_id)}
+                  />
+                  <label htmlFor={`course-edit-${course.course_id}`} style={{cursor: 'pointer', flexGrow: 1}}>
+                    {course.title}
+                    {course.description && (
+                      <span style={{ marginLeft: '8px', color: '#777', fontSize: '0.9em' }}>
+                        - {course.description.length > 50 ? course.description.substring(0, 50) + '...' : course.description}
+                      </span>
+                    )}
+                    {course.subject && (
+                      <span style={{ marginLeft: '8px', color: '#999', fontSize: '0.8em' }}>
+                        ({course.subject})
                       </span>
                     )}
                   </label>

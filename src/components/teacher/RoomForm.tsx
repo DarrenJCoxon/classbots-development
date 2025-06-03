@@ -7,7 +7,7 @@ import { ModernButton } from '@/components/shared/ModernButton';
 import { Input, Label, FormGroup, FormText, Checkbox } from '@/components/ui/Form';
 import { Text } from '@/components/ui/Typography';
 import { Alert } from '@/styles/StyledComponents';
-import type { Chatbot } from '@/types/database.types';
+import type { Chatbot, Course } from '@/types/database.types';
 
 const Overlay = styled.div`
   position: fixed;
@@ -190,14 +190,16 @@ const ChatbotInfo = styled.div`
 
 interface RoomFormProps {
   chatbots: Chatbot[];
+  courses: Course[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps) {
+export default function RoomForm({ chatbots, courses, onClose, onSuccess }: RoomFormProps) {
   const [formData, setFormData] = useState({
     room_name: '',
     chatbot_ids: [] as string[],
+    course_ids: [] as string[],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -242,6 +244,15 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
       chatbot_ids: prev.chatbot_ids.includes(chatbotId)
         ? prev.chatbot_ids.filter(id => id !== chatbotId)
         : [...prev.chatbot_ids, chatbotId]
+    }));
+  };
+
+  const handleToggleCourse = (courseId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      course_ids: prev.course_ids.includes(courseId)
+        ? prev.course_ids.filter(id => id !== courseId)
+        : [...prev.course_ids, courseId]
     }));
   };
 
@@ -291,6 +302,40 @@ export default function RoomForm({ chatbots, onClose, onSuccess }: RoomFormProps
                       {chatbot.description && (
                         <Text variant="caption" color="muted">
                           {chatbot.description}
+                        </Text>
+                      )}
+                    </ChatbotInfo>
+                  </ChatbotItem>
+                ))}
+              </ChatbotList>
+            )}
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Select Courses (Optional)</Label>
+            {!courses || courses.length === 0 ? (
+              <FormText>
+                No courses available. You can create courses in the Courses section and assign them later.
+              </FormText>
+            ) : (
+              <ChatbotList>
+                {(courses || []).map(course => (
+                  <ChatbotItem key={course.course_id}>
+                    <Checkbox
+                      id={`course-${course.course_id}`}
+                      checked={formData.course_ids.includes(course.course_id)}
+                      onChange={() => handleToggleCourse(course.course_id)}
+                    />
+                    <ChatbotInfo>
+                      <Text weight="medium">{course.title}</Text>
+                      {course.description && (
+                        <Text variant="caption" color="muted">
+                          {course.description}
+                        </Text>
+                      )}
+                      {course.subject && (
+                        <Text variant="caption" color="muted">
+                          Subject: {course.subject}
                         </Text>
                       )}
                     </ChatbotInfo>

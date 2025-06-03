@@ -29,7 +29,20 @@ export default function StudentProfileCheck() {
           return;
         }
 
-        // Check if we already have a profile
+        // Check if user is a teacher first
+        const { data: teacherProfile } = await supabase
+          .from('teacher_profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (teacherProfile) {
+          console.log('[StudentProfileCheck] User is a teacher, skipping student profile check');
+          setIsLoading(false);
+          return;
+        }
+
+        // Check if we already have a student profile
         const { data: profile, error: profileError } = await supabase
           .from('student_profiles')
           .select('user_id')
@@ -40,7 +53,7 @@ export default function StudentProfileCheck() {
         let profileRepairNeeded = false;
         
         if (profileError || !profile) {
-          console.log('[StudentProfileCheck] No profile found, needs repair');
+          console.log('[StudentProfileCheck] No student profile found, needs repair');
           profileRepairNeeded = true;
         }
 

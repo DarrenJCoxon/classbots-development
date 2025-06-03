@@ -34,3 +34,6 @@ export const createServerSupabaseClient = async () => {
     }
   );
 };
+
+// Alias for backward compatibility
+export const createClient = createServerSupabaseClient;

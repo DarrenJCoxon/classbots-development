@@ -13,7 +13,6 @@ import EnhancedRagScraper from '@/components/teacher/EnhancedRagScraper';
 import { GlassCard } from '@/components/shared/GlassCard';
 import { ModernButton } from '@/components/shared/ModernButton';
 import { PageTransition } from '@/components/shared/PageTransition';
-import FastProcessingToggle from '@/components/teacher/FastProcessingToggle';
 import type { Document as KnowledgeDocument } from '@/types/knowledge-base.types'; // Ensure path
 
 const PageWrapper = styled.div`
@@ -154,7 +153,6 @@ export default function KnowledgeBasePage() {
   const [docsError, setDocsError] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [useFastMode, setUseFastMode] = useState<boolean>(false);
   // Removed grid view - list only
   
   const params = useParams();
@@ -265,14 +263,14 @@ export default function KnowledgeBasePage() {
       const response = await fetch(`/api/teacher/chatbots/${chatbotId}/vectorize`, { // Assuming vectorize endpoint remains nested
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId, fastMode: useFastMode }),
+        body: JSON.stringify({ documentId }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to start document processing');
       }
       const result = await response.json();
-      setSuccessMessage(`Document processing started in ${result.mode || 'standard'} mode.`);
+      setSuccessMessage(`Document processing started.`);
       setDocuments(prevDocs => 
         prevDocs.map(doc => 
           doc.document_id === documentId ? { ...doc, status: 'processing' } : doc
@@ -292,14 +290,14 @@ export default function KnowledgeBasePage() {
       const response = await fetch(`/api/teacher/chatbots/${chatbotId}/vectorize-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds, fastMode: useFastMode }),
+        body: JSON.stringify({ documentIds }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to start batch processing');
       }
       const result = await response.json();
-      setSuccessMessage(`Started processing ${result.documentsQueued} documents in ${result.mode} mode.`);
+      setSuccessMessage(`Started processing ${result.documentsQueued} documents.`);
       // Update documents to processing state
       setDocuments(prevDocs => 
         prevDocs.map(doc => 
@@ -413,10 +411,6 @@ export default function KnowledgeBasePage() {
         
         <Section variant="light" hoverable={undefined}>
             <h2>Uploaded Documents</h2>
-            <FastProcessingToggle 
-              checked={useFastMode} 
-              onChange={setUseFastMode} 
-            />
             {getViewingDocument() && (
               <EmbeddingStatus 
                 document={getViewingDocument()!} 
@@ -437,7 +431,6 @@ export default function KnowledgeBasePage() {
                 onDeleteDocument={handleDeleteDocument}
                 onViewStatus={setViewingDocumentId}
                 onBatchProcess={handleBatchProcessDocuments}
-                fastMode={useFastMode}
               />
             )}
         </Section>

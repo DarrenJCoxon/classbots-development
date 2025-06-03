@@ -102,6 +102,27 @@ export async function GET(request: NextRequest) {
           room.room_chatbots = chatbotsForRoom;
         });
       }
+
+      // Get course associations
+      const { data: roomCourses, error: courseError } = await supabaseAdmin
+        .from('room_courses')
+        .select(`
+          room_id,
+          course_id,
+          courses (course_id, title)
+        `)
+        .in('room_id', roomIds);
+        
+      if (courseError) {
+        console.error('[API GET /rooms] Error fetching room courses:', courseError);
+        // Continue despite error - we'll return rooms without course data
+      } else if (roomCourses) {
+        // Manually structure the data to match the nested query result
+        rooms.forEach(room => {
+          const coursesForRoom = roomCourses.filter(rc => rc.room_id === room.room_id);
+          room.room_courses = coursesForRoom;
+        });
+      }
     }
     
     console.log(`[API GET /rooms] Successfully fetched ${rooms?.length || 0} rooms.`);
@@ -241,6 +262,39 @@ export async function POST(request: Request) {
     }
     console.log(`[API POST /rooms] V-ROBUST - Successfully inserted ${roomChatbotEntries.length} entries into "room_chatbots".`);
 
+    // Insert course associations if any courses were selected
+    if (body.course_ids && body.course_ids.length > 0) {
+      console.log('[API POST /rooms] V-ROBUST - Preparing to insert into "room_courses" table for room ID:', newRoomData.room_id);
+      const roomCourseEntries = body.course_ids.map(courseId => ({
+        room_id: newRoomData!.room_id,
+        course_id: courseId,
+        assigned_by: user.id
+      }));
+
+      const { error: rcCourseInsertError } = await supabase
+        .from('room_courses')
+        .insert(roomCourseEntries);
+
+      if (rcCourseInsertError) {
+        console.error('[API POST /rooms] V-ROBUST - Error inserting into "room_courses":', rcCourseInsertError);
+        console.log(`[API POST /rooms] V-ROBUST - Attempting to rollback room creation for room ID: ${newRoomData!.room_id} due to room_courses insert failure.`);
+        
+        // Rollback room and chatbot entries
+        const { error: deleteChatbotsError } = await supabase.from('room_chatbots').delete().eq('room_id', newRoomData!.room_id);
+        const { error: deleteRoomError } = await supabase.from('rooms').delete().eq('room_id', newRoomData!.room_id);
+        
+        if (deleteChatbotsError || deleteRoomError) {
+          console.error(`[API POST /rooms] V-ROBUST - CRITICAL: Failed to rollback room ${newRoomData!.room_id} after room_courses insert error:`, { deleteChatbotsError, deleteRoomError });
+        } else {
+          console.log(`[API POST /rooms] V-ROBUST - Successfully rolled back room ${newRoomData!.room_id}.`);
+        }
+        throw rcCourseInsertError;
+      }
+      console.log(`[API POST /rooms] V-ROBUST - Successfully inserted ${roomCourseEntries.length} entries into "room_courses".`);
+    } else {
+      console.log('[API POST /rooms] V-ROBUST - No courses selected, skipping room_courses insertion.');
+    }
+
     console.log('[API POST /rooms] V-ROBUST - Fetching complete room data for response.');
     const { data: completeRoomData, error: fetchCompleteError } = await supabase
         .from('rooms')
@@ -248,6 +302,9 @@ export async function POST(request: Request) {
             *,
             room_chatbots (
               chatbots ( chatbot_id, name )
+            ),
+            room_courses (
+              courses ( course_id, title )
             )
         `)
         .eq('room_id', newRoomData!.room_id)

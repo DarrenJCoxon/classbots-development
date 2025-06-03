@@ -22,13 +22,13 @@ const PulseContainer = styled.div`
   height: 80px;
 `;
 
-const PulseDot = styled.div<{ delay: number }>`
+const PulseDot = styled.div<{ $delay: number }>`
   position: absolute;
   border: 4px solid ${({ theme }) => theme.colors.primary};
   opacity: 1;
   border-radius: 50%;
   animation: ${pulse} 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-  animation-delay: ${({ delay }) => delay}s;
+  animation-delay: ${({ $delay }) => $delay}s;
   
   &:nth-child(1) {
     top: 50%;
@@ -50,8 +50,8 @@ const PulseDot = styled.div<{ delay: number }>`
 
 export const PulseLoader: React.FC = () => (
   <PulseContainer>
-    <PulseDot delay={0} />
-    <PulseDot delay={0.5} />
+    <PulseDot $delay={0} />
+    <PulseDot $delay={0.5} />
   </PulseContainer>
 );
 
@@ -70,20 +70,20 @@ const DotContainer = styled.div`
   gap: 8px;
 `;
 
-const Dot = styled.div<{ delay: number }>`
+const Dot = styled.div<{ $delay: number }>`
   width: 12px;
   height: 12px;
   background-color: ${({ theme }) => theme.colors.primary};
   border-radius: 50%;
   animation: ${dotBounce} 1.4s infinite ease-in-out both;
-  animation-delay: ${({ delay }) => delay}s;
+  animation-delay: ${({ $delay }) => $delay}s;
 `;
 
 export const DotLoader: React.FC = () => (
   <DotContainer>
-    <Dot delay={-0.32} />
-    <Dot delay={-0.16} />
-    <Dot delay={0} />
+    <Dot $delay={-0.32} />
+    <Dot $delay={-0.16} />
+    <Dot $delay={0} />
   </DotContainer>
 );
 

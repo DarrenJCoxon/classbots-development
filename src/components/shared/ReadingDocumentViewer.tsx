@@ -129,8 +129,8 @@ export default function ReadingDocumentViewer({
     const videoInfo = parseVideoUrl(documentUrl);
     return (
       <VideoPlayerWithTracking
-        videoInfo={videoInfo}
-        title="Video Content"
+        videoId={videoInfo.videoId || documentUrl}
+        trackProgress={false}
       />
     );
   }

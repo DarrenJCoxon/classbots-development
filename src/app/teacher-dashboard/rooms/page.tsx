@@ -12,7 +12,7 @@ import RoomForm from '@/components/teacher/RoomForm';
 import EditRoomModal from '@/components/teacher/EditRoomModal';
 import ArchivePanel from '@/components/teacher/ArchivePanel';
 import { FullPageLoader } from '@/components/shared/AnimatedLoader';
-import type { Room as BaseRoom, Chatbot, TeacherRoom } from '@/types/database.types';
+import type { Room as BaseRoom, Chatbot, Course, TeacherRoom } from '@/types/database.types';
 import { FiArchive } from 'react-icons/fi';
 
 
@@ -141,6 +141,7 @@ function DeleteModal({ isOpen, itemType, itemName, onConfirm, onCancel, isDeleti
 export default function ManageRoomsPage() {
   const [rooms, setRooms] = useState<TeacherRoom[]>([]);
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRoomForm, setShowRoomForm] = useState(false);
@@ -165,9 +166,10 @@ export default function ManageRoomsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [roomsResponse, chatbotsResponse] = await Promise.all([
+      const [roomsResponse, chatbotsResponse, coursesResponse] = await Promise.all([
         fetch('/api/teacher/rooms'),
-        fetch('/api/teacher/chatbots')
+        fetch('/api/teacher/chatbots'),
+        fetch('/api/teacher/courses')
       ]);
 
       if (!roomsResponse.ok) {
@@ -178,12 +180,20 @@ export default function ManageRoomsPage() {
         const errData = await chatbotsResponse.json().catch(()=>({error: `Failed to parse chatbots error response (status ${chatbotsResponse.status})`}));
         throw new Error(errData.error || `Failed to fetch chatbots (status ${chatbotsResponse.status})`);
       }
+      if (!coursesResponse.ok) {
+        const errData = await coursesResponse.json().catch(()=>({error: `Failed to parse courses error response (status ${coursesResponse.status})`}));
+        throw new Error(errData.error || `Failed to fetch courses (status ${coursesResponse.status})`);
+      }
 
       const roomsData: TeacherRoom[] = await roomsResponse.json();
       const chatbotsData: Chatbot[] = await chatbotsResponse.json();
+      const coursesData: Course[] = await coursesResponse.json();
 
+      console.log('Courses data received:', coursesData);
+      
       setRooms(roomsData);
       setChatbots(chatbotsData);
+      setCourses(Array.isArray(coursesData) ? coursesData : []);
     } catch (err) {
       console.error("Error fetching page data:", err);
       setError(err instanceof Error ? err.message : 'Could not load data.');
@@ -346,6 +356,7 @@ export default function ManageRoomsPage() {
       {showRoomForm && (
         <RoomForm
           chatbots={chatbots}
+          courses={courses}
           onClose={() => setShowRoomForm(false)}
           onSuccess={handleRoomCreatedOrUpdated}
         />
@@ -355,6 +366,7 @@ export default function ManageRoomsPage() {
         <EditRoomModal
           room={editingRoom}
           chatbots={chatbots}
+          courses={courses}
           onClose={handleCloseEditRoom}
           onSuccess={handleRoomEditSuccess}
         />

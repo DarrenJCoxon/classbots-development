@@ -802,6 +802,7 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
                   <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
                   <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Llama-3.1</option>
                   <option value="x-ai/grok-3-mini-beta">Grok-3 Mini</option>
+                  <option value="deepseek/deepseek-r1-0528">DeepSeek-R1</option>
               </StyledSelect>
               <HelpText>
                   This model is used for the Skolr&apos;s direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.

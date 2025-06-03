@@ -33,7 +33,24 @@ const nextConfig: NextConfig = {
   
   // Optimize images
   images: {
-    domains: ['your-supabase-url.supabase.co'], // Add your Supabase domain
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'geafwqcjiopeinpqykpk.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+      },
+    ],
     formats: ['image/avif', 'image/webp'],
   },
   // Configure webpack for react-pdf (client-side PDF viewing)

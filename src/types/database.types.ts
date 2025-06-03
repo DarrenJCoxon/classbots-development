@@ -290,10 +290,15 @@ export interface CreateChatbotPayload {
 export interface CreateRoomPayload {
   room_name: string;
   chatbot_ids: string[];
+  course_ids: string[];
 }
 
 export interface UpdateRoomChatbotsPayload {
   chatbot_ids: string[];
+}
+
+export interface UpdateRoomCoursesPayload {
+  course_ids: string[];
 }
 
 export interface JoinRoomPayload {

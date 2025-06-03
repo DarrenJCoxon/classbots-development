@@ -48,7 +48,6 @@ interface DocumentListWithBatchProps {
   onDeleteDocument: (documentId: string) => Promise<void>;
   onViewStatus: (documentId: string) => void;
   onBatchProcess?: (documentIds: string[]) => Promise<void>;
-  fastMode?: boolean;
 }
 
 export default function DocumentListWithBatch({
@@ -57,7 +56,6 @@ export default function DocumentListWithBatch({
   onDeleteDocument,
   onViewStatus,
   onBatchProcess,
-  fastMode = false
 }: DocumentListWithBatchProps) {
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState<boolean>(false);
@@ -152,7 +150,7 @@ export default function DocumentListWithBatch({
                 >
                   {batchProcessing 
                     ? 'Processing...' 
-                    : `Process ${selectedDocuments.size} Document${selectedDocuments.size > 1 ? 's' : ''} ${fastMode ? '(Fast Mode)' : ''}`
+                    : `Process ${selectedDocuments.size} Document${selectedDocuments.size > 1 ? 's' : ''}`
                   }
                 </ModernButton>
                 <ModernButton

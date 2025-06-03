@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { processDocument } from '@/lib/document-processing/processor';
-import { processDocumentsFast } from '@/lib/document-processing/fast-processor';
 import type { Document } from '@/types/knowledge-base.types';
 
 export const dynamic = 'force-dynamic';
@@ -66,14 +65,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request body format' }, { status: 400 });
     }
 
-    const { documentIds, fastMode = false } = body;
+    const { documentIds } = body;
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
       console.error("[API vectorize-all POST] Missing or invalid documentIds in request body");
       return NextResponse.json({ error: 'Document IDs array is required' }, { status: 400 });
     }
 
-    console.log(`[API vectorize-all POST] Processing ${documentIds.length} documents in ${fastMode ? 'FAST' : 'standard'} mode`);
+    console.log(`[API vectorize-all POST] Processing ${documentIds.length} documents`);
     
     // Get all documents
     const { data: documents, error: documentsError } = await adminSupabase
@@ -120,27 +119,20 @@ export async function POST(request: NextRequest) {
       })
       .in('document_id', documentIdsToProcess);
 
-    // Process in the background
-    if (fastMode) {
-      processDocumentsFast(documentsToProcess as Document[], 5)
-        .catch(error => console.error(`Background FAST batch processing error:`, error));
-    } else {
-      // Process sequentially in standard mode
-      (async () => {
-        for (const doc of documentsToProcess) {
-          try {
-            await processDocument(doc as Document);
-            console.log(`[API vectorize-all POST] Processed document ${doc.document_id}`);
-          } catch (error) {
-            console.error(`[API vectorize-all POST] Error processing document ${doc.document_id}:`, error);
-          }
+    // Process sequentially in the background
+    (async () => {
+      for (const doc of documentsToProcess) {
+        try {
+          await processDocument(doc as Document);
+          console.log(`[API vectorize-all POST] Processed document ${doc.document_id}`);
+        } catch (error) {
+          console.error(`[API vectorize-all POST] Error processing document ${doc.document_id}:`, error);
         }
-      })().catch(error => console.error(`Background standard batch processing error:`, error));
-    }
+      }
+    })().catch(error => console.error(`Background batch processing error:`, error));
 
     return NextResponse.json({ 
       message: `Started processing ${documentsToProcess.length} documents`,
-      mode: fastMode ? 'fast' : 'standard',
       documentsQueued: documentsToProcess.length,
       stats: {
         total: documents.length,

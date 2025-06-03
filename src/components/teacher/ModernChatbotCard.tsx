@@ -349,6 +349,7 @@ const getModelDisplayName = (model: string | undefined) => {
     'google/gemini-2.5-flash-preview-05-20': 'Gemini 2.5 Flash',
     'openai/gpt-4.1-mini': 'GPT-4.1 Mini',
     'nvidia/llama-3.1-nemotron-ultra-253b-v1': 'Llama-3.1',
+    'deepseek/deepseek-r1-0528': 'DeepSeek-R1',
   };
   // For any model not in the map, format it nicely
   if (!modelNames[model]) {

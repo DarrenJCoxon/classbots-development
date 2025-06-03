@@ -132,7 +132,7 @@ export default function StudentLayoutWrapper({
           error: error?.message
         });
 
-        // If there's no student profile, redirect to home
+        // If there's no student profile, check if they're a teacher
         if (!studentProfile) {
           console.log('No student profile found for user:', user.id);
           
@@ -144,13 +144,16 @@ export default function StudentLayoutWrapper({
             .single();
             
           if (teacherProfile) {
-            console.log('User is a teacher, redirecting to teacher dashboard');
-            router.push('/teacher-dashboard');
+            console.log('User is a teacher - allowing access for testing purposes');
+            // Allow teachers to access student pages for testing
+            setIsAuthorized(true);
+            setIsLoading(false);
+            return;
           } else {
             console.log('No profile found, redirecting to home');
             router.push('/');
+            return;
           }
-          return;
         }
 
         setIsAuthorized(true);
