@@ -44,6 +44,13 @@ interface DashboardData {
     is_active: boolean;
     joined_at: string;
     chatbot_count: number;
+    course_count: number;
+    courses: Array<{
+      course_id: string;
+      title: string;
+      description?: string;
+      subject?: string;
+    }>;
     rooms: {
       id: string;
       name: string;
@@ -650,8 +657,33 @@ export default function StudentDashboardPage() {
                     <h3>{room.rooms.name}</h3>
                     <span className="room-code">{room.rooms.room_code}</span>
                     <p className="chatbot-count">
-                      {room.chatbot_count} {room.chatbot_count === 1 ? 'Skolr' : 'Skolrs'} available
+                      {room.chatbot_count} {room.chatbot_count === 1 ? 'Skolr' : 'Skolrs'}
+                      {room.course_count > 0 && (
+                        <span> • {room.course_count} {room.course_count === 1 ? 'Course' : 'Courses'}</span>
+                      )}
                     </p>
+                    {room.courses && room.courses.length > 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <p style={{ fontSize: '12px', color: '#666', margin: '4px 0' }}>Courses:</p>
+                        {room.courses.map(course => (
+                          <div 
+                            key={course.course_id} 
+                            style={{ 
+                              fontSize: '12px', 
+                              color: '#4CAF50', 
+                              margin: '2px 0',
+                              cursor: 'pointer'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/student/courses/${course.course_id}`);
+                            }}
+                          >
+                            📚 {course.title}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <ModernButton 
                     onClick={() => enterRoom(room.room_id)} 

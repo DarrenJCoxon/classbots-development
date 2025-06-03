@@ -3,7 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   compiler: {
-    styledComponents: true,
+    styledComponents: {
+      displayName: true,
+      ssr: true,
+      fileName: false,
+      topLevelImportPaths: [],
+      meaninglessFileNames: ["index", "styles"],
+    },
   },
   // Explicitly pass environment variables to the browser
   env: {

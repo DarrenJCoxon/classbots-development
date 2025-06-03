@@ -1,7 +1,19 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Header from './Header';
+import dynamic from 'next/dynamic';
+
+// Load Header with no SSR to prevent hydration mismatches
+const Header = dynamic(() => import('./Header'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ 
+      height: '60px', 
+      borderBottom: '1px solid #e2e8f0',
+      background: '#ffffff'
+    }} />
+  )
+});
 
 export default function ConditionalHeader() {
   const pathname = usePathname();

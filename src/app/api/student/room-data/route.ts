@@ -78,9 +78,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get chatbots for the room (with caching)
-    const cacheKey = `room-chatbots-full:${roomId}:${userId}`;
-    const chatbots = await cache.get(
+    // Get both chatbots and courses for the room (with caching)
+    const cacheKey = `room-data-full:${roomId}:${userId}`;
+    const roomData = await cache.get(
       cacheKey,
       async () => {
         const { data: roomChatbots, error: chatbotsRelationError } = await supabaseAdmin
@@ -201,7 +201,36 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        return chatbots;
+        // Get courses for the room
+        const { data: roomCourses, error: coursesRelationError } = await supabaseAdmin
+          .from('room_courses')
+          .select(`
+            course_id,
+            courses (
+              course_id,
+              title,
+              description,
+              subject,
+              is_published,
+              course_lessons (
+                lesson_id,
+                title,
+                lesson_order
+              )
+            )
+          `)
+          .eq('room_id', roomId);
+
+        if (coursesRelationError) {
+          console.error('[API GET /student/room-data] Error fetching room courses:', coursesRelationError);
+        }
+
+        // Filter to only published courses and format them
+        const courses = roomCourses?.map(rc => rc.courses).filter((course: any) => 
+          course && course.is_published
+        ) || [];
+
+        return { chatbots, courses };
       },
       {
         ttl: CacheTTL.VERY_SHORT, // 1 minute - student instances can change
@@ -213,13 +242,14 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    // Return room and chatbots data
+    // Return room, chatbots, and courses data
     return createSuccessResponse({
       room: {
         ...room,
         room_chatbots: []
       },
-      chatbots: chatbots
+      chatbots: roomData.chatbots,
+      courses: roomData.courses
     });
   } catch (error) {
     console.error('[API GET /student/room-data] General error:', error);

@@ -110,11 +110,13 @@ export async function GET() {
       pin_code: userResult.data?.pin_code
     })
 
-    // Get chatbot counts for each room
+    // Get chatbot counts and courses for each room
     const roomIds = roomsResult.data?.map(r => r.room_id) || []
     let chatbotCounts: Record<string, number> = {}
+    let roomCourses: Record<string, any[]> = {}
     
     if (roomIds.length > 0) {
+      // Fetch chatbot counts
       const { data: chatbotData } = await supabaseAdmin
         .from('room_chatbots')
         .select('room_id, chatbot_id')
@@ -126,15 +128,46 @@ export async function GET() {
           return acc
         }, {} as Record<string, number>)
       }
+
+      // Fetch courses for each room
+      const { data: coursesData } = await supabaseAdmin
+        .from('room_courses')
+        .select(`
+          room_id,
+          courses (
+            course_id,
+            title,
+            description,
+            subject,
+            is_published
+          )
+        `)
+        .in('room_id', roomIds)
+      
+      if (coursesData) {
+        roomCourses = coursesData.reduce((acc, item) => {
+          const course = item.courses as any;
+          // Only include published courses for students
+          if (course && course.is_published) {
+            if (!acc[item.room_id]) {
+              acc[item.room_id] = [];
+            }
+            acc[item.room_id].push(course);
+          }
+          return acc
+        }, {} as Record<string, any[]>)
+      }
     }
 
-    // Format rooms with chatbot counts and fix structure
+    // Format rooms with chatbot counts, courses, and fix structure
     const formattedRooms = roomsResult.data?.map(membership => {
       const room = membership.rooms as any; // rooms is a single object from the join
       return {
         room_id: membership.room_id,
         joined_at: membership.joined_at,
         chatbot_count: chatbotCounts[membership.room_id] || 0,
+        course_count: roomCourses[membership.room_id]?.length || 0,
+        courses: roomCourses[membership.room_id] || [],
         is_active: room?.is_active ?? true,
         rooms: {
           id: membership.room_id,

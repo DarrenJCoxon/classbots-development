@@ -245,6 +245,7 @@ interface RoomQueryResult {
 export default function ChatPage() {
   const [room, setRoom] = useState<RoomQueryResult | null>(null);
   const [chatbot, setChatbot] = useState<Chatbot | null>(null);
+  const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStudent, setIsStudent] = useState(false);

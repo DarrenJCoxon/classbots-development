@@ -117,6 +117,87 @@ const ChatbotGrid = styled.div`
   }
 `;
 
+const CoursesSection = styled.div`
+  margin-top: ${({ theme }) => theme.spacing.xl};
+  
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: ${({ theme }) => theme.fonts.heading};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: ${({ theme }) => theme.spacing.lg};
+    background: linear-gradient(135deg, 
+      ${({ theme }) => theme.colors.primary}, 
+      ${({ theme }) => theme.colors.blue}
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      font-size: 24px;
+      text-align: center;
+    }
+  }
+`;
+
+const CourseGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: ${({ theme }) => theme.spacing.xl};
+  
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    gap: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
+const CourseCard = styled(Card)`
+  position: relative;
+  transition: transform ${({ theme }) => theme.transitions.fast}, box-shadow ${({ theme }) => theme.transitions.fast};
+  cursor: pointer;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: ${({ theme }) => theme.shadows.lg};
+  }
+  
+  h3 {
+    color: ${({ theme }) => theme.colors.text};
+    margin-bottom: ${({ theme }) => theme.spacing.sm};
+    font-size: 1.5rem;
+  }
+  
+  p {
+    color: ${({ theme }) => theme.colors.textLight};
+    margin-bottom: ${({ theme }) => theme.spacing.lg};
+    min-height: 3rem;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      min-height: auto;
+    }
+  }
+  
+  .course-subject {
+    font-size: 0.875rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+    background: ${({ theme }) => theme.colors.backgroundDark};
+    padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+    border-radius: ${({ theme }) => theme.borderRadius.small};
+    margin-bottom: ${({ theme }) => theme.spacing.lg};
+    display: inline-block;
+  }
+  
+  .course-button {
+    width: 100%;
+    
+    @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+      min-height: 44px;
+    }
+  }
+`;
+
 const ChatbotCard = styled(Card)`
   position: relative;
   transition: transform ${({ theme }) => theme.transitions.fast}, box-shadow ${({ theme }) => theme.transitions.fast};
@@ -188,6 +269,63 @@ const LoadingContainer = styled.div`
   min-height: 50vh;
 `;
 
+// Placeholder component to prevent layout shift
+function CoursesPlaceholder() {
+  return (
+    <CoursesSection>
+      <div style={{ 
+        height: '32px', 
+        width: '200px', 
+        background: '#f0f0f0', 
+        borderRadius: '8px',
+        marginBottom: '24px',
+        opacity: 0.3
+      }} />
+    </CoursesSection>
+  );
+}
+
+// Client-side only courses component to prevent hydration issues
+function CoursesClientComponent({ courses }: { courses: any[] }) {
+  if (courses.length === 0) return null;
+  
+  return (
+    <CoursesSection>
+      <h2>📚 Available Courses</h2>
+      <CourseGrid>
+        {courses.map((course) => (
+          <Link 
+            key={course.course_id} 
+            href={`/student/courses/${course.course_id}`}
+            style={{ textDecoration: 'none' }}
+          >
+            <CourseCard>
+              <h3>{course.title}</h3>
+              <p>{course.description || 'No description available'}</p>
+              
+              {course.subject && (
+                <div className="course-subject">
+                  {course.subject}
+                </div>
+              )}
+              
+              <ModernButton 
+                className="course-button"
+                as="div"  // Prevent double link
+                variant="secondary"
+                size="medium"
+                fullWidth
+              >
+                View Lessons
+              </ModernButton>
+            </CourseCard>
+          </Link>
+        ))}
+      </CourseGrid>
+    </CoursesSection>
+  );
+}
+
 
 // Extended chatbot interface to include instance_id
 interface ChatbotWithInstance extends Chatbot {
@@ -210,10 +348,12 @@ interface RoomQueryResult {
 export default function RoomPage() {
   const [room, setRoom] = useState<RoomQueryResult | null>(null);
   const [chatbots, setChatbots] = useState<ChatbotWithInstance[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStudent, setIsStudent] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   
   const params = useParams();
   const roomId = params?.roomId as string;
@@ -375,7 +515,6 @@ export default function RoomPage() {
 
       // Get basic room info
       if (uidFromUrl || directAccess || directAccessMode) {
-        console.log('[RoomPage] Using direct API endpoint for room data');
         // Use admin API to get data
         try {
           // Use the most reliable user ID available
@@ -393,6 +532,7 @@ export default function RoomPage() {
           const data = result.success ? result.data : result;
           setRoom(data.room);
           setChatbots(data.chatbots || []);
+          setCourses(data.courses || []);
           return;
         } catch (apiError) {
           console.error('[RoomPage] Error fetching room data via API:', apiError);
@@ -442,12 +582,39 @@ export default function RoomPage() {
         extractedChatbots.push(...(chatbots || []));
       }
       
+      // Fetch courses for the room
+      const { data: roomCourses, error: coursesError } = await supabase
+        .from('room_courses')
+        .select(`
+          course_id,
+          courses (
+            course_id,
+            title,
+            description,
+            subject,
+            is_published
+          )
+        `)
+        .eq('room_id', roomId);
+
+      // Extract and filter courses (only published ones for students)
+      const extractedCourses: any[] = [];
+      if (roomCourses && !coursesError) {
+        roomCourses.forEach(rc => {
+          const course = rc.courses as any;
+          if (course && course.is_published) {
+            extractedCourses.push(course);
+          }
+        });
+      }
+      
       // Set the state variables
       setRoom({
         ...roomData,
         room_chatbots: []
       } as RoomQueryResult);
       setChatbots(extractedChatbots);
+      setCourses(extractedCourses);
     } catch (err) {
       console.error('[RoomPage] Error in fetchRoomData:', err);
       setError(err instanceof Error ? err.message : 'Failed to load room');
@@ -455,6 +622,15 @@ export default function RoomPage() {
       setLoading(false);
     }
   }, [roomId, uidFromUrl, supabase, searchParams]);
+
+  // Add hydration effect with minimal delay for better UX
+  useEffect(() => {
+    // Use requestAnimationFrame to ensure DOM is ready
+    const frame = requestAnimationFrame(() => {
+      setIsHydrated(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     if (uidFromUrl) {
@@ -561,6 +737,7 @@ export default function RoomPage() {
               {chatbots.length === 0 ? 'No Skolrs available' : 
                chatbots.length === 1 ? '1 Skolr available' :
                `${chatbots.length} Skolrs available`}
+               {courses.length > 0 && ` • ${courses.length} ${courses.length === 1 ? 'Course' : 'Courses'}`}
             </p>
             <div className="room-code">Room Code: {room.room_code}</div>
           </RoomInfo>
@@ -666,6 +843,12 @@ export default function RoomPage() {
           </ChatbotGrid>
         )}
         
+        {/* Courses Section - Client-side only to prevent hydration issues */}
+        {isHydrated ? (
+          <CoursesClientComponent courses={courses} />
+        ) : (
+          courses.length > 0 && <CoursesPlaceholder />
+        )}
         
         {/* Student list section - only visible to teachers */}
         {userRole === 'teacher' && (
