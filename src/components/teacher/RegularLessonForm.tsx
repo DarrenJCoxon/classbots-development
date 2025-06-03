@@ -200,7 +200,15 @@ export function RegularLessonForm({ courseId, lesson, onSuccess, onCancel }: Reg
     setError(null);
 
     try {
-      const payload = {
+      const payload = isEditing ? {
+        lesson_id: lesson.lesson_id,
+        title: formData.title.trim(),
+        description: formData.description.trim() || null,
+        video_url: formData.video_url.trim(),
+        video_platform: validatedVideo.platform,
+        lesson_order: formData.lesson_order,
+        is_active: true
+      } : {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         video_url: formData.video_url.trim(),
@@ -209,10 +217,7 @@ export function RegularLessonForm({ courseId, lesson, onSuccess, onCancel }: Reg
         is_active: true
       };
 
-      const url = isEditing 
-        ? `/api/teacher/courses/${courseId}/lessons/${lesson.lesson_id}`
-        : `/api/teacher/courses/${courseId}/lessons`;
-        
+      const url = `/api/teacher/courses/${courseId}/lessons`;
       const method = isEditing ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
