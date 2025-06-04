@@ -939,6 +939,36 @@ export async function POST(request: NextRequest) {
         console.error(`[PROMPT] CRITICAL ERROR: System prompt is empty after processing - using emergency default`);
         teacherSystemPrompt = defaultSystemPrompt;
     }
+    
+    // DEBUG: Log chatbot config to understand what we're working with
+    console.log(`[PROMPT DEBUG] Chatbot ${chatbot_id} configuration:`, {
+        bot_type: chatbotConfig.bot_type,
+        has_assessment_criteria: !!chatbotConfig.assessment_criteria_text,
+        assessment_criteria_length: chatbotConfig.assessment_criteria_text?.length || 0,
+        assessment_criteria_preview: chatbotConfig.assessment_criteria_text ? 
+            `"${chatbotConfig.assessment_criteria_text.substring(0, 100)}${chatbotConfig.assessment_criteria_text.length > 100 ? '...' : ''}"` : 
+            'null'
+    });
+    
+    // For assessment bots, add the assessment criteria to the system prompt
+    if (chatbotConfig.bot_type === 'assessment') {
+        if (chatbotConfig.assessment_criteria_text && chatbotConfig.assessment_criteria_text.trim() !== '') {
+            console.log(`[PROMPT] Adding assessment criteria for assessment bot ${chatbot_id}`);
+            console.log(`[PROMPT] Assessment criteria length: ${chatbotConfig.assessment_criteria_text.length} chars`);
+            console.log(`[PROMPT] Assessment criteria content: "${chatbotConfig.assessment_criteria_text.substring(0, 200)}..."`);
+            
+            teacherSystemPrompt = `${teacherSystemPrompt}
+
+ASSESSMENT CRITERIA AND RUBRIC:
+${chatbotConfig.assessment_criteria_text}
+
+IMPORTANT: Use the above criteria to guide your interactions with students. Help them demonstrate their understanding based on these assessment points. Do not explicitly mention that you are assessing them during the conversation.`;
+            
+            console.log(`[PROMPT] System prompt after adding assessment criteria: ${teacherSystemPrompt.length} chars`);
+        } else {
+            console.warn(`[PROMPT] WARNING: Assessment bot ${chatbot_id} has no assessment criteria text!`);
+        }
+    }
 
     const {
         model: modelToUseFromConfig = 'openai/gpt-4.1-mini',
