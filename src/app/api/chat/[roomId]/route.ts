@@ -1069,9 +1069,44 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
 
     const messagesForAPI = [ { role: 'system', content: systemPromptForLLM }, ...contextMessages.reverse(), { role: 'user', content: trimmedContent } ];
 
+    // Enhanced logging for debugging model issues
+    console.log(`[API Chat POST] Sending request to OpenRouter with model: ${finalModelToUse}`);
+    
+    // Special handling for DeepSeek models
+    let adjustedMaxTokens = maxTokensToUse;
+    if (finalModelToUse.includes('deepseek')) {
+        // DeepSeek models might have specific token limits
+        adjustedMaxTokens = Math.min(maxTokensToUse, 4096); // Limit to 4096 for DeepSeek
+        console.log(`[API Chat POST] Adjusted max_tokens for DeepSeek: ${adjustedMaxTokens}`);
+    }
+    
+    const requestBody = {
+        model: finalModelToUse,
+        messages: messagesForAPI,
+        temperature: temperatureToUse,
+        max_tokens: adjustedMaxTokens,
+        stream: true
+    };
+    
+    const headers = {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-Title': 'ClassBots AI',
+        'Content-Type': 'application/json'
+    };
+    
+    // Log headers (without API key) for debugging
+    console.log(`[API Chat POST] Request headers:`, {
+        'HTTP-Referer': headers['HTTP-Referer'],
+        'X-Title': headers['X-Title'],
+        'Content-Type': headers['Content-Type'],
+        'Authorization': 'Bearer [REDACTED]'
+    });
+    
     const openRouterResponse = await fetch(OPENROUTER_API_URL, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || process.env.OPENROUTER_SITE_URL || 'http://localhost:3000', 'X-Title': 'ClassBots AI', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: finalModelToUse, messages: messagesForAPI, temperature: temperatureToUse, max_tokens: maxTokensToUse, stream: true }),
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
     });
 
     if (!openRouterResponse.ok || !openRouterResponse.body) {
@@ -1079,6 +1114,7 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
         
         // Enhanced logging to help debug the exact issue
         console.error(`OpenRouter Error: Status ${openRouterResponse.status} for room ${roomId}`, errorBody);
+        console.error(`Model attempted: ${finalModelToUse}`);
         
         try {
             // Try to parse the error JSON for more details
@@ -1088,8 +1124,41 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
                 message: errorJson.error?.message || "Unknown error",
                 code: errorJson.error?.code || "No code",
                 metadata: errorJson.error?.metadata || {},
-                provider: errorJson.error?.metadata?.provider_name || "Unknown provider"
+                provider: errorJson.error?.metadata?.provider_name || "Unknown provider",
+                model: finalModelToUse
             });
+            
+            // Handle specific error codes
+            if (openRouterResponse.status === 406) {
+                console.error(`406 Not Acceptable error for model: ${finalModelToUse}`);
+                
+                // Provide a user-friendly message for 406 errors
+                const errorMessage = `The selected AI model (${finalModelToUse}) is temporarily unavailable. Please try a different model or contact support.`;
+                
+                // Save error message to show to user
+                const errorMessageData = {
+                    room_id: roomId,
+                    user_id: 'system',
+                    role: 'assistant' as const,
+                    content: errorMessage,
+                    metadata: {
+                        chatbotId: chatbot_id,
+                        error: true,
+                        errorCode: 406,
+                        model: finalModelToUse
+                    }
+                };
+                
+                await supabaseAdmin
+                    .from('chat_messages')
+                    .insert(errorMessageData);
+                
+                return NextResponse.json({ 
+                    error: errorMessage,
+                    errorCode: 406,
+                    model: finalModelToUse
+                }, { status: 406 });
+            }
             
             // If it's a rate limit error (429), provide a more specific message
             if (openRouterResponse.status === 429) {
