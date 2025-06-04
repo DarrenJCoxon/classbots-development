@@ -136,11 +136,15 @@ function detectJailbreakAttempts(message: string): {
     /<\|.*\|>/, // Special delimiter syntax
   ];
   
-  for (const pattern of commandPatterns) {
-    if (pattern.test(message)) {
-      const match = message.match(pattern);
-      if (match) {
-        detectedPatterns.push(`Command pattern: ${match[0]}`);
+  // Skip command pattern check for allowed commands
+  const allowedCommands = ['/assess'];
+  if (!allowedCommands.includes(message.trim().toLowerCase())) {
+    for (const pattern of commandPatterns) {
+      if (pattern.test(message)) {
+        const match = message.match(pattern);
+        if (match) {
+          detectedPatterns.push(`Command pattern: ${match[0]}`);
+        }
       }
     }
   }
@@ -243,6 +247,18 @@ export async function moderateContent(
 ): Promise<ModerationResult> {
   try {
     console.log('[AI Moderation] Starting moderation check for message');
+    
+    // Skip moderation for assessment command
+    if (message.trim().toLowerCase() === '/assess') {
+      console.log('[AI Moderation] Skipping moderation for assessment command');
+      return {
+        isFlagged: false,
+        categories: [],
+        severity: 'low',
+        reason: '',
+        jailbreakDetected: false
+      };
+    }
     
     // Step 1: Check for jailbreak attempts
     const jailbreakCheck = detectJailbreakAttempts(message);

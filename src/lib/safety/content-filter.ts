@@ -208,6 +208,11 @@ export function filterMessageContent(
     return { isBlocked: false, cleanedMessage: message };
   }
 
+  // Allow assessment command through without filtering
+  if (message.trim().toLowerCase() === '/assess') {
+    return { isBlocked: false, cleanedMessage: message };
+  }
+
   let cleanedMessage = message;
   const flaggedPatterns: string[] = [];
   let shouldBlock = false;
