@@ -4,6 +4,7 @@
 import styled, { css } from 'styled-components'; // Added css import
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { FiVolume2, FiVolumeX, FiLoader } from 'react-icons/fi';
 import { IconButton } from '@/components/shared/ModernButton';;
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
@@ -266,6 +267,9 @@ function getCountryNameFromCode(code: string): string {
 const markdownComponents: Components = {
     a: (props) => (<a {...props} target="_blank" rel="noopener noreferrer" />),
     input: (props) => { const { checked, ...rest } = props; return (<input type="checkbox" checked={!!checked} disabled={true} readOnly {...rest} /> ); },
+    // Support for details/summary HTML tags for collapsible content
+    details: (props) => <details {...props} />,
+    summary: (props) => <summary {...props} style={{ cursor: 'pointer', userSelect: 'none' }} />,
     code({ className, children, inline, ...props }: React.HTMLAttributes<HTMLElement> & { className?: string; children?: React.ReactNode; inline?: boolean; }) {
         const match = /language-(\w+)/.exec(className || '');
         const codeString = String(children).replace(/\n$/, '');
@@ -498,6 +502,7 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                 <MessageContent $isUser={isUser}>
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
                         components={markdownComponents}
                     >
                         {message.content || ''}

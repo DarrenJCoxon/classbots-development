@@ -1054,7 +1054,19 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
     
     // Assemble the full system prompt with all necessary components
     // This is CRITICAL - we need all these components for proper functioning
-    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${under13Instructions}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}${memoryContext ? `\n\n${memoryContext}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    let systemPromptForLLM: string;
+    
+    if (finalModelToUse.includes('deepseek')) {
+        // Optimized, shorter system prompt for DeepSeek to improve performance
+        const essentialSafetyRules = `SAFETY: You are an AI for students. Never generate inappropriate, harmful, or explicit content. Redirect sensitive topics to appropriate adults or resources.`;
+        
+        systemPromptForLLM = `${essentialSafetyRules}\n\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nContext: ${ragContextText}` : ''}`;
+        
+        console.log(`[PROMPT] Using optimized DeepSeek prompt: ${systemPromptForLLM.length} chars (reduced from full prompt)`);
+    } else {
+        // Full system prompt for other models
+        systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${under13Instructions}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}${memoryContext ? `\n\n${memoryContext}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    }
 
     // Enhanced logging to track system prompt and RAG usage
     console.log(`[PROMPT] Final system prompt assembled with following components:`);
@@ -1074,10 +1086,40 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
     
     // Special handling for DeepSeek models
     let adjustedMaxTokens = maxTokensToUse;
+    let deepseekThinkingMessageId: string | null = null;
+    
     if (finalModelToUse.includes('deepseek')) {
         // DeepSeek models might have specific token limits
         adjustedMaxTokens = Math.min(maxTokensToUse, 4096); // Limit to 4096 for DeepSeek
         console.log(`[API Chat POST] Adjusted max_tokens for DeepSeek: ${adjustedMaxTokens}`);
+        
+        // Insert a thinking message for DeepSeek
+        const thinkingMessage = {
+            room_id: roomId,
+            user_id: 'assistant',
+            role: 'assistant' as const,
+            content: '<details><summary>🤔 DeepSeek is thinking deeply about your question...</summary>\nDeepSeek R1 is analyzing your request. This advanced model performs extensive reasoning before responding, which typically takes 20-40 seconds. The wait is worth it for more thoughtful and accurate responses.</details>',
+            metadata: {
+                chatbotId: chatbot_id,
+                isThinking: true,
+                model: finalModelToUse
+            }
+        };
+        
+        if (isStudent && studentChatbotInstanceId) {
+            (thinkingMessage as any).instance_id = studentChatbotInstanceId;
+        }
+        
+        const { data: thinkingMsgData, error: thinkingError } = await supabaseAdmin
+            .from('chat_messages')
+            .insert(thinkingMessage)
+            .select('message_id')
+            .single();
+            
+        if (!thinkingError && thinkingMsgData) {
+            deepseekThinkingMessageId = thinkingMsgData.message_id;
+            console.log(`[API Chat POST] Created thinking message for DeepSeek: ${deepseekThinkingMessageId}`);
+        }
     }
     
     const requestBody = {
@@ -1245,6 +1287,21 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
                             
                             if (typeof piece === 'string') { 
                                 fullResponseContent += piece; 
+                                
+                                // Delete the thinking message on first content for DeepSeek
+                                if (deepseekThinkingMessageId && fullResponseContent.length === piece.length) {
+                                    console.log(`[API Chat POST] Deleting thinking message: ${deepseekThinkingMessageId}`);
+                                    supabaseAdmin
+                                        .from('chat_messages')
+                                        .delete()
+                                        .eq('message_id', deepseekThinkingMessageId)
+                                        .then(({ error }) => {
+                                            if (error) {
+                                                console.error('[API Chat POST] Error deleting thinking message:', error);
+                                            }
+                                        });
+                                    deepseekThinkingMessageId = null; // Prevent multiple deletion attempts
+                                }
                                 
                                 // Update the message in the database periodically
                                 // This helps with long responses
