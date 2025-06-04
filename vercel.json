@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "src/app/api/teacher/documents/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/teacher/documents",
+      "methods": ["POST"],
+      "continue": true,
+      "headers": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  ]
+}

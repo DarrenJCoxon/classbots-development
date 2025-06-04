@@ -31,6 +31,10 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['styled-components', 'react-icons', 'framer-motion'],
     webpackBuildWorker: true, // Use worker for webpack builds
+    // Configure larger body size limit for file uploads (50MB)
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   },
   
   // Optimize production builds

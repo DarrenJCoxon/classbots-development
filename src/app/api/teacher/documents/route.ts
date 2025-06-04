@@ -10,6 +10,10 @@ import { processDocument as processDocumentFile } from '@/lib/document-processin
 console.log('[API /documents] processDocumentFile imported:', typeof processDocumentFile);
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60 seconds timeout for processing large files
+
+// IMPORTANT: For Next.js 14+ App Router, body size limit must be configured differently
+// The default limit is 1MB which causes 413 errors for larger PDFs
 
 // Helper function to determine file type
 function getFileTypeFromFile(file: File): DocumentType | null {
@@ -104,6 +108,22 @@ export async function GET(request: NextRequest) {
 // --- POST Handler: Upload a new document (file or URL) for a chatbot ---
 export async function POST(request: NextRequest) {
   console.log("[API /documents POST] Document/URL add request received");
+  
+  // Check Content-Length header to prevent 413 errors early
+  const contentLength = request.headers.get('content-length');
+  if (contentLength) {
+    const sizeInMB = parseInt(contentLength) / (1024 * 1024);
+    console.log(`[API /documents POST] Request size: ${sizeInMB.toFixed(2)}MB`);
+    
+    // Check against 50MB limit (same as configured in next.config.ts)
+    if (sizeInMB > 50) {
+      return NextResponse.json(
+        { error: `File too large. Maximum total request size is 50MB. Your request is ${sizeInMB.toFixed(2)}MB.` },
+        { status: 413 }
+      );
+    }
+  }
+  
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -200,8 +220,11 @@ export async function POST(request: NextRequest) {
         const fileType = getFileTypeFromFile(file);
         if (!fileType) return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
 
-        const MAX_FILE_SIZE_MB = 10;
-        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        // Use environment variable for max file size, with fallback to 50MB
+        const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 50 * 1024 * 1024;
+        const MAX_FILE_SIZE_MB = MAX_FILE_SIZE / (1024 * 1024);
+        
+        if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.` }, { status: 413 });
         }
 

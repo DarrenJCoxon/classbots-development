@@ -51,17 +51,29 @@ export default function TeacherDashboardPage() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
-        const { data: recentJoins } = await supabase
+        // Ensure roomIds contains valid values
+        const validRoomIds = roomIds.filter(id => id && typeof id === 'string');
+        if (validRoomIds.length === 0) {
+          console.warn('No valid room IDs found for teacher:', userId);
+          setRecentActivity([]);
+          return;
+        }
+        
+        const { data: recentJoins, error: joinError } = await supabase
           .from('room_memberships')
           .select(`
             student_id,
             room_id,
             created_at
           `)
-          .in('room_id', roomIds)
+          .in('room_id', validRoomIds)
           .gte('created_at', sevenDaysAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5);
+          
+        if (joinError) {
+          console.error('Error fetching recent joins:', joinError);
+        }
           
         // Get student profiles separately
         let studentProfiles = new Map();
@@ -92,7 +104,7 @@ export default function TeacherDashboardPage() {
         });
         
         // Fetch recent assessments
-        const { data: recentAssessments } = await supabase
+        const { data: recentAssessments, error: assessmentError } = await supabase
           .from('student_assessments')
           .select(`
             assessment_id,
@@ -102,10 +114,14 @@ export default function TeacherDashboardPage() {
             student_id,
             chatbot_id
           `)
-          .in('room_id', roomIds)
+          .in('room_id', validRoomIds)
           .gte('assessed_at', sevenDaysAgo.toISOString())
           .order('assessed_at', { ascending: false })
           .limit(5);
+          
+        if (assessmentError) {
+          console.error('Error fetching recent assessments:', assessmentError);
+        }
           
         // Get student profiles and chatbot names for assessments
         let assessmentStudentProfiles = new Map();
