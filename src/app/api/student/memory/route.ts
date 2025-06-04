@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import openai from '@/lib/openai/client';
+// OpenRouter is used for all LLM completions
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +34,6 @@ async function generateConversationSummary(
   messages: Array<{ role: string; content: string }>,
   chatbotName: string
 ): Promise<MemoryResponse> {
-  // openai is already imported
-  
   // Create a conversation transcript
   const transcript = messages
     .map(m => `${m.role === 'user' ? 'Student' : chatbotName}: ${m.content}`)
@@ -65,21 +64,38 @@ Return your response as valid JSON matching this structure:
 }`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Analyze this conversation:\n\n${transcript}` }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
+    // Use OpenRouter for the completion
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'ClassBots AI',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4.1-nano', // Using the nano model as requested
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Analyze this conversation:\n\n${transcript}` }
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' }
+      })
     });
 
-    const response = completion.choices[0].message.content;
-    return JSON.parse(response || '{}');
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('OpenRouter error:', errorBody);
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+    return JSON.parse(content || '{}');
   } catch (error) {
     console.error('Error generating summary:', error);
-    // Return a basic summary if GPT fails
+    // Return a basic summary if the API fails
     return {
       summary: 'Student had a conversation with the chatbot.',
       keyTopics: [],
