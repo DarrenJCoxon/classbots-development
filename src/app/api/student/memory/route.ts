@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { memoryQueue, MemoryJobData } from '@/lib/queue/memory-queue';
 // OpenRouter is used for all LLM completions
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -137,17 +138,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get chatbot name for context
-    const adminSupabase = createAdminClient();
-    const { data: chatbot } = await adminSupabase
-      .from('chatbots')
-      .select('name')
-      .eq('chatbot_id', chatbotId)
-      .single();
-
-    const chatbotName = chatbot?.name || 'Assistant';
-
     // Check if there's a recent memory save (within last 15 minutes) to prevent duplicates
+    const adminSupabase = createAdminClient();
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { data: recentMemory } = await adminSupabase
       .from('student_chat_memories')
@@ -175,118 +167,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate conversation summary
-    const memory = await generateConversationSummary(messages, chatbotName);
-
-    // Calculate session duration
-    const sessionDuration = Math.floor(
-      (new Date().getTime() - new Date(sessionStartTime).getTime()) / 1000
-    );
-
-    // Save memory to database
-    const { data: savedMemory, error: saveError } = await adminSupabase
-      .from('student_chat_memories')
-      .insert({
-        student_id: studentId,
-        chatbot_id: chatbotId,
-        room_id: roomId,
-        conversation_summary: memory.summary,
-        key_topics: memory.keyTopics,
-        learning_insights: memory.learningInsights,
-        next_steps: memory.nextSteps,
-        message_count: messages.length,
-        session_duration_seconds: sessionDuration
-      })
-      .select()
-      .single();
-
-    if (saveError) {
-      console.error('Error saving memory:', saveError);
-      return NextResponse.json({ error: 'Failed to save memory' }, { status: 500 });
-    }
-
-    // Update or create learning profile
-    const { data: existingProfile } = await adminSupabase
-      .from('student_learning_profiles')
-      .select('*')
-      .eq('student_id', studentId)
-      .eq('chatbot_id', chatbotId)
-      .single();
-
-    if (existingProfile) {
-      // Update existing profile
-      const updatedTopicsInProgress = new Set([
-        ...existingProfile.topics_in_progress,
-        ...memory.keyTopics
-      ]);
-      
-      const updatedTopicProgress = { ...existingProfile.topic_progress };
-      memory.keyTopics.forEach(topic => {
-        if (!updatedTopicProgress[topic]) {
-          updatedTopicProgress[topic] = { level: 50, last_reviewed: new Date().toISOString() };
-        } else {
-          updatedTopicProgress[topic].last_reviewed = new Date().toISOString();
+    // Prepare job data for the queue
+    const jobData: MemoryJobData = {
+      userId: studentId,
+      roomId: roomId,
+      memory: {
+        content: JSON.stringify({
+          studentId,
+          chatbotId,
+          messages,
+          sessionStartTime,
+          sessionDuration: Math.floor(
+            (new Date().getTime() - new Date(sessionStartTime).getTime()) / 1000
+          )
+        }),
+        metadata: {
+          chatbotId,
+          messageCount: messages.length,
+          sessionStartTime
         }
-      });
+      },
+      priority: messages.length > 20 ? 'high' : 'normal' // Prioritize longer conversations
+    };
 
-      // Move understood concepts to mastered if confidence is high
-      memory.learningInsights.understood.forEach(concept => {
-        const currentLevel = updatedTopicProgress[concept]?.level || 50;
-        updatedTopicProgress[concept] = {
-          level: Math.min(100, currentLevel + 10),
-          last_reviewed: new Date().toISOString()
-        };
-      });
+    // Add job to queue with priority
+    const job = await memoryQueue.add('process-memory', jobData, {
+      priority: jobData.priority === 'high' ? 1 : jobData.priority === 'low' ? 3 : 2,
+      delay: 0, // Process immediately
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
 
-      // Track struggling concepts
-      memory.learningInsights.struggling.forEach(concept => {
-        const currentLevel = updatedTopicProgress[concept]?.level || 50;
-        updatedTopicProgress[concept] = {
-          level: Math.max(0, currentLevel - 5),
-          last_reviewed: new Date().toISOString()
-        };
-      });
+    console.log(`[Memory API] Added job ${job.id} to queue for student ${studentId}`);
 
-      await adminSupabase
-        .from('student_learning_profiles')
-        .update({
-          topics_in_progress: Array.from(updatedTopicsInProgress),
-          topic_progress: updatedTopicProgress,
-          total_sessions: existingProfile.total_sessions + 1,
-          total_messages: existingProfile.total_messages + messages.filter(m => m.role === 'user').length, // Only count user messages
-          last_session_at: new Date().toISOString()
-        })
-        .eq('id', existingProfile.id);
-    } else {
-      // Create new profile
-      const topicProgress: Record<string, any> = {};
-      memory.keyTopics.forEach(topic => {
-        topicProgress[topic] = { level: 50, last_reviewed: new Date().toISOString() };
-      });
-
-      await adminSupabase
-        .from('student_learning_profiles')
-        .insert({
-          student_id: studentId,
-          chatbot_id: chatbotId,
-          room_id: roomId,
-          topics_in_progress: memory.keyTopics,
-          topic_progress: topicProgress,
-          total_sessions: 1,
-          total_messages: messages.filter(m => m.role === 'user').length, // Only count user messages
-          last_session_at: new Date().toISOString()
-        });
-    }
-
+    // Return immediately with job ID
     return NextResponse.json({
       success: true,
-      memory: savedMemory
+      jobId: job.id,
+      status: 'queued',
+      message: 'Memory processing has been queued'
     });
 
   } catch (error) {
     console.error('Memory save error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to save memory' },
+      { error: error instanceof Error ? error.message : 'Failed to queue memory processing' },
       { status: 500 }
     );
   }
@@ -348,6 +273,47 @@ export async function GET(request: NextRequest) {
     console.error('Memory fetch error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch memories' },
+      { status: 500 }
+    );
+  }
+}
+
+// New endpoint to check job status
+export async function PATCH(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
+    }
+
+    const job = await memoryQueue.getJob(jobId);
+    
+    if (!job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress();
+    const result = job.returnvalue;
+    const failedReason = job.failedReason;
+
+    return NextResponse.json({
+      jobId: job.id,
+      state,
+      progress,
+      result,
+      failedReason,
+      createdAt: job.timestamp,
+      processedAt: job.processedOn,
+      finishedAt: job.finishedOn
+    });
+
+  } catch (error) {
+    console.error('Job status error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to get job status' },
       { status: 500 }
     );
   }

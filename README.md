@@ -10,6 +10,8 @@ An AI-powered educational platform that enables teachers to create custom chatbo
 - **Assessment System**: Built-in assessment capabilities with AI-powered grading
 - **Safety Monitoring**: Automated detection of concerning messages with teacher alerts
 - **Reading Room**: Dedicated chatbots for guided reading comprehension
+- **Personalized Learning Memory**: AI-powered session summaries that help chatbots remember student progress
+- **Scalable Architecture**: Queue-based processing system supporting thousands of concurrent users
 
 ## Tech Stack
 
