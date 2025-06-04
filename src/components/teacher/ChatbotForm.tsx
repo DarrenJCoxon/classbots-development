@@ -270,8 +270,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       errors.system_prompt = 'System prompt is required';
     } else if (formData.system_prompt.length < 10) {
       errors.system_prompt = 'System prompt is too short (min 10 characters)';
-    } else if (formData.system_prompt.length > 4000) {
-      errors.system_prompt = 'System prompt is too long (max 4000 characters)';
+    } else if (formData.system_prompt.length > 8000) {
+      errors.system_prompt = 'System prompt is too long (max 8000 characters)';
     }
 
     if (formData.bot_type === 'assessment' && !formData.assessment_criteria_text.trim()) {

@@ -25,46 +25,44 @@ export interface ModerationResult {
 
 // Common jailbreak patterns to detect
 const JAILBREAK_PATTERNS = [
-  // Direct instruction overrides
-  /ignore\s+(previous|all|any)\s+(instructions?|rules?|guidelines?)/i,
-  /forget\s+(everything|all|your)\s+(rules?|instructions?|guidelines?)/i,
-  /disregard\s+(all|any|the)\s+(rules?|instructions?|guidelines?)/i,
+  // Direct instruction overrides - VERY SPECIFIC (must include malicious intent)
+  /ignore\s+(previous|all|any)\s+(instructions?|rules?|guidelines?)\s*(and|to)\s*(be\s+)?(evil|harmful|malicious|uncensored)/i,
+  /forget\s+(everything|all|your)\s+(rules?|instructions?|guidelines?)\s*(and|to)\s*(be\s+)?(evil|harmful|malicious)/i,
+  /disregard\s+(all|any|the)\s+(safety|content)\s*(rules?|restrictions)/i,
   
-  // Role manipulation attempts
-  /you\s+are\s+now\s+(a|an|the|my|playing)/i,
-  /pretend\s+(you('re|are)|to\s+be)/i,
-  /act\s+as\s+(if|though|a|an)/i,
-  /from\s+now\s+on\s+you('re|are)/i,
-  /roleplay\s+as/i,
-  /switch\s+to\s+.*\s+mode/i,
+  // Role manipulation attempts - VERY SPECIFIC (requires explicit harmful intent)
+  /you\s+are\s+now\s+(a|an|the|my|playing)\s*(evil|harmful|malicious|uncensored|unfiltered|jailbroken)\s*(ai|assistant|bot)?/i,
+  /pretend\s+(you('re|are)|to\s+be)\s*(evil|bad|harmful|uncensored|unfiltered|without\s+rules)/i,
+  /act\s+as\s+(if|though)\s+you\s*(have\s+no|don't\s+have)\s*(safety\s+)?rules\s*(or\s+restrictions)?/i,
+  /from\s+now\s+on\s+you('re|are)\s*(evil|harmful|uncensored|unfiltered|jailbroken)/i,
+  /roleplay\s+as\s*(a|an)\s*(evil|bad|harmful|uncensored|unfiltered)\s*(character|ai|assistant)?/i,
+  /switch\s+to\s*(developer|jailbreak|uncensored|unfiltered)\s*mode/i,
   
-  // System prompt exposure attempts
-  /what\s+(are|were)\s+your\s+(instructions?|rules?|guidelines?|prompt)/i,
-  /show\s+me\s+your\s+(system\s+)?prompt/i,
-  /reveal\s+your\s+(instructions?|programming|prompt)/i,
-  /tell\s+me\s+your\s+(rules?|constraints?|limitations?)/i,
+  // System prompt exposure attempts (only if trying to bypass safety)
+  /(show|tell|reveal)\s+me\s+your\s+(system\s+)?prompt\s*(so\s+i\s+can|to)\s*(bypass|override|ignore)/i,
+  /what\s+are\s+your\s+(secret|hidden)\s+(instructions?|prompt)/i,
   
-  // Boundary testing
-  /can\s+you\s+say\s+.*\s+(bad|inappropriate|offensive)/i,
-  /repeat\s+after\s+me.*\s+(inappropriate|offensive|harmful)/i,
-  /say\s+something\s+(bad|inappropriate|offensive|harmful)/i,
+  // Boundary testing - VERY SPECIFIC with explicit bad words
+  /can\s+you\s+say\s+.*(fuck|shit|cunt|bitch|nigger|faggot)/i,
+  /repeat\s+after\s+me.*\s+(fuck|shit|cunt|bitch|nigger|faggot)/i,
+  /say\s+something\s+(racist|sexist|homophobic|transphobic)/i,
   
   // DAN (Do Anything Now) and similar attempts
   /\bDAN\b.*mode/i,
   /jailbreak/i,
   /do\s+anything\s+now/i,
   /no\s+filters?\s+mode/i,
-  /developer\s+mode/i,
-  /unlock\s+(full|all)\s+(capabilities?|potential)/i,
+  /developer\s+mode\s*(enabled|on|activated)/i,
+  /unlock\s+(full|all)\s+(capabilities?|potential)\s*(without\s+restrictions)?/i,
   
-  // Academic circumvention
-  /give\s+me\s+(the|all)\s+answers?/i,
-  /solve\s+(this|my)\s+(homework|assignment|test|exam)/i,
-  /write\s+(my|the)\s+(essay|paper|assignment)/i,
-  /complete\s+(my|this)\s+(homework|assignment)/i,
-  /do\s+my\s+(homework|assignment|work)/i,
+  // Academic circumvention (only blatant complete cheating requests)
+  /give\s+me\s+(all|the)\s+(test|exam)\s+answers\s*(without\s+explanation)?/i,
+  /write\s+(my|the)\s+(entire|whole|complete)\s+(essay|paper|assignment)\s+for\s+me\s*(from\s+scratch|without\s+my\s+input)?/i,
+  /do\s+(all\s+)?my\s+(homework|assignment)\s+for\s+me\s*(without\s+explaining)?/i,
+  /complete\s+(the|this)\s+(entire|whole)\s+(test|exam|assignment)\s+for\s+me\s*(without\s+teaching)?/i,
+  /just\s+give\s+me\s+the\s+answer/i,
   
-  // Sexual content - CRITICAL for minor safety
+  // Sexual content - CRITICAL for minor safety (keep these strict)
   /how\s+to\s+(kiss|make\s+out|have\s+sex)/i,
   /(kissing|making\s+out\s+with)\s+(boys|girls|someone)/i,
   /(sex|sexual|intimate|virginity|masturbat)/i,
@@ -77,6 +75,31 @@ const JAILBREAK_PATTERNS = [
   /(pregnancy|birth\s+control|std|sti)/i
 ];
 
+// Legitimate educational patterns that should NOT be flagged
+const EDUCATIONAL_WHITELIST = [
+  /step\s+by\s+step/i,
+  /how\s+(do|can)\s+I\s+(answer|solve|approach|tackle|work\s+through)/i,
+  /explain\s+(how|why|what|the)/i,
+  /help\s+me\s+(understand|learn|study|with)/i,
+  /teach\s+me\s+(how|about|the)/i,
+  /guide\s+me\s+through/i,
+  /walk\s+me\s+through/i,
+  /break\s+(it|this)\s+down/i,
+  /show\s+me\s+(how|the\s+steps|an\s+example)/i,
+  /what\s+(are|is)\s+the\s+(steps|process|method|approach)/i,
+  /can\s+you\s+(explain|help|show|teach|guide)/i,
+  /what\s+should\s+I\s+(do|consider|think\s+about)/i,
+  /how\s+should\s+I\s+(approach|think\s+about|analyze)/i,
+  /give\s+me\s+(an\s+example|hints?|tips?|guidance)/i,
+  /what's\s+the\s+(best\s+way|right\s+way)\s+to/i,
+  /how\s+to\s+(solve|answer|approach|work\s+out)/i,
+  /what\s+does\s+.*\s+mean/i,
+  /how\s+does\s+.*\s+work/i,
+  /why\s+(is|does|should)/i,
+  /explain\s+.*\s+to\s+me/i,
+  /take\s+me\s+(through|step\s+by\s+step)/i
+];
+
 /**
  * Detects jailbreak attempts in a message
  */
@@ -84,6 +107,14 @@ function detectJailbreakAttempts(message: string): {
   detected: boolean;
   patterns: string[];
 } {
+  // First check if it's a legitimate educational request
+  for (const whitelistPattern of EDUCATIONAL_WHITELIST) {
+    if (whitelistPattern.test(message)) {
+      console.log('[AI Moderation] Message matches educational whitelist, skipping jailbreak detection');
+      return { detected: false, patterns: [] };
+    }
+  }
+  
   const detectedPatterns: string[] = [];
   
   for (const pattern of JAILBREAK_PATTERNS) {
