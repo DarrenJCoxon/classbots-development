@@ -746,7 +746,6 @@ export async function POST(request: NextRequest) {
             .from('chat_messages')
             .select('message_id')
             .eq('room_id', roomId)
-            .eq('user_id', user.id)
             .eq('metadata->>chatbotId', chatbot_id)
             .lt('created_at', userMessageCreatedAt)
             .order('created_at', { ascending: false })

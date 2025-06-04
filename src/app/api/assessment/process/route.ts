@@ -399,10 +399,64 @@ Ensure all string values are properly escaped within the JSON. Do not include an
       console.log(`[API /assessment/process] [ReqID: ${requestId}] Teacher ID from bot config: ${assessmentBotConfig.teacher_id}`);
 
       try {
+        // First verify the chatbot exists and get the actual chatbot_id from the database
+        const { data: chatbotCheck, error: chatbotCheckError } = await adminSupabase
+          .from('chatbots')
+          .select('chatbot_id, teacher_id')
+          .eq('chatbot_id', chatbot_id)
+          .single();
+        
+        if (chatbotCheckError || !chatbotCheck) {
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] CRITICAL: Chatbot ${chatbot_id} does not exist!`);
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] Chatbot check error:`, chatbotCheckError);
+          
+          // If chatbot doesn't exist, we cannot proceed with saving the assessment
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] Cannot save assessment - chatbot does not exist`);
+          // Still send feedback to the student
+          await adminSupabase.from('chat_messages').insert({
+            room_id: room_id,
+            user_id: userId,
+            role: 'assistant',
+            content: llmOutput.student_feedback,
+            metadata: {
+              chatbotId: chatbot_id,
+              isAssessmentFeedback: true,
+              error: 'chatbot_not_found'
+            }
+          });
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Assessment processed with warnings', 
+            error: 'Chatbot not found in database',
+            assessmentId: null 
+          });
+        }
+        
+        // Also verify the student profile exists
+        const { data: studentCheck, error: studentCheckError } = await adminSupabase
+          .from('student_profiles')
+          .select('user_id')
+          .eq('user_id', userId)
+          .single();
+        
+        if (studentCheckError || !studentCheck) {
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] WARNING: Student profile ${userId} may not exist!`);
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] Student check error:`, studentCheckError);
+        }
+        
+        // Update the insert payload with verified chatbot_id and teacher_id
+        const verifiedInsertPayload = {
+          ...insertPayload,
+          chatbot_id: chatbotCheck.chatbot_id, // Use the verified chatbot_id
+          teacher_id: chatbotCheck.teacher_id || assessmentBotConfig.teacher_id // Use teacher_id from chatbot if available
+        };
+        
         // Insert with detailed error logging
+        console.log(`[API /assessment/process] [ReqID: ${requestId}] Attempting to insert assessment with verified payload:`, JSON.stringify(verifiedInsertPayload, null, 2));
+        
         const { data: savedAssessmentData, error: assessmentSaveError } = await adminSupabase
           .from('student_assessments')
-          .insert(insertPayload)
+          .insert(verifiedInsertPayload)
           .select('assessment_id').single();
 
         if (assessmentSaveError) {
@@ -412,6 +466,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
             assessmentSaveError.hint,
             assessmentSaveError.code
           );
+          console.error(`[API /assessment/process] [ReqID: ${requestId}] Full error object:`, JSON.stringify(assessmentSaveError, null, 2));
           
           // Try an alternative approach if there was an error
           console.log(`[API /assessment/process] [ReqID: ${requestId}] Attempting alternative database operation for assessment save...`);
