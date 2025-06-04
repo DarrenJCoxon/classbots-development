@@ -150,9 +150,21 @@ const MessageContent = styled.div<{ $isUser: boolean }>`
   line-height: 1.5;
   word-wrap: break-word;
   // ... (Markdown styling remains the same as previous version)
-  h1, h2, h3, h4, h5, h6 { margin-top: ${({ theme }) => theme.spacing.md}; margin-bottom: ${({ theme }) => theme.spacing.sm}; font-weight: 600; line-height: 1.3; color: inherit; }
-  h1 { font-size: 1.5em; } h2 { font-size: 1.3em; } h3 { font-size: 1.2em; }
-  h4 { font-size: 1.1em; } h5 { font-size: 1em; } h6 { font-size: 0.9em; }
+  h1, h2, h3, h4, h5, h6 { 
+    margin-top: ${({ theme }) => theme.spacing.md}; 
+    margin-bottom: ${({ theme }) => theme.spacing.sm}; 
+    font-weight: 700; 
+    line-height: 1.3; 
+    color: inherit; 
+    text-transform: none;
+    font-family: inherit;
+  }
+  h1 { font-size: 1.2em; font-weight: 700; } 
+  h2 { font-size: 1.15em; font-weight: 700; } 
+  h3 { font-size: 1.1em; font-weight: 700; }
+  h4 { font-size: 1.05em; font-weight: 700; } 
+  h5 { font-size: 1em; font-weight: 700; } 
+  h6 { font-size: 0.95em; font-weight: 700; }
   p { margin-bottom: ${({ theme }) => theme.spacing.sm}; &:last-child { margin-bottom: 0; } }
   ul, ol { margin-bottom: ${({ theme }) => theme.spacing.sm}; padding-left: ${({ theme }) => theme.spacing.lg}; }
   li { margin-bottom: ${({ theme }) => theme.spacing.xs}; }
