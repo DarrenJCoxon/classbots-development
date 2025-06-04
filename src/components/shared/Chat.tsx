@@ -218,6 +218,8 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const sessionMessagesRef = useRef<Array<{role: string; content: string}>>([]);
+  const sessionSavedRef = useRef<boolean>(false); // Track if we already saved this session
+  const lastUserMessageTimeRef = useRef<number>(Date.now()); // Track the last user activity
 
   // Check for direct auth via URL
   // Initialize search params only once using a lazy initializer function to avoid re-renders
@@ -324,6 +326,12 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
       return;
     }
 
+    // Check if we've already saved this session
+    if (sessionSavedRef.current) {
+      console.log('[Memory] Skipping memory save - session already saved');
+      return;
+    }
+
     // Use the stored session messages instead of current messages
     const conversationMessages = sessionMessagesRef.current;
     
@@ -355,6 +363,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
         const result = await response.json();
         console.log('[Memory] Successfully saved session memory:', result);
         
+        // Mark session as saved
+        sessionSavedRef.current = true;
+        
         // Clear the session messages after successful save
         sessionMessagesRef.current = [];
         
@@ -381,8 +392,8 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
       clearTimeout(inactivityTimerRef.current);
     }
     
-    // Set new timer for 10 minutes
-    if (isStudent && userId && chatbot?.chatbot_id) {
+    // Set new timer for 10 minutes, but only if we haven't saved yet
+    if (isStudent && userId && chatbot?.chatbot_id && !sessionSavedRef.current) {
       inactivityTimerRef.current = setTimeout(() => {
         console.log('[Memory] 10 minutes of inactivity detected, saving session memory...');
         saveConversationMemory();
@@ -392,22 +403,46 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
 
   // Track messages in the session
   useEffect(() => {
-    // Store conversation messages in the session
+    // Store conversation messages in the session - filter out duplicates and system messages
     const conversationMessages = messages.filter(m => 
-      m.role === 'user' || m.role === 'assistant'
+      (m.role === 'user' || m.role === 'assistant') && 
+      !m.metadata?.isOptimistic && // Exclude optimistic messages
+      !m.metadata?.isWelcomeMessage // Exclude welcome messages
     );
     
-    sessionMessagesRef.current = conversationMessages.map(m => ({
-      role: m.role,
-      content: m.content
-    }));
+    // Create a unique key for each message to avoid duplicates
+    const uniqueMessages = new Map<string, {role: string; content: string}>();
+    conversationMessages.forEach(m => {
+      // Use a combination of role, content hash, and timestamp to create unique key
+      const key = `${m.role}-${m.content.substring(0, 50)}-${m.created_at}`;
+      if (!uniqueMessages.has(key)) {
+        uniqueMessages.set(key, {
+          role: m.role,
+          content: m.content
+        });
+      }
+    });
     
-    // Reset inactivity timer on new messages
-    if (conversationMessages.length > messageCountRef.current) {
+    sessionMessagesRef.current = Array.from(uniqueMessages.values());
+    
+    // Check if there's a new user message to track activity
+    const userMessages = conversationMessages.filter(m => m.role === 'user');
+    const currentUserMessageCount = userMessages.length;
+    const previousUserMessageCount = messageCountRef.current;
+    
+    // Reset inactivity timer only on new user messages (not assistant responses)
+    if (currentUserMessageCount > previousUserMessageCount) {
+      lastUserMessageTimeRef.current = Date.now();
       resetInactivityTimer();
+      
+      // Reset the saved flag when there's new activity
+      if (sessionSavedRef.current && currentUserMessageCount > previousUserMessageCount) {
+        console.log('[Memory] New user activity detected, resetting saved flag');
+        sessionSavedRef.current = false;
+      }
     }
     
-    messageCountRef.current = conversationMessages.length;
+    messageCountRef.current = currentUserMessageCount;
   }, [messages, resetInactivityTimer]);
   
   // Clean up timer when component unmounts
@@ -418,14 +453,14 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
         clearTimeout(inactivityTimerRef.current);
       }
       
-      // Save memory if there's a meaningful conversation
-      if (isStudent && sessionMessagesRef.current.length >= 4) {
+      // Save memory if there's a meaningful conversation and we haven't saved yet
+      if (isStudent && sessionMessagesRef.current.length >= 4 && !sessionSavedRef.current) {
         console.log('[Memory] Component unmounting, checking if we should save...');
         
-        // Only save if it's been at least 2 minutes since last activity
+        // Only save if it's been at least 2 minutes since last user activity
         // This prevents duplicate saves when quickly navigating
-        const timeSinceLastActivity = Date.now() - lastActivityRef.current;
-        if (timeSinceLastActivity > 2 * 60 * 1000) {
+        const timeSinceLastUserActivity = Date.now() - lastUserMessageTimeRef.current;
+        if (timeSinceLastUserActivity > 2 * 60 * 1000) {
           console.log('[Memory] Saving on unmount due to sufficient inactivity');
           saveConversationMemory();
         } else {
@@ -1122,6 +1157,10 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !userId || !chatbot?.chatbot_id || !roomId) return;
     setIsLoading(true); setError(null);
+
+    // Track user activity
+    lastUserMessageTimeRef.current = Date.now();
+    resetInactivityTimer();
 
     // Check for potential safety trigger keywords before sending
     const potentialSafetyTrigger = initialSafetyCheck(content.trim());

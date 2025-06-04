@@ -147,6 +147,34 @@ export async function POST(request: NextRequest) {
 
     const chatbotName = chatbot?.name || 'Assistant';
 
+    // Check if there's a recent memory save (within last 15 minutes) to prevent duplicates
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: recentMemory } = await adminSupabase
+      .from('student_chat_memories')
+      .select('id, created_at, message_count')
+      .eq('student_id', studentId)
+      .eq('chatbot_id', chatbotId)
+      .eq('room_id', roomId)
+      .gte('created_at', fifteenMinutesAgo)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (recentMemory && recentMemory.length > 0) {
+      console.log('[Memory API] Found recent memory save, checking if it\'s a duplicate...');
+      const timeSinceLastSave = Date.now() - new Date(recentMemory[0].created_at).getTime();
+      const minutesSinceLastSave = Math.floor(timeSinceLastSave / 1000 / 60);
+      
+      // If saved less than 10 minutes ago with similar message count, it's likely a duplicate
+      if (minutesSinceLastSave < 10 && Math.abs(recentMemory[0].message_count - messages.length) < 2) {
+        console.log(`[Memory API] Duplicate save prevented - last save was ${minutesSinceLastSave} minutes ago`);
+        return NextResponse.json({
+          success: true,
+          memory: recentMemory[0],
+          duplicate: true
+        });
+      }
+    }
+
     // Generate conversation summary
     const memory = await generateConversationSummary(messages, chatbotName);
 
@@ -225,7 +253,7 @@ export async function POST(request: NextRequest) {
           topics_in_progress: Array.from(updatedTopicsInProgress),
           topic_progress: updatedTopicProgress,
           total_sessions: existingProfile.total_sessions + 1,
-          total_messages: existingProfile.total_messages + messages.length,
+          total_messages: existingProfile.total_messages + messages.filter(m => m.role === 'user').length, // Only count user messages
           last_session_at: new Date().toISOString()
         })
         .eq('id', existingProfile.id);
@@ -245,7 +273,7 @@ export async function POST(request: NextRequest) {
           topics_in_progress: memory.keyTopics,
           topic_progress: topicProgress,
           total_sessions: 1,
-          total_messages: messages.length,
+          total_messages: messages.filter(m => m.role === 'user').length, // Only count user messages
           last_session_at: new Date().toISOString()
         });
     }
