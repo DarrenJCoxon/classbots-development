@@ -215,6 +215,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   const messageCountRef = useRef<number>(0);
   const lastMemorySaveRef = useRef<number>(0);
   const [isStudent, setIsStudent] = useState<boolean>(false);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const sessionMessagesRef = useRef<Array<{role: string; content: string}>>([]);
 
   // Check for direct auth via URL
   // Initialize search params only once using a lazy initializer function to avoid re-renders
@@ -314,33 +317,24 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
     }
   }, []);
 
-  // Save conversation memory
+  // Save conversation memory after session ends
   const saveConversationMemory = useCallback(async () => {
     if (!isStudent || !userId || !chatbot?.chatbot_id || !roomId) {
       console.log('[Memory] Skipping memory save - not a student or missing data');
       return;
     }
 
-    // Don't save if there are fewer than 4 messages (2 exchanges)
-    const conversationMessages = messages.filter(m => 
-      m.role === 'user' || m.role === 'assistant'
-    );
+    // Use the stored session messages instead of current messages
+    const conversationMessages = sessionMessagesRef.current;
     
     if (conversationMessages.length < 4) {
       console.log('[Memory] Skipping memory save - conversation too short');
       return;
     }
 
-    // Don't save more than once every 5 minutes
-    const now = Date.now();
-    if (now - lastMemorySaveRef.current < 5 * 60 * 1000) {
-      console.log('[Memory] Skipping memory save - too soon since last save');
-      return;
-    }
-
     try {
-      console.log('[Memory] Saving conversation memory...');
-      lastMemorySaveRef.current = now;
+      console.log('[Memory] Saving session memory after 10 minutes of inactivity...');
+      console.log(`[Memory] Session had ${conversationMessages.length} messages`);
 
       const response = await fetch('/api/student/memory', {
         method: 'POST',
@@ -351,10 +345,7 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
           studentId: userId,
           chatbotId: chatbot.chatbot_id,
           roomId: roomId,
-          messages: conversationMessages.map(m => ({
-            role: m.role,
-            content: m.content
-          })),
+          messages: conversationMessages,
           sessionStartTime: sessionStartTimeRef.current
         }),
         credentials: 'include'
@@ -362,65 +353,87 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
 
       if (response.ok) {
         const result = await response.json();
-        console.log('[Memory] Successfully saved conversation memory:', result);
+        console.log('[Memory] Successfully saved session memory:', result);
+        
+        // Clear the session messages after successful save
+        sessionMessagesRef.current = [];
+        
+        // Reset session start time for next session
+        sessionStartTimeRef.current = new Date().toISOString();
       } else {
         console.error('[Memory] Failed to save memory:', await response.text());
       }
     } catch (error) {
       console.error('[Memory] Error saving conversation memory:', error);
     }
-  }, [isStudent, userId, chatbot?.chatbot_id, roomId, messages]);
+  }, [isStudent, userId, chatbot?.chatbot_id, roomId]);
 
   // Add ref to track last fetch time to avoid excessive API calls
   const lastFetchTimeRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
   
-  // Track message count changes and save memory periodically
-  useEffect(() => {
-    const currentMessageCount = messages.filter(m => 
-      m.role === 'user' || m.role === 'assistant'
-    ).length;
+  // Reset inactivity timer when there's activity
+  const resetInactivityTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
     
-    // Save memory every 10 messages
-    if (currentMessageCount > 0 && currentMessageCount % 10 === 0 && currentMessageCount > messageCountRef.current) {
-      console.log('[Memory] Auto-saving after 10 messages');
-      saveConversationMemory();
+    // Clear existing timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
     }
     
-    messageCountRef.current = currentMessageCount;
-  }, [messages, saveConversationMemory]);
-  
-  // Save memory when component unmounts or user navigates away
-  useEffect(() => {
-    const handleUnload = () => {
-      if (isStudent && messages.length > 4) {
-        // Use sendBeacon for reliable background save
-        const memoryData = {
-          studentId: userId,
-          chatbotId: chatbot?.chatbot_id,
-          roomId: roomId,
-          messages: messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          sessionStartTime: sessionStartTimeRef.current
-        };
-        
-        navigator.sendBeacon('/api/student/memory', JSON.stringify(memoryData));
-        console.log('[Memory] Saving memory on unload');
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      // Also save when component unmounts
-      if (isStudent) {
+    // Set new timer for 10 minutes
+    if (isStudent && userId && chatbot?.chatbot_id) {
+      inactivityTimerRef.current = setTimeout(() => {
+        console.log('[Memory] 10 minutes of inactivity detected, saving session memory...');
         saveConversationMemory();
+      }, 10 * 60 * 1000); // 10 minutes
+    }
+  }, [isStudent, userId, chatbot?.chatbot_id, saveConversationMemory]);
+
+  // Track messages in the session
+  useEffect(() => {
+    // Store conversation messages in the session
+    const conversationMessages = messages.filter(m => 
+      m.role === 'user' || m.role === 'assistant'
+    );
+    
+    sessionMessagesRef.current = conversationMessages.map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+    
+    // Reset inactivity timer on new messages
+    if (conversationMessages.length > messageCountRef.current) {
+      resetInactivityTimer();
+    }
+    
+    messageCountRef.current = conversationMessages.length;
+  }, [messages, resetInactivityTimer]);
+  
+  // Clean up timer when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear the inactivity timer
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      
+      // Save memory if there's a meaningful conversation
+      if (isStudent && sessionMessagesRef.current.length >= 4) {
+        console.log('[Memory] Component unmounting, checking if we should save...');
+        
+        // Only save if it's been at least 2 minutes since last activity
+        // This prevents duplicate saves when quickly navigating
+        const timeSinceLastActivity = Date.now() - lastActivityRef.current;
+        if (timeSinceLastActivity > 2 * 60 * 1000) {
+          console.log('[Memory] Saving on unmount due to sufficient inactivity');
+          saveConversationMemory();
+        } else {
+          console.log('[Memory] Skipping save on unmount - too recent activity');
+        }
       }
     };
-  }, [isStudent, userId, chatbot?.chatbot_id, roomId, messages, saveConversationMemory]);
+  }, [isStudent, saveConversationMemory]);
   
   // Fetch messages with support for direct URL access and homepage fallback
   const fetchMessages = useCallback(async () => {
