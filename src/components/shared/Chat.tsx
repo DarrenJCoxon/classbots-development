@@ -209,6 +209,12 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
+  
+  // Memory tracking
+  const sessionStartTimeRef = useRef<string>(new Date().toISOString());
+  const messageCountRef = useRef<number>(0);
+  const lastMemorySaveRef = useRef<number>(0);
+  const [isStudent, setIsStudent] = useState<boolean>(false);
 
   // Check for direct auth via URL
   // Initialize search params only once using a lazy initializer function to avoid re-renders
@@ -229,6 +235,19 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
         if (user) {
           console.log('[Chat] Found authenticated user:', user.id);
           setUserId(user.id);
+          
+          // Check if user is a student
+          const { data: studentProfile } = await supabase
+            .from('student_profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (studentProfile) {
+            setIsStudent(true);
+            console.log('[Chat] User is a student');
+          }
+          
           return;
         }
         
@@ -295,9 +314,113 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
     }
   }, []);
 
+  // Save conversation memory
+  const saveConversationMemory = useCallback(async () => {
+    if (!isStudent || !userId || !chatbot?.chatbot_id || !roomId) {
+      console.log('[Memory] Skipping memory save - not a student or missing data');
+      return;
+    }
+
+    // Don't save if there are fewer than 4 messages (2 exchanges)
+    const conversationMessages = messages.filter(m => 
+      m.role === 'user' || m.role === 'assistant'
+    );
+    
+    if (conversationMessages.length < 4) {
+      console.log('[Memory] Skipping memory save - conversation too short');
+      return;
+    }
+
+    // Don't save more than once every 5 minutes
+    const now = Date.now();
+    if (now - lastMemorySaveRef.current < 5 * 60 * 1000) {
+      console.log('[Memory] Skipping memory save - too soon since last save');
+      return;
+    }
+
+    try {
+      console.log('[Memory] Saving conversation memory...');
+      lastMemorySaveRef.current = now;
+
+      const response = await fetch('/api/student/memory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentId: userId,
+          chatbotId: chatbot.chatbot_id,
+          roomId: roomId,
+          messages: conversationMessages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          sessionStartTime: sessionStartTimeRef.current
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[Memory] Successfully saved conversation memory:', result);
+      } else {
+        console.error('[Memory] Failed to save memory:', await response.text());
+      }
+    } catch (error) {
+      console.error('[Memory] Error saving conversation memory:', error);
+    }
+  }, [isStudent, userId, chatbot?.chatbot_id, roomId, messages]);
+
   // Add ref to track last fetch time to avoid excessive API calls
   const lastFetchTimeRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
+  
+  // Track message count changes and save memory periodically
+  useEffect(() => {
+    const currentMessageCount = messages.filter(m => 
+      m.role === 'user' || m.role === 'assistant'
+    ).length;
+    
+    // Save memory every 10 messages
+    if (currentMessageCount > 0 && currentMessageCount % 10 === 0 && currentMessageCount > messageCountRef.current) {
+      console.log('[Memory] Auto-saving after 10 messages');
+      saveConversationMemory();
+    }
+    
+    messageCountRef.current = currentMessageCount;
+  }, [messages, saveConversationMemory]);
+  
+  // Save memory when component unmounts or user navigates away
+  useEffect(() => {
+    const handleUnload = () => {
+      if (isStudent && messages.length > 4) {
+        // Use sendBeacon for reliable background save
+        const memoryData = {
+          studentId: userId,
+          chatbotId: chatbot?.chatbot_id,
+          roomId: roomId,
+          messages: messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          sessionStartTime: sessionStartTimeRef.current
+        };
+        
+        navigator.sendBeacon('/api/student/memory', JSON.stringify(memoryData));
+        console.log('[Memory] Saving memory on unload');
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      // Also save when component unmounts
+      if (isStudent) {
+        saveConversationMemory();
+      }
+    };
+  }, [isStudent, userId, chatbot?.chatbot_id, roomId, messages, saveConversationMemory]);
   
   // Fetch messages with support for direct URL access and homepage fallback
   const fetchMessages = useCallback(async () => {

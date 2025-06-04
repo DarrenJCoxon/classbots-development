@@ -523,9 +523,17 @@ export default function StudentRoomDetailPage() {
               </SummarySection>
             </div>
           </StudentInfoBar>
-          <ModernButton variant="ghost" onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}`)}>
-            ← Back to Room Overview
-          </ModernButton>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <ModernButton 
+              variant="secondary" 
+              onClick={() => router.push(`/teacher-dashboard/students/${studentId}/memory`)}
+            >
+              View Learning Memory
+            </ModernButton>
+            <ModernButton variant="ghost" onClick={() => router.push(`/teacher-dashboard/rooms/${roomId}`)}>
+              ← Back to Room Overview
+            </ModernButton>
+          </div>
         </Header>
 
         <TabContainer>

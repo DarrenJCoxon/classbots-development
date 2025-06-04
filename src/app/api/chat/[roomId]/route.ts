@@ -843,6 +843,80 @@ export async function POST(request: NextRequest) {
     if (contextError) console.warn("Error fetching context messages:", contextError.message);
     const contextMessages = (contextMessagesData || []).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' }));
 
+    // --- MEMORY CONTEXT INJECTION ---
+    let memoryContext = '';
+    if (isStudent) {
+      try {
+        console.log(`[MEMORY] Fetching memory context for student ${user.id} and chatbot ${chatbot_id}`);
+        
+        // Fetch student's memories and learning profile
+        const memoryUrl = new URL(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/student/memory`);
+        memoryUrl.searchParams.append('studentId', user.id);
+        memoryUrl.searchParams.append('chatbotId', chatbot_id);
+        memoryUrl.searchParams.append('limit', '3');
+        
+        const memoryResponse = await fetch(memoryUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Cookie': request.headers.get('cookie') || '',
+            'Authorization': request.headers.get('authorization') || ''
+          }
+        });
+        
+        if (memoryResponse.ok) {
+          const { memories, profile } = await memoryResponse.json();
+          
+          if (memories && memories.length > 0) {
+            memoryContext += '\n\n[Student Memory Context]\n';
+            memoryContext += 'Previous conversations with this student:\n';
+            
+            memories.forEach((memory: any, index: number) => {
+              const daysAgo = Math.floor((Date.now() - new Date(memory.created_at).getTime()) / (1000 * 60 * 60 * 24));
+              memoryContext += `\n${index + 1}. ${daysAgo} days ago:\n`;
+              memoryContext += `   Summary: ${memory.conversation_summary}\n`;
+              memoryContext += `   Topics: ${memory.key_topics.join(', ')}\n`;
+              if (memory.learning_insights?.understood?.length > 0) {
+                memoryContext += `   Understood well: ${memory.learning_insights.understood.join(', ')}\n`;
+              }
+              if (memory.learning_insights?.struggling?.length > 0) {
+                memoryContext += `   Needs help with: ${memory.learning_insights.struggling.join(', ')}\n`;
+              }
+              if (memory.next_steps) {
+                memoryContext += `   Suggested next steps: ${memory.next_steps}\n`;
+              }
+            });
+          }
+          
+          if (profile) {
+            memoryContext += '\n[Student Learning Profile]\n';
+            if (profile.topics_mastered?.length > 0) {
+              memoryContext += `Topics mastered: ${profile.topics_mastered.join(', ')}\n`;
+            }
+            if (profile.topics_in_progress?.length > 0) {
+              memoryContext += `Currently learning: ${profile.topics_in_progress.join(', ')}\n`;
+            }
+            if (profile.topics_struggling?.length > 0) {
+              memoryContext += `Struggling with: ${profile.topics_struggling.join(', ')}\n`;
+            }
+            if (profile.preferred_explanation_style) {
+              memoryContext += `Preferred learning style: ${profile.preferred_explanation_style}\n`;
+            }
+            if (profile.pace_preference) {
+              memoryContext += `Learning pace: ${profile.pace_preference}\n`;
+            }
+          }
+          
+          if (memoryContext) {
+            memoryContext += '\nUse this context to personalize your responses and build on previous conversations.\n';
+            console.log(`[MEMORY] Successfully loaded memory context (${memoryContext.length} chars)`);
+          }
+        }
+      } catch (memoryError) {
+        console.error('[MEMORY] Error fetching memory context:', memoryError);
+        // Continue without memory context
+      }
+    }
+
     // Get teacher system prompt from the chatbot config or use default
     // This is a critical part of the system - make sure we always have a valid system prompt
     const defaultSystemPrompt = "You are a safe, ethical, and supportive AI learning assistant for students. Your primary goal is to help students understand educational topics in an engaging and age-appropriate manner.";
@@ -969,12 +1043,13 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
     
     // Assemble the full system prompt with all necessary components
     // This is CRITICAL - we need all these components for proper functioning
-    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${under13Instructions}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
+    const systemPromptForLLM = `${CORE_SAFETY_INSTRUCTIONS}${under13Instructions}${SAFETY_HELPLINES_INSTRUCTIONS ? `\n\n${SAFETY_HELPLINES_INSTRUCTIONS}` : ''}${memoryContext ? `\n\n${memoryContext}` : ''}\n\nTeacher's Prompt:\n${teacherSystemPrompt}${regionalInstruction}${ragContextText ? `\n\nRelevant Information:\n${ragContextText}\n\nBase your answer on the provided information. Do not explicitly mention "Source:" or bracketed numbers like [1], [2] in your response.` : ''}`;
 
     // Enhanced logging to track system prompt and RAG usage
     console.log(`[PROMPT] Final system prompt assembled with following components:`);
     console.log(`[PROMPT] - Core safety instructions: ${CORE_SAFETY_INSTRUCTIONS.length} chars`);
     console.log(`[PROMPT] - Safety helplines instructions: ${SAFETY_HELPLINES_INSTRUCTIONS ? SAFETY_HELPLINES_INSTRUCTIONS.length + ' chars' : 'None'}`);
+    console.log(`[PROMPT] - Memory context: ${memoryContext ? memoryContext.length + ' chars' : 'None'}`);
     console.log(`[PROMPT] - Teacher custom prompt: ${teacherSystemPrompt.length} chars`);
     console.log(`[PROMPT] - Regional instruction: ${regionalInstruction ? 'Yes' : 'No'}`);
     console.log(`[PROMPT] - RAG context: ${ragContextText ? 'Yes - ' + ragContextText.length + ' chars' : 'No'}`);
