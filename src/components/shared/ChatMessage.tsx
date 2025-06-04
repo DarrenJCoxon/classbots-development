@@ -1,11 +1,12 @@
 // src/components/shared/ChatMessage.tsx
 'use client';
 
+import { useState } from 'react';
 import styled, { css } from 'styled-components'; // Added css import
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { FiVolume2, FiVolumeX, FiLoader } from 'react-icons/fi';
+import { FiVolume2, FiVolumeX, FiLoader, FiCopy, FiCheck } from 'react-icons/fi';
 import { IconButton } from '@/components/shared/ModernButton';;
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import type { ChatMessage as DbChatMessage } from '@/types/database.types'; // Renamed to avoid conflict
@@ -213,6 +214,20 @@ const TTSStatus = styled.span`
   color: ${({ theme }) => theme.colors.textLight};
   font-style: italic;
 `;
+
+const CopyButton = styled(IconButton)<{ $isCopied?: boolean }>`
+  background: ${({ theme, $isCopied }) => 
+    $isCopied ? theme.colors.green + '20' : 'transparent'
+  };
+  color: ${({ theme, $isCopied }) => 
+    $isCopied ? theme.colors.green : theme.colors.textLight
+  };
+  
+  &:hover {
+    background: ${({ theme }) => theme.colors.primary + '20'};
+    color: ${({ theme }) => theme.colors.primary};
+  }
+`;
 // --- End Styled Components ---
 
 // --- Helper Functions ---
@@ -290,6 +305,7 @@ const markdownComponents: Components = {
 function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: ChatMessageProps) {
     const isUser = message.role === 'user';
     const { speak, stop, isLoading: isTTSLoading, isPlaying, error: ttsError } = useTextToSpeech();
+    const [isCopied, setIsCopied] = useState(false);
     
     const metadata = message.metadata as MessageMetadataWithFlags; // Use new type
     const hasError = !!metadata?.error;
@@ -476,6 +492,16 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
         }
     }
 
+    // Copy message handler
+    const handleCopyMessage = async () => {
+        try {
+            await navigator.clipboard.writeText(message.content || '');
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+        } catch (err) {
+            console.error('Failed to copy message:', err);
+        }
+    };
 
     return (
         <MessageWrapper $isUser={isUser} $hasError={hasError}>
@@ -516,7 +542,7 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                        ⚠️ Failed to send
                     </ErrorIndicator>
                  )}
-                {/* TTS Controls - Only show for bot messages */}
+                {/* TTS and Copy Controls - Only show for bot messages */}
                 {!isUser && !isOptimistic && !isStreaming && message.content && (
                     <TTSControls>
                         <TTSButton
@@ -549,9 +575,22 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                              isPlaying ? <FiVolumeX /> :
                              <FiVolume2 />}
                         </TTSButton>
+                        
+                        <CopyButton
+                            $size="small"
+                            $variant="ghost"
+                            onClick={handleCopyMessage}
+                            $isCopied={isCopied}
+                            title={isCopied ? 'Copied!' : 'Copy message'}
+                            aria-label={isCopied ? 'Message copied' : 'Copy message to clipboard'}
+                        >
+                            {isCopied ? <FiCheck /> : <FiCopy />}
+                        </CopyButton>
+                        
                         {isTTSLoading && <TTSStatus>Loading audio...</TTSStatus>}
                         {isPlaying && <TTSStatus>Reading...</TTSStatus>}
                         {ttsError && <TTSStatus style={{ color: 'var(--color-danger)' }}>Error: {ttsError}</TTSStatus>}
+                        {isCopied && <TTSStatus style={{ color: '#22C55E' }}>Copied!</TTSStatus>}
                     </TTSControls>
                 )}
             </MessageBubble>
