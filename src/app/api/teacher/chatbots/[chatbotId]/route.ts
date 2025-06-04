@@ -127,12 +127,21 @@ export async function PUT(request: NextRequest, { params }: any) {
       temperature: body.temperature === undefined || body.temperature === null 
         ? existingChatbot.temperature 
         : Number(body.temperature),
-      enable_rag: body.bot_type === 'learning' ? (body.enable_rag || false) : false,
+      enable_rag: (body.bot_type === 'learning' || body.bot_type === 'reading_room' || body.bot_type === 'viewing_room') 
+        ? (body.enable_rag || false) 
+        : false,
       bot_type: body.bot_type || existingChatbot.bot_type,
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
       welcome_message: body.welcome_message || null,
       updated_at: new Date().toISOString(),
     };
+    
+    // Debug logging for model selection
+    console.log("[API PUT /teacher/chatbots/[chatbotId]] Model selection debug:", {
+      provided_model: body.model,
+      existing_model: existingChatbot.model,
+      final_model: updateData.model
+    });
     
     if (updateData.description === undefined) {
       delete updateData.description;

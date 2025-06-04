@@ -28,6 +28,15 @@ interface StudentWithAssessments {
   room_name: string;
   assessments: StudentAssessment[];
   average_grade: number | null;
+  safety_concerns: Array<{
+    flag_id: string;
+    created_at: string;
+    concern_type: string;
+    concern_level: number;
+    status: string;
+    room_id: string;
+  }>;
+  pending_concerns_count: number;
 }
 
 interface Room {
@@ -236,6 +245,78 @@ const AverageGrade = styled.div`
   border: 1px solid rgba(152, 93, 215, 0.3);
 `;
 
+const ConcernsSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+interface ConcernIndicatorProps {
+  $level: 'low' | 'medium' | 'high';
+  $isPending: boolean;
+}
+
+const ConcernIndicator = styled(motion.button)<ConcernIndicatorProps>`
+  background: ${({ $level, $isPending }) => {
+    if (!$isPending) return 'rgba(128, 128, 128, 0.2)';
+    switch($level) {
+      case 'high': return 'rgba(239, 68, 68, 0.2)';
+      case 'medium': return 'rgba(251, 146, 60, 0.2)';
+      default: return 'rgba(250, 204, 21, 0.2)';
+    }
+  }};
+  border: 1px solid ${({ $level, $isPending }) => {
+    if (!$isPending) return 'rgba(128, 128, 128, 0.3)';
+    switch($level) {
+      case 'high': return 'rgba(239, 68, 68, 0.4)';
+      case 'medium': return 'rgba(251, 146, 60, 0.4)';
+      default: return 'rgba(250, 204, 21, 0.4)';
+    }
+  }};
+  color: ${({ $level, $isPending, theme }) => {
+    if (!$isPending) return theme.colors.textMuted;
+    switch($level) {
+      case 'high': return '#DC2626';
+      case 'medium': return '#EA580C';
+      default: return '#CA8A04';
+    }
+  }};
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px ${({ $level }) => {
+      switch($level) {
+        case 'high': return 'rgba(239, 68, 68, 0.3)';
+        case 'medium': return 'rgba(251, 146, 60, 0.3)';
+        default: return 'rgba(250, 204, 21, 0.3)';
+      }
+    }};
+  }
+
+  .icon {
+    font-size: 0.875rem;
+  }
+`;
+
+const PendingBadge = styled.span`
+  background: rgba(239, 68, 68, 0.2);
+  color: #DC2626;
+  border-radius: 9999px;
+  padding: 2px 6px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  margin-left: ${({ theme }) => theme.spacing.xs};
+`;
+
 const EmptyState = styled.div`
   text-align: center;
   padding: ${({ theme }) => theme.spacing.xl};
@@ -416,12 +497,29 @@ export default function StudentsPage() {
     router.push(`/teacher-dashboard/rooms/${roomId}/students/${studentId}`);
   };
 
+  const handleConcernClick = (flagId: string) => {
+    router.push(`/teacher-dashboard/concerns/${flagId}`);
+  };
+
+  const getHighestConcernLevel = (concerns: StudentWithAssessments['safety_concerns']): 'low' | 'medium' | 'high' => {
+    if (concerns.length === 0) return 'low';
+    const maxLevel = Math.max(...concerns.map(c => c.concern_level));
+    if (maxLevel >= 4) return 'high';
+    if (maxLevel >= 3) return 'medium';
+    return 'low';
+  };
+
+  const formatConcernType = (type: string): string => {
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const filteredStudents = data?.students || [];
   const totalStudents = data?.students.length || 0;
   const totalAssessments = data?.students.reduce((sum, student) => sum + student.assessments.length, 0) || 0;
   const averageGrade = data?.students
     .filter(s => s.average_grade !== null)
     .reduce((sum, s, _, arr) => sum + (s.average_grade || 0) / arr.length, 0) || 0;
+  const totalPendingConcerns = data?.students.reduce((sum, student) => sum + student.pending_concerns_count, 0) || 0;
 
   if (loading) {
     return <FullPageLoader message="Loading students overview..." variant="dots" />;
@@ -466,6 +564,12 @@ export default function StudentsPage() {
                 <div className="value">{data.rooms.length}</div>
                 <div className="label">Active Rooms</div>
               </StatCard>
+              {totalPendingConcerns > 0 && (
+                <StatCard style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                  <div className="value" style={{ color: '#DC2626' }}>{totalPendingConcerns}</div>
+                  <div className="label">Pending Concerns</div>
+                </StatCard>
+              )}
             </StatsRow>
 
             <FilterSection>
@@ -502,6 +606,7 @@ export default function StudentsPage() {
                       <tr>
                         <TableHeader>Student</TableHeader>
                         <TableHeader>Year Group</TableHeader>
+                        <TableHeader>Safety Concerns</TableHeader>
                         <TableHeader>Assessments</TableHeader>
                         <TableHeader>Average Grade</TableHeader>
                       </tr>
@@ -520,6 +625,32 @@ export default function StudentsPage() {
                               <YearGroup>{student.year_group}</YearGroup>
                             ) : (
                               <span style={{ color: '#999', fontSize: '0.875rem' }}>Not set</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {student.safety_concerns.length > 0 ? (
+                              <ConcernsSection>
+                                {student.pending_concerns_count > 0 && (
+                                  <ConcernIndicator
+                                    $level={getHighestConcernLevel(student.safety_concerns.filter(c => c.status === 'pending'))}
+                                    $isPending={true}
+                                    onClick={() => handleConcernClick(student.safety_concerns.find(c => c.status === 'pending')?.flag_id || '')}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    title="View pending safety concerns"
+                                  >
+                                    <span className="icon">⚠️</span>
+                                    {student.pending_concerns_count} Pending
+                                  </ConcernIndicator>
+                                )}
+                                {student.safety_concerns.filter(c => c.status !== 'pending').length > 0 && (
+                                  <span style={{ color: '#999', fontSize: '0.75rem' }}>
+                                    {student.safety_concerns.filter(c => c.status !== 'pending').length} Resolved
+                                  </span>
+                                )}
+                              </ConcernsSection>
+                            ) : (
+                              <span style={{ color: '#999' }}>No concerns</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -576,6 +707,29 @@ export default function StudentsPage() {
                           <AverageGrade>{Math.round(student.average_grade)}%</AverageGrade>
                         )}
                       </MobileHeader>
+
+                      {student.safety_concerns.length > 0 && (
+                        <ConcernsSection style={{ marginTop: '12px', marginBottom: '12px' }}>
+                          {student.pending_concerns_count > 0 && (
+                            <ConcernIndicator
+                              $level={getHighestConcernLevel(student.safety_concerns.filter(c => c.status === 'pending'))}
+                              $isPending={true}
+                              onClick={() => handleConcernClick(student.safety_concerns.find(c => c.status === 'pending')?.flag_id || '')}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              title="View pending safety concerns"
+                            >
+                              <span className="icon">⚠️</span>
+                              {student.pending_concerns_count} Pending
+                            </ConcernIndicator>
+                          )}
+                          {student.safety_concerns.filter(c => c.status !== 'pending').length > 0 && (
+                            <span style={{ color: '#999', fontSize: '0.75rem' }}>
+                              {student.safety_concerns.filter(c => c.status !== 'pending').length} Resolved
+                            </span>
+                          )}
+                        </ConcernsSection>
+                      )}
 
                       <MobileAssessments>
                         <div className="label">Assessments ({student.assessments.length})</div>

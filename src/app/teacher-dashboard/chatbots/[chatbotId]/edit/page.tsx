@@ -380,7 +380,7 @@ export default function ConfigureChatbotPage() {
                 name: chatbot.name,
                 system_prompt: chatbot.system_prompt,
                 description: chatbot.description || undefined,
-                model: chatbot.model || 'qwen/qwen3-235b-a22b',
+                model: chatbot.model || 'openai/gpt-4.1-mini',
                 max_tokens: supabaseUpdatePayload.max_tokens,
                 temperature: supabaseUpdatePayload.temperature,
                 enable_rag: supabaseUpdatePayload.enable_rag,
@@ -407,6 +407,13 @@ export default function ConfigureChatbotPage() {
             const updateDataForSupabase = { ...supabaseUpdatePayload };
             delete updateDataForSupabase.teacher_id;
 
+            // Debug logging for model update
+            console.log('[Edit Page] Updating chatbot with model:', {
+              chatbot_id: chatbot.chatbot_id,
+              current_model: chatbot.model,
+              update_model: updateDataForSupabase.model
+            });
+
             const { error: updateError } = await supabase
                 .from('chatbots')
                 .update({ ...updateDataForSupabase, updated_at: new Date().toISOString() })
@@ -426,6 +433,15 @@ export default function ConfigureChatbotPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     let processedValue: string | number | boolean | undefined | null | BotType = value;
+
+    // Debug logging for model selection
+    if (name === 'model') {
+      console.log('[Edit Page] Model selection changed:', {
+        name,
+        value,
+        current_model: chatbot.model
+      });
+    }
 
     if (name === "max_tokens" || name === "temperature") {
         processedValue = value === `` ? null : Number(value);
@@ -583,7 +599,8 @@ export default function ConfigureChatbotPage() {
                   <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
                   <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
                   <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Llama-3.1</option>
-                  <option value="x-ai/grok-3-mini-beta">Grok-3 Mini</option> 
+                  <option value="x-ai/grok-3-mini-beta">Grok-3 Mini</option>
+                  <option value="deepseek/deepseek-r1-0528">DeepSeek-R1</option>
               </StyledSelect>
               <HelpText>This model is used for the Skolr's direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.</HelpText>
             </FormGroup>

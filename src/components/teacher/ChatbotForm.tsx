@@ -340,6 +340,16 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       linked_assessment_bot_id: formData.bot_type === 'viewing_room' && formData.linked_assessment_bot_id ? formData.linked_assessment_bot_id : undefined,
     };
 
+    // Debug logging for model selection
+    console.log('[ChatbotForm] Submitting with model:', {
+      formData_model: formData.model,
+      payload_model: payload.model,
+      editMode,
+      endpoint: editMode && initialData?.chatbot_id 
+        ? `/api/teacher/chatbots/${initialData.chatbot_id}` 
+        : '/api/teacher/chatbots'
+    });
+
 
     try {
       // Determine if we're creating a new chatbot or updating an existing one
@@ -518,6 +528,16 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     } else {
         // For welcome_message, allow empty string in state for controlled input,
         // it will be converted to null in handleSubmit if empty.
+        
+        // Debug logging for model selection
+        if (name === 'model') {
+          console.log('[ChatbotForm] Model selection changed:', {
+            name,
+            value,
+            target_id: e.target.id
+          });
+        }
+        
         setFormData(prev => ({
             ...prev,
             [name]: (name === 'max_tokens' || name === 'temperature') && value !== '' ? Number(value) : value,

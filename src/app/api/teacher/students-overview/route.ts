@@ -19,6 +19,15 @@ interface StudentWithAssessments {
     chatbot_name: string;
   }>;
   average_grade: number | null;
+  safety_concerns: Array<{
+    flag_id: string;
+    created_at: string;
+    concern_type: string;
+    concern_level: number;
+    status: string;
+    room_id: string;
+  }>;
+  pending_concerns_count: number;
 }
 
 interface StudentsOverviewResponse {
@@ -155,6 +164,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Get safety concerns for these students
+    const { data: safetyConcerns, error: concernsError } = await adminSupabase
+      .from('flagged_messages')
+      .select(`
+        flag_id,
+        student_id,
+        room_id,
+        created_at,
+        concern_type,
+        concern_level,
+        status
+      `)
+      .eq('teacher_id', user.id)
+      .in('student_id', studentIds)
+      .order('created_at', { ascending: false });
+
+    if (concernsError) {
+      console.error('[API GET /teacher/students-overview] Error fetching safety concerns:', concernsError);
+    }
+
     // Build students with assessments data
     const studentsMap = new Map<string, StudentWithAssessments>();
 
@@ -172,7 +201,9 @@ export async function GET(request: NextRequest) {
           room_id: membership.room_id,
           room_name: room?.room_name || 'Unknown Room',
           assessments: [],
-          average_grade: null
+          average_grade: null,
+          safety_concerns: [],
+          pending_concerns_count: 0
         });
       }
     });
@@ -192,6 +223,30 @@ export async function GET(request: NextRequest) {
             status: assessment.status,
             chatbot_name: chatbotNames.get(assessment.chatbot_id) || 'Unknown Chatbot'
           });
+        }
+      });
+    }
+
+    // Add safety concerns to students
+    if (safetyConcerns) {
+      safetyConcerns.forEach(concern => {
+        const key = `${concern.student_id}-${concern.room_id}`;
+        const student = studentsMap.get(key);
+        
+        if (student) {
+          student.safety_concerns.push({
+            flag_id: concern.flag_id,
+            created_at: concern.created_at,
+            concern_type: concern.concern_type,
+            concern_level: concern.concern_level,
+            status: concern.status,
+            room_id: concern.room_id
+          });
+          
+          // Count pending concerns
+          if (concern.status === 'pending') {
+            student.pending_concerns_count++;
+          }
         }
       });
     }
