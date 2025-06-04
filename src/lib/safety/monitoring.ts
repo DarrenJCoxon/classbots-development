@@ -587,6 +587,9 @@ export async function verifyConcern(
 
   const teacherAwarenessMandatorySentence = "Remember, your teacher can see this conversation and is here to support you. Please feel comfortable reaching out to them or another trusted adult if you need help.";
 
+  // Special handling for inappropriate content that needs educational guidance
+  const isInappropriateContent = concernType === 'sexual_content';
+  
   const promptParts = [
     `You are an AI safety assistant specializing in student wellbeing. Your task is to review a student's chat message for a specific concern and provide guidance if necessary. THIS IS A CRITICAL SAFETY FEATURE - your response MUST include the exact helplines provided in the format specified.`,
     `Concern Category Identified by Keywords: ${concernType.replace(/_/g, ' ')}`,
@@ -598,22 +601,30 @@ export async function verifyConcern(
     `    b.  **concernLevel**: (number 0-5) If genuine, assess severity.`,
     `    c.  **analysisExplanation**: (string) Briefly explain for the teacher (1-2 sentences).\n`,
     `2.  **Message for Student (aiGeneratedAdvice):**`,
-    `    If \`isRealConcern\` is true AND \`concernLevel\` is 2 or higher, compose a **VERY SHORT (max 3-4 sentences total, including helplines), empathetic, and DIRECT message**. This message MUST:`,
-    `    a.  Start with a brief, caring acknowledgment (e.g., "I hear that you're going through a tough time," or "It sounds like you're feeling [X]."). This should be one sentence.`,
-    `    b.  **Include this exact sentence VERBATIM**: "${teacherAwarenessMandatorySentence}"`,
-    `    c.  **URGENT AND CRITICAL INSTRUCTION: Include these EXACT support resources - this is the MOST IMPORTANT part of your response:**`,
-    `        ${conciseHelplineDataForPrompt.trim()}`,
-    `        IMPORTANT: I repeat, these helplines MUST be included EXACTLY as shown above.`,
-    `        Do not change, summarize, paraphrase or omit any part of the helplines.`,
-    `        The helplines are the MOST IMPORTANT part of your response.`,
-    `        Your response will be rejected if it doesn't contain these exact helplines.`,
-    `        Including these resources is MORE IMPORTANT than any explanatory text.`,
-    `        You MUST include ALL helpline names, phone numbers, and websites exactly as provided.`,
-    `        DO NOT add any marker lines like "===== MANDATORY HELPLINES" or similar around the helplines.`,
-    `        Just list the helplines exactly as shown above with the bullet points.`,
-    `    d.  End with a very short supportive closing (e.g., "Please reach out." or "Help is available."). This should be one sentence.`,
-    `    e.  The entire message must be very succinct and focused. Do not add any extra information not explicitly requested.\n`,
-    `Respond ONLY with a valid JSON object with these exact keys:`,
+    isInappropriateContent ? 
+    `    For sexual content or inappropriate topics, ALWAYS provide an educational response (set concernLevel to at least 2). Compose a polite but firm message that:
+    a.  Acknowledges their curiosity but redirects them appropriately (e.g., "I understand you may have questions about relationships or growing up.")
+    b.  Clearly states this isn't the appropriate place for such discussions: "However, this educational chatbot isn't the right place to discuss these topics."
+    c.  **Include this exact sentence VERBATIM**: "${teacherAwarenessMandatorySentence}"
+    d.  Provides appropriate guidance: "These are important topics that are best discussed with a parent, guardian, school counselor, or in an appropriate health education class."
+    e.  Offers to help with schoolwork instead: "I'm here to help you with your academic subjects. What school topic would you like to learn about today?"
+    f.  Keep the entire message professional, educational, and supportive while being clear about boundaries.` :
+    `    If \`isRealConcern\` is true AND \`concernLevel\` is 2 or higher, compose a **VERY SHORT (max 3-4 sentences total, including helplines), empathetic, and DIRECT message**. This message MUST:
+    a.  Start with a brief, caring acknowledgment (e.g., "I hear that you're going through a tough time," or "It sounds like you're feeling [X]."). This should be one sentence.
+    b.  **Include this exact sentence VERBATIM**: "${teacherAwarenessMandatorySentence}"
+    c.  **URGENT AND CRITICAL INSTRUCTION: Include these EXACT support resources - this is the MOST IMPORTANT part of your response:**
+        ${conciseHelplineDataForPrompt.trim()}
+        IMPORTANT: I repeat, these helplines MUST be included EXACTLY as shown above.
+        Do not change, summarize, paraphrase or omit any part of the helplines.
+        The helplines are the MOST IMPORTANT part of your response.
+        Your response will be rejected if it doesn't contain these exact helplines.
+        Including these resources is MORE IMPORTANT than any explanatory text.
+        You MUST include ALL helpline names, phone numbers, and websites exactly as provided.
+        DO NOT add any marker lines like "===== MANDATORY HELPLINES" or similar around the helplines.
+        Just list the helplines exactly as shown above with the bullet points.
+    d.  End with a very short supportive closing (e.g., "Please reach out." or "Help is available."). This should be one sentence.
+    e.  The entire message must be very succinct and focused. Do not add any extra information not explicitly requested.`,
+    `\nRespond ONLY with a valid JSON object with these exact keys:`,
     `"isRealConcern": boolean,`,
     `"concernLevel": number,`,
     `"analysisExplanation": string,`,
