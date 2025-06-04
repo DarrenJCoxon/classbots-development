@@ -1247,11 +1247,8 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   // Remove the optimistic message
                   setMessages(prev => prev.filter(m => m.message_id !== tempOptimisticLocalId));
                   
-                  // Add a system message explaining the filter
-                  let contentFilterMessage = errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.';
-                  
-                  // Add emoji and additional context to make it more friendly
-                  contentFilterMessage = `🛡️ ${contentFilterMessage}\n\nI'm here to help you learn! Try asking your question in a different way, and remember to keep your personal information private. 😊`;
+                  // Use the message from the server directly
+                  const contentFilterMessage = errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.';
                   
                   const filterMessage: ChatMessage = {
                     message_id: `filter-${Date.now()}`,
@@ -1270,6 +1267,12 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   setMessages(prev => [...prev, filterMessage]);
                   setIsLoading(false);
                   setTimeout(scrollToBottom, 50);
+                  
+                  // Fetch messages to get the server-created system message
+                  setTimeout(() => {
+                    fetchMessages();
+                  }, 500);
+                  
                   return; // Skip normal error handling
                 }
                 
@@ -1631,10 +1634,14 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                 return true;
               }
               
-              // For system messages, only show safety responses and placeholders
+              // For system messages, show safety responses, placeholders, and content filters
               if (message.role === 'system') {
                 return message.metadata?.isSystemSafetyResponse === true || 
-                       message.metadata?.isSafetyPlaceholder === true;
+                       message.metadata?.isSafetyPlaceholder === true ||
+                       message.metadata?.isContentFilter === true ||
+                       message.metadata?.isContentFilterMessage === true ||
+                       message.metadata?.isAIModerationMessage === true ||
+                       message.metadata?.isSystemMessage === true;
               }
               
               return false;
