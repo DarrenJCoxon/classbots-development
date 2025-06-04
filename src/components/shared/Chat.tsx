@@ -1289,8 +1289,9 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                   // Use the message from the server directly
                   const contentFilterMessage = errorData.message || 'For your safety, your message was blocked. Please don\'t share personal information.';
                   
+                  // Use the server's message ID if provided
                   const filterMessage: ChatMessage = {
-                    message_id: `filter-${Date.now()}`,
+                    message_id: errorData.systemMessageId || `filter-${Date.now()}`,
                     room_id: roomId,
                     user_id: userId,
                     role: 'system',
@@ -1298,19 +1299,69 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
                     created_at: new Date().toISOString(),
                     metadata: {
                       isContentFilter: true,
+                      isContentFilterMessage: true, // Add both flags to ensure display
+                      isSystemMessage: true,
                       filterReason: errorData.reason,
                       chatbotId: chatbot.chatbot_id
                     }
                   };
                   
-                  setMessages(prev => [...prev, filterMessage]);
+                  setMessages(prev => {
+                    const updated = [...prev, filterMessage];
+                    console.log('[Chat.tsx] Adding content filter message to state:', {
+                      messageId: filterMessage.message_id,
+                      totalMessages: updated.length,
+                      metadata: filterMessage.metadata
+                    });
+                    return updated;
+                  });
                   setIsLoading(false);
-                  setTimeout(scrollToBottom, 50);
                   
-                  // Fetch messages to get the server-created system message
+                  // Scroll after a brief delay to ensure message is rendered
                   setTimeout(() => {
-                    fetchMessages();
-                  }, 500);
+                    scrollToBottom();
+                    console.log('[Chat.tsx] Content filter message should now be visible');
+                  }, 100);
+                  
+                  // Don't fetch messages immediately - the message is already in state
+                  // The server message will be fetched on next regular fetch if needed
+                  
+                  return; // Skip normal error handling
+                }
+                
+                // Handle AI moderation messages (similar to content filter)
+                if (response.status === 400 && errorData.error === "Message blocked" && errorData.severity) {
+                  console.log("[Chat.tsx] AI moderation triggered - showing message");
+                  
+                  // Remove the optimistic message
+                  setMessages(prev => prev.filter(m => m.message_id !== tempOptimisticLocalId));
+                  
+                  // Use the message from the server
+                  const moderationMessage = errorData.message || 'This message was blocked by our safety system.';
+                  
+                  const aiModMessage: ChatMessage = {
+                    message_id: errorData.systemMessageId || `moderation-${Date.now()}`,
+                    room_id: roomId,
+                    user_id: userId,
+                    role: 'system',
+                    content: moderationMessage,
+                    created_at: new Date().toISOString(),
+                    metadata: {
+                      isAIModerationMessage: true,
+                      isSystemMessage: true,
+                      moderationReason: errorData.reason,
+                      moderationSeverity: errorData.severity,
+                      chatbotId: chatbot.chatbot_id
+                    }
+                  };
+                  
+                  setMessages(prev => [...prev, aiModMessage]);
+                  setIsLoading(false);
+                  
+                  setTimeout(() => {
+                    scrollToBottom();
+                    console.log('[Chat.tsx] Added AI moderation message to UI:', aiModMessage.message_id);
+                  }, 100);
                   
                   return; // Skip normal error handling
                 }
@@ -1675,12 +1726,23 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
               
               // For system messages, show safety responses, placeholders, and content filters
               if (message.role === 'system') {
-                return message.metadata?.isSystemSafetyResponse === true || 
+                const shouldShow = message.metadata?.isSystemSafetyResponse === true || 
                        message.metadata?.isSafetyPlaceholder === true ||
                        message.metadata?.isContentFilter === true ||
                        message.metadata?.isContentFilterMessage === true ||
                        message.metadata?.isAIModerationMessage === true ||
                        message.metadata?.isSystemMessage === true;
+                
+                // Debug logging for system messages
+                if (!shouldShow && message.content) {
+                  console.log('[Chat.tsx] Filtering out system message:', {
+                    id: message.message_id,
+                    content: message.content.substring(0, 50),
+                    metadata: message.metadata
+                  });
+                }
+                
+                return shouldShow;
               }
               
               return false;
