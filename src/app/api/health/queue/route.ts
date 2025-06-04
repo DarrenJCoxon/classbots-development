@@ -5,7 +5,20 @@ import Redis from 'ioredis';
 
 export async function GET(request: NextRequest) {
   try {
-    const queueHealth = await memoryQueue.getQueueHealth();
+    // Get queue metrics
+    const waiting = await memoryQueue.getWaitingCount();
+    const active = await memoryQueue.getActiveCount();
+    const completed = await memoryQueue.getCompletedCount();
+    const failed = await memoryQueue.getFailedCount();
+    const delayed = await memoryQueue.getDelayedCount();
+    
+    const queueHealth = {
+      waiting,
+      active,
+      completed,
+      failed,
+      delayed
+    };
     
     // Test Redis connection
     const redis = new Redis({

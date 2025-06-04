@@ -7,11 +7,8 @@
 
 import { startMemoryWorker } from './memory-worker';
 
-// Configure environment
-process.env.NODE_ENV = process.env.NODE_ENV || 'production';
-
 console.log('[Worker] Starting memory queue worker...');
-console.log('[Worker] Environment:', process.env.NODE_ENV);
+console.log('[Worker] Environment:', process.env.NODE_ENV || 'production');
 console.log('[Worker] Redis Host:', process.env.REDIS_HOST || 'localhost');
 console.log('[Worker] Concurrency:', process.env.MEMORY_WORKER_CONCURRENCY || '10');
 
