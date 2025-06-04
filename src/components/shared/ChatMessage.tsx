@@ -1,7 +1,7 @@
 // src/components/shared/ChatMessage.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import styled, { css } from 'styled-components'; // Added css import
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -306,6 +306,7 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
     const isUser = message.role === 'user';
     const { speak, stop, isLoading: isTTSLoading, isPlaying, error: ttsError } = useTextToSpeech();
     const [isCopied, setIsCopied] = useState(false);
+    const messageContentRef = useRef<HTMLDivElement>(null);
     
     const metadata = message.metadata as MessageMetadataWithFlags; // Use new type
     const hasError = !!metadata?.error;
@@ -492,14 +493,87 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
         }
     }
 
-    // Copy message handler
+    // Copy message handler with HTML formatting for Word
     const handleCopyMessage = async () => {
         try {
-            await navigator.clipboard.writeText(message.content || '');
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+            if (messageContentRef.current) {
+                // Get the rendered HTML from the DOM
+                const htmlContent = messageContentRef.current.innerHTML;
+                
+                // Create a cleaner version for Word compatibility
+                const cleanHtml = `
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <style>
+                                body { font-family: Arial, sans-serif; }
+                                h1, h2, h3, h4, h5, h6 { margin: 0.5em 0; }
+                                p { margin: 0.5em 0; }
+                                ul, ol { margin: 0.5em 0; padding-left: 2em; }
+                                li { margin: 0.25em 0; }
+                                code { background-color: #f4f4f4; padding: 2px 4px; font-family: monospace; }
+                                pre { background-color: #f4f4f4; padding: 1em; overflow-x: auto; }
+                                blockquote { border-left: 4px solid #ccc; margin-left: 0; padding-left: 1em; }
+                                table { border-collapse: collapse; margin: 1em 0; }
+                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                th { background-color: #f4f4f4; font-weight: bold; }
+                            </style>
+                        </head>
+                        <body>${htmlContent}</body>
+                    </html>
+                `;
+                
+                // Create blobs for both formats
+                const textBlob = new Blob([message.content || ''], { type: 'text/plain' });
+                const htmlBlob = new Blob([cleanHtml], { type: 'text/html' });
+                
+                // Use the Clipboard API to write both formats
+                if (navigator.clipboard && window.ClipboardItem) {
+                    const clipboardItem = new ClipboardItem({
+                        'text/plain': textBlob,
+                        'text/html': htmlBlob
+                    });
+                    
+                    await navigator.clipboard.write([clipboardItem]);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                } else {
+                    // Fallback method using execCommand
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    
+                    if (selection && messageContentRef.current) {
+                        range.selectNodeContents(messageContentRef.current);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        
+                        const success = document.execCommand('copy');
+                        selection.removeAllRanges();
+                        
+                        if (success) {
+                            setIsCopied(true);
+                            setTimeout(() => setIsCopied(false), 2000);
+                        } else {
+                            throw new Error('execCommand copy failed');
+                        }
+                    }
+                }
+            } else {
+                // Fallback to plain text if ref is not available
+                await navigator.clipboard.writeText(message.content || '');
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            }
         } catch (err) {
             console.error('Failed to copy message:', err);
+            // Final fallback to plain text
+            try {
+                await navigator.clipboard.writeText(message.content || '');
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            } catch (fallbackErr) {
+                console.error('All copy methods failed:', fallbackErr);
+            }
         }
     };
 
@@ -525,7 +599,7 @@ function ChatMessageDisplay({ message, chatbotName, userId, directAccess }: Chat
                         {isOptimistic ? 'Sending...' : formatTimestamp(message.created_at)}
                     </Timestamp>
                 </MessageHeader>
-                <MessageContent $isUser={isUser}>
+                <MessageContent $isUser={isUser} ref={messageContentRef}>
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         rehypePlugins={[rehypeRaw]}
