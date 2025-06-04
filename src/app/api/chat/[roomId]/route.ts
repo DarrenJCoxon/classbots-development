@@ -1078,7 +1078,6 @@ If the student appears to be in emotional distress or mentions self-harm, bullyi
         // DeepSeek models might have specific token limits
         adjustedMaxTokens = Math.min(maxTokensToUse, 4096); // Limit to 4096 for DeepSeek
         console.log(`[API Chat POST] Adjusted max_tokens for DeepSeek: ${adjustedMaxTokens}`);
-        console.log(`[API Chat POST] Note: DeepSeek R1 is a large model and may take 30-60 seconds to respond`);
     }
     
     const requestBody = {

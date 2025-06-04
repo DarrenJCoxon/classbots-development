@@ -596,20 +596,13 @@ export default function ConfigureChatbotPage() {
             <FormGroup>
               <Label htmlFor="model">AI Model (for Chatting)</Label>
               <StyledSelect id="model" name="model" value={chatbot.model || 'openai/gpt-4.1-mini'} onChange={handleChange}>
-                  <option value="openai/gpt-4.1-mini">GPT-4.1 Mini (Fast)</option>
-                  <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash (Very Fast)</option>
-                  <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Llama-3.1 (Moderate)</option>
-                  <option value="x-ai/grok-3-mini-beta">Grok-3 Mini (Fast)</option>
-                  <option value="deepseek/deepseek-r1-0528">DeepSeek-R1 (Slow but Powerful)</option>
+                  <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                  <option value="google/gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
+                  <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1">Llama-3.1</option>
+                  <option value="x-ai/grok-3-mini-beta">Grok-3 Mini</option>
+                  <option value="deepseek/deepseek-r1-0528">DeepSeek-R1</option>
               </StyledSelect>
-              <HelpText>
-                This model is used for the Skolr's direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.
-                {chatbot.model?.includes('deepseek') && (
-                  <span style={{ display: 'block', marginTop: '8px', color: '#EA580C' }}>
-                    ⚠️ DeepSeek R1 is a very large model that provides exceptional reasoning but may take 30-60 seconds per response. Consider using a faster model for real-time classroom interactions.
-                  </span>
-                )}
-              </HelpText>
+              <HelpText>This model is used for the Skolr's direct replies to students. The assessment evaluation will use a dedicated model for consistent evaluation.</HelpText>
             </FormGroup>
             <FormGroup>
               <Label htmlFor="max_tokens">Max Tokens (Chat Response Length)</Label>
