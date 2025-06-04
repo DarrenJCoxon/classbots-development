@@ -712,6 +712,15 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
           
           // Special handling for safety messages to avoid duplication
           if (msg.role === 'system' && msg.metadata?.isSystemSafetyResponse) {
+            // Filter out old safety messages (older than 5 minutes) on initial load
+            const messageAge = Date.now() - new Date(msg.created_at).getTime();
+            const fiveMinutes = 5 * 60 * 1000;
+            
+            if (messageAge > fiveMinutes) {
+              console.log(`[Chat] Filtering out old safety message ${msg.message_id} (${Math.round(messageAge / 1000 / 60)} minutes old)`);
+              return;
+            }
+            
             // Check if we already have a safety message for this concern
             const existingSafetyMessage = Array.from(uniqueMessages.values()).find(existingMsg => 
               existingMsg.role === 'system' && 
@@ -758,15 +767,20 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
   }, [roomId, chatbot?.chatbot_id, userId, searchParams, scrollToBottom]);
 
   // Helper function to fetch safety messages
-  const fetchSafetyMessages = useCallback(async () => {
+  const fetchSafetyMessages = useCallback(async (specificMessageId?: string) => {
     if (!userId || !roomId) return;
     
     try {
-      console.log(`[Chat.tsx] Fetching safety messages for user ${userId} in room ${roomId}`);
+      console.log(`[Chat.tsx] Fetching safety messages for user ${userId} in room ${roomId}${specificMessageId ? ` (specific: ${specificMessageId})` : ''}`);
       
       // Try the direct safety message API endpoint
       try {
-        const safetyResponse = await fetch(`/api/student/safety-message?userId=${userId}&roomId=${roomId}`, {
+        // If we have a specific message ID from the broadcast, fetch only that message
+        const url = specificMessageId 
+          ? `/api/student/safety-message?messageId=${specificMessageId}&userId=${userId}`
+          : `/api/student/safety-message?userId=${userId}&roomId=${roomId}`;
+          
+        const safetyResponse = await fetch(url, {
           method: 'GET',
           credentials: 'include',
           cache: 'no-store' // Ensure we don't get cached responses
@@ -777,6 +791,15 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
           
           if (safetyData.found && safetyData.message) {
             console.log(`[Chat.tsx] Found safety message via direct API: ${safetyData.message.message_id}`);
+            
+            // Check if this is a recent message (created within the last 5 minutes)
+            const messageAge = Date.now() - new Date(safetyData.message.created_at).getTime();
+            const fiveMinutes = 5 * 60 * 1000;
+            
+            if (!specificMessageId && messageAge > fiveMinutes) {
+              console.log(`[Chat.tsx] Safety message ${safetyData.message.message_id} is older than 5 minutes (${Math.round(messageAge / 1000 / 60)} minutes old), ignoring`);
+              return;
+            }
             
             // Update UI with the safety message
             setMessages(prevMessages => {
@@ -813,7 +836,7 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
       }
       
       // If we reach here, safety message API didn't return data
-      console.log(`[Chat.tsx] Safety message API didn't return data, will try again on next poll`);
+      console.log(`[Chat.tsx] Safety message API didn't return data${specificMessageId ? ' for specific message' : ', will try again on next poll'}`);
       // Don't call fetchMessages to avoid loops - polling will retry
       
     } catch (error) {
@@ -1130,8 +1153,12 @@ export default function Chat({ roomId, chatbot, instanceId, countryCode, directM
         if (room_id === roomId && (!chatbot_id || chatbot_id === chatbot?.chatbot_id)) {
           console.log('[Chat.tsx RT Broadcast] Safety broadcast is for this chat, fetching message');
           
-          // Fetch the actual safety message
-          fetchSafetyMessages();
+          // Fetch the specific safety message if we have the ID
+          if (message_id) {
+            fetchSafetyMessages(message_id);
+          } else {
+            fetchSafetyMessages();
+          }
         }
       })
       .subscribe((status) => {
