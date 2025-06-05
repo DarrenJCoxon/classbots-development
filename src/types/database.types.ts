@@ -23,6 +23,9 @@ export type BotTypeEnum = 'learning' | 'assessment' | 'reading_room' | 'viewing_
 // Assessment Status Enum
 export type AssessmentStatusEnum = 'ai_processing' | 'ai_completed' | 'teacher_reviewed';
 
+// Assessment Type Enum
+export type AssessmentTypeEnum = 'multiple_choice' | 'open_ended';
+
 
 // --- Table Interfaces ---
 
@@ -47,6 +50,8 @@ export interface Chatbot extends BaseTable {
   assessment_criteria_text?: string | null;
   welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
   linked_assessment_bot_id?: string | null; // For linking viewing room to assessment
+  assessment_type?: AssessmentTypeEnum | null; // Type of assessment (multiple choice or open ended)
+  assessment_question_count?: number | null; // Number of questions (5, 10, 15, or 20)
 }
 
 export interface ReadingDocument extends BaseTable {
@@ -282,6 +287,8 @@ export interface CreateChatbotPayload {
   enable_rag?: boolean;
   bot_type?: BotTypeEnum;
   assessment_criteria_text?: string | null;
+  assessment_type?: AssessmentTypeEnum | null;
+  assessment_question_count?: number | null;
   welcome_message?: string | null; // <-- ADDED (This was already correct in your original file)
   video_url?: string; // For viewing room bots
   linked_assessment_bot_id?: string; // For linking to assessment bot

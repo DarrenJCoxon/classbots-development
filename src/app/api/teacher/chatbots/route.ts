@@ -235,6 +235,8 @@ export async function POST(request: NextRequest) {
       enable_rag: (body.bot_type === 'learning' || body.bot_type === 'reading_room' || body.bot_type === 'viewing_room') ? (body.enable_rag || false) : false,
       bot_type: body.bot_type || 'learning',
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
+      assessment_type: body.bot_type === 'assessment' ? (body.assessment_type || 'multiple_choice') : null,
+      assessment_question_count: body.bot_type === 'assessment' ? (body.assessment_question_count || 10) : null,
       welcome_message: body.welcome_message || null,
       linked_assessment_bot_id: body.linked_assessment_bot_id || null,
     };

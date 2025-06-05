@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { BotTypeEnum } from '@/types/database.types';
+import { BotTypeEnum, AssessmentTypeEnum } from '@/types/database.types';
 import {
     FormGroup,
     Label,
@@ -219,6 +219,8 @@ interface ChatbotFormData {
   video_url?: string; // For viewing room Skolrs
   linked_assessment_bot_id?: string; // For linking to assessment Skolr
   chatbot_id?: string; // For edit mode
+  assessment_type?: 'multiple_choice' | 'open_ended'; // Assessment type
+  assessment_question_count?: number; // Number of questions (5, 10, 15, 20)
 }
 
 interface ChatbotFormProps {
@@ -242,6 +244,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
     welcome_message: initialData?.welcome_message || '',
     video_url: initialData?.video_url || '',
     linked_assessment_bot_id: initialData?.linked_assessment_bot_id || '',
+    assessment_type: initialData?.assessment_type || 'multiple_choice',
+    assessment_question_count: initialData?.assessment_question_count || 10,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -335,6 +339,8 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
       enable_rag: (formData.bot_type === 'learning' || formData.bot_type === 'reading_room' || formData.bot_type === 'viewing_room') ? formData.enable_rag : false,
       bot_type: formData.bot_type,
       assessment_criteria_text: formData.bot_type === 'assessment' ? (formData.assessment_criteria_text || null) : null,
+      assessment_type: formData.bot_type === 'assessment' ? formData.assessment_type : undefined,
+      assessment_question_count: formData.bot_type === 'assessment' ? formData.assessment_question_count : undefined,
       welcome_message: formData.welcome_message.trim() || null, // <--- ADDED (send null if empty)
       video_url: formData.bot_type === 'viewing_room' && formData.video_url ? formData.video_url.trim() : undefined,
       linked_assessment_bot_id: formData.bot_type === 'viewing_room' && formData.linked_assessment_bot_id ? formData.linked_assessment_bot_id : undefined,
@@ -604,6 +610,40 @@ export default function ChatbotForm({ onClose, onSuccess, initialData, editMode 
 
             {formData.bot_type === 'assessment' && (
               <AssessmentCriteriaSection>
+                <FormGroup>
+                  <Label htmlFor="assessment_type">Assessment Type</Label>
+                  <StyledSelect
+                    id="assessment_type"
+                    name="assessment_type"
+                    value={formData.assessment_type}
+                    onChange={handleChange}
+                  >
+                    <option value="multiple_choice">Multiple Choice Quiz</option>
+                    <option value="open_ended">Open Ended Questions</option>
+                  </StyledSelect>
+                  <HelpText>
+                    Choose the type of questions the bot will ask.
+                  </HelpText>
+                </FormGroup>
+
+                <FormGroup>
+                  <Label htmlFor="assessment_question_count">Number of Questions</Label>
+                  <StyledSelect
+                    id="assessment_question_count"
+                    name="assessment_question_count"
+                    value={formData.assessment_question_count}
+                    onChange={handleChange}
+                  >
+                    <option value={5}>5 questions</option>
+                    <option value={10}>10 questions</option>
+                    <option value={15}>15 questions</option>
+                    <option value={20}>20 questions</option>
+                  </StyledSelect>
+                  <HelpText>
+                    The bot will present exactly this many questions to the student.
+                  </HelpText>
+                </FormGroup>
+
                 <Label htmlFor="assessment_criteria_text">Define Assessment Rubric / Criteria</Label>
                 <TextArea
                   id="assessment_criteria_text"

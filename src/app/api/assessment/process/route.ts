@@ -37,6 +37,10 @@ interface LLMAssessmentOutput {
     teacher_analysis: {
         summary: string;
         criteria_summary?: string; // New field for summarized criteria
+        questions_presented?: number;
+        questions_answered?: number;
+        questions_correct?: number;
+        completion_rate?: string;
         strengths: string[];
         areas_for_improvement: string[];
         grading_rationale: string;
@@ -44,6 +48,7 @@ interface LLMAssessmentOutput {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[API /assessment/process] ========== ASSESSMENT ENDPOINT CALLED ==========');
   const requestId = request.headers.get('x-request-id') || `assess-${Date.now()}`;
   const requestSource = request.headers.get('x-assessment-source') || 'unknown';
   
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch the Assessment Bot's configuration
     const { data: assessmentBotConfig, error: botConfigError } = await adminSupabase
       .from('chatbots')
-      .select('assessment_criteria_text, enable_rag, teacher_id, name')
+      .select('assessment_criteria_text, enable_rag, teacher_id, name, assessment_type, assessment_question_count')
       .eq('chatbot_id', chatbot_id)
       .eq('bot_type', 'assessment')
       .single();
@@ -184,8 +189,27 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Construct the detailed assessment prompt for the LLM
+    const questionCount = assessmentBotConfig.assessment_question_count || 10;
+    const assessmentType = assessmentBotConfig.assessment_type || 'multiple_choice';
+    
     const finalAssessmentPrompt = `
 You are an AI teaching assistant. Your task is to evaluate a student's (or tester's) interaction based on the teacher's criteria, the original passage (if provided), and the conversation history.
+
+ASSESSMENT CONFIGURATION:
+- Assessment Type: ${assessmentType === 'multiple_choice' ? 'Multiple Choice Quiz' : 'Open Ended Questions'}
+- Expected Number of Questions: ${questionCount}
+
+CRITICAL SCORING INSTRUCTIONS:
+1. The quiz bot should have presented EXACTLY ${questionCount} ${assessmentType === 'multiple_choice' ? 'multiple choice' : 'open ended'} questions
+2. Count ALL questions actually presented by the Quiz Bot (look for patterns like "Question 1", "Question 2", "Here is question", etc.)
+3. Count how many questions the student actually answered (not just said "yes" or "continue")
+4. Any questions that were presented but NOT answered must be counted as incorrect
+5. The grade must be based on: (Correct Answers / ${questionCount}) × 100%
+6. DO NOT give credit for unanswered questions, even if the student answered other questions correctly
+
+Example: If ${questionCount} questions were expected and student answered only 3 correctly before submitting:
+- Score = 3/${questionCount} = ${Math.round((3/questionCount)*100)}% (NOT 3/3 = 100%)
+- Grade should reflect poor completion rate
 
 Teacher's Assessment Criteria:
 --- TEACHER'S CRITERIA START ---
@@ -211,6 +235,10 @@ Provide your evaluation ONLY as a single, valid JSON object matching the followi
   "teacher_analysis": {
     "summary": "string (A 1-2 sentence overall summary of the student's performance for the teacher.)",
     "criteria_summary": "string (A concise 2-3 sentence summary of the key criteria that were used for assessment, not the full criteria text)",
+    "questions_presented": "number (Total number of questions the bot presented to the student)",
+    "questions_answered": "number (Total number of questions the student actually answered)",
+    "questions_correct": "number (Total number of correct answers)",
+    "completion_rate": "string (e.g., '3/10 questions answered')",
     "strengths": [
       "string (A specific strength observed, referencing criteria/conversation. Be specific.)",
       "string (Another specific strength, if any. Up to 2-3 strengths total.)"
@@ -219,7 +247,7 @@ Provide your evaluation ONLY as a single, valid JSON object matching the followi
       "string (A specific area for improvement, referencing criteria/conversation. Be specific.)",
       "string (Another specific area, if any. Up to 2-3 areas total.)"
     ],
-    "grading_rationale": "string (A brief explanation of how the grade was derived based on the criteria and the student's performance in the conversation.)"
+    "grading_rationale": "string (A brief explanation of how the grade was derived based on the criteria and the student's performance in the conversation. MUST mention if student skipped questions.)"
   }
 }
 

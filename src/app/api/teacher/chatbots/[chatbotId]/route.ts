@@ -132,6 +132,12 @@ export async function PUT(request: NextRequest, { params }: any) {
         : false,
       bot_type: body.bot_type || existingChatbot.bot_type,
       assessment_criteria_text: body.bot_type === 'assessment' ? body.assessment_criteria_text : null,
+      assessment_type: body.bot_type === 'assessment' 
+        ? (body.assessment_type || existingChatbot.assessment_type || 'multiple_choice') 
+        : null,
+      assessment_question_count: body.bot_type === 'assessment' 
+        ? (body.assessment_question_count || existingChatbot.assessment_question_count || 10) 
+        : null,
       welcome_message: body.welcome_message || null,
       updated_at: new Date().toISOString(),
     };

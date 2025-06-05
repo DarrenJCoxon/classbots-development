@@ -484,7 +484,7 @@ export async function POST(request: NextRequest) {
     // Use admin client for chatbot config
     const { data: chatbotConfig, error: chatbotFetchError } = await supabaseAdmin
         .from('chatbots')
-        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id, name')
+        .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id, name, assessment_type, assessment_question_count')
         .eq('chatbot_id', chatbot_id)
         .single();
 
@@ -956,7 +956,22 @@ export async function POST(request: NextRequest) {
             console.log(`[PROMPT] Assessment criteria length: ${chatbotConfig.assessment_criteria_text.length} chars`);
             console.log(`[PROMPT] Assessment criteria content: "${chatbotConfig.assessment_criteria_text.substring(0, 200)}..."`);
             
+            const assessmentType = chatbotConfig.assessment_type || 'multiple_choice';
+            const questionCount = chatbotConfig.assessment_question_count || 10;
+            
             teacherSystemPrompt = `${teacherSystemPrompt}
+
+ASSESSMENT CONFIGURATION:
+- Assessment Type: ${assessmentType === 'multiple_choice' ? 'Multiple Choice Quiz' : 'Open Ended Questions'}
+- Number of Questions: ${questionCount}
+
+ASSESSMENT INSTRUCTIONS:
+1. You MUST present EXACTLY ${questionCount} ${assessmentType === 'multiple_choice' ? 'multiple choice' : 'open ended'} questions to the student
+2. ${assessmentType === 'multiple_choice' ? 'Each question should have 4 options (A, B, C, D)' : 'Each question should require a thoughtful written response'}
+3. Number each question clearly (Question 1, Question 2, etc.)
+4. Ask questions one at a time, waiting for the student's response before proceeding
+5. After the student answers all ${questionCount} questions, inform them that the assessment is complete
+6. Do NOT provide the correct answers during the assessment
 
 ASSESSMENT CRITERIA AND RUBRIC:
 ${chatbotConfig.assessment_criteria_text}

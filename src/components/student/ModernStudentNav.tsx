@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/student/dashboard', icon: <FiHome /> },
   { label: 'My Classrooms', href: '/student/dashboard#classrooms', icon: <FiGrid /> },
   { label: 'Assessments', href: '/student/dashboard#assessments', icon: <FiBookOpen /> },
-  { label: 'Profile', href: '/student/account-setup', icon: <FiUser /> },
+  { label: 'Profile', href: '/student/profile', icon: <FiUser /> },
 ];
 
 const NavContainer = styled(motion.nav)<{ $isOpen: boolean }>`
@@ -673,7 +673,7 @@ export const ModernStudentNav: React.FC = () => {
       </NavList>
       
       <BottomSection>
-        <UserInfo href="/student/account-setup" $isOpen={isOpen}>
+        <UserInfo href="/student/profile" $isOpen={isOpen}>
           <Avatar $isOpen={isOpen}>{getInitials(studentProfile.full_name)}</Avatar>
           <UserDetails $isOpen={isOpen}>
             <h4>{studentProfile.full_name || 'Student'}</h4>
@@ -753,7 +753,7 @@ export const ModernStudentNav: React.FC = () => {
             >
               Assessments
             </MobileNavLink>
-            <MobileNavLink href="/student/account-setup" $isActive={pathname === '/student/account-setup'}>
+            <MobileNavLink href="/student/profile" $isActive={pathname === '/student/profile'}>
               Profile
             </MobileNavLink>
             

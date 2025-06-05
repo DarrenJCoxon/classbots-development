@@ -208,7 +208,9 @@ export async function middleware(request: NextRequest) {
     // Check for login/auth routes that shouldn't redirect
     const isAuthPage = pathname === '/auth' || pathname.startsWith('/auth/');
     const isHomePage = pathname === '/';
-    const isPublicRoute = isAuthPage || isHomePage || pathname === '/student-login';
+    const isJoinRoomPage = pathname === '/join-room' || pathname.startsWith('/room-join/');
+    const isStudentAccessPage = pathname === '/student-access' || pathname === '/pin-login';
+    const isPublicRoute = isAuthPage || isHomePage || pathname === '/student-login' || isJoinRoomPage || isStudentAccessPage;
     
     // Check for timestamp parameter indicating a fresh redirect
     const hasTimestamp = url.searchParams.has('_t');
