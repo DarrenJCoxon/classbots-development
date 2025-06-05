@@ -21,16 +21,15 @@ export async function GET(request: NextRequest) {
     let studentId: string | null = null;
     
     if (userId) {
-      // Direct access mode - validate the user exists
-      const { data: userProfile } = await supabaseAdmin
-        .from('student_profiles')
-        .select('user_id')
-        .eq('user_id', userId)
-        .single();
-        
-      if (userProfile) {
-        studentId = userProfile.user_id;
-        console.log('[API GET /student/room-chatbots] Using direct access user ID:', studentId);
+      // Direct access mode - trust the userId from the join process
+      studentId = userId;
+      console.log('[API GET /student/room-chatbots] Using direct access user ID:', studentId);
+      
+      // Verify the user exists in auth system (not just profiles)
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+      if (!authUser?.user) {
+        console.warn('[API GET /student/room-chatbots] User ID not found in auth:', userId);
+        return NextResponse.json({ error: 'Invalid user ID' }, { status: 401 });
       }
     } 
     

@@ -387,7 +387,7 @@ function JoinRoomContent() {
       // 7. First, try to find a chatbot for this room
       try {
         // Use the room-chatbots API for reliable access
-        const roomChatbotsResponse = await fetch(`/api/student/room-chatbots?roomId=${joinedRoomId}`, {
+        const roomChatbotsResponse = await fetch(`/api/student/room-chatbots?roomId=${joinedRoomId}${uidParam ? `&userId=${uidParam}` : ''}`, {
           method: 'GET',
           credentials: 'include'
         });
