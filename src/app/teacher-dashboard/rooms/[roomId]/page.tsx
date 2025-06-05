@@ -341,6 +341,7 @@ export default function TeacherRoomDetailPage() {
   const [deletingStudents, setDeletingStudents] = useState<Record<string, boolean>>({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<StudentInRoom | null>(null);
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
   
   const params = useParams();
   const router = useRouter();
@@ -496,6 +497,77 @@ export default function TeacherRoomDetailPage() {
   
   // Magic link related functions removed
 
+  const downloadCSV = async () => {
+    if (!roomDetails || downloadingCSV) return;
+    
+    setDownloadingCSV(true);
+    setError(null);
+    
+    try {
+      const { students, room } = roomDetails;
+      
+      // Prepare CSV data
+      const csvHeader = 'Name,Username,PIN Code,Email,Joined Date\n';
+      const csvRows = await Promise.all(
+        students.map(async (student) => {
+          // Fetch student PIN and username if not already available
+          let username = student.username || 'N/A';
+          let pin = 'N/A';
+          let email = student.email || 'N/A';
+          
+          try {
+            const response = await fetch(`/api/teacher/students/pin-code?studentId=${student.user_id}`);
+            if (response.ok) {
+              const pinData = await response.json();
+              username = pinData.username || username;
+              pin = pinData.pin_code || 'N/A';
+            }
+          } catch (err) {
+            console.error(`Error fetching PIN for student ${student.user_id}:`, err);
+          }
+          
+          const name = student.full_name || 'N/A';
+          const joinedDate = student.joined_at ? new Date(student.joined_at).toLocaleDateString() : 'N/A';
+          
+          // Escape values that might contain commas
+          const escapeCsvValue = (value: string) => {
+            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          };
+          
+          return `${escapeCsvValue(name)},${escapeCsvValue(username)},${pin},${escapeCsvValue(email)},${joinedDate}`;
+        })
+      );
+      
+      const csvContent = csvHeader + csvRows.join('\n');
+      
+      // Create and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      // Generate filename with room name and current date
+      const date = new Date().toISOString().split('T')[0];
+      const roomName = room.room_name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const filename = `students_${roomName}_${date}.csv`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+      setError('Failed to download student data as CSV');
+    } finally {
+      setDownloadingCSV(false);
+    }
+  };
+
   if (loading) {
     return (
       <PageWrapper>
@@ -611,6 +683,23 @@ export default function TeacherRoomDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <SectionTitle style={{ marginBottom: 0 }}>Enrolled Students ({students.length})</SectionTitle>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {students.length > 0 && (
+                <ModernButton 
+                  variant="primary"
+                  size="small"
+                  onClick={downloadCSV}
+                  disabled={downloadingCSV}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {downloadingCSV ? (
+                    <>
+                      <LoadingSpinner size="small" /> Downloading...
+                    </>
+                  ) : (
+                    'Download CSV'
+                  )}
+                </ModernButton>
+              )}
               <ModernButton                 variant="ghost"
                 size="small"
                 onClick={() => setShowArchivedStudents(!showArchivedStudents)}
