@@ -217,7 +217,10 @@ function JoinRoomContent() {
               return;
             }
             
-            const data = await response.json();
+            const result = await response.json();
+            
+            // Handle standardized API response format
+            const data = result.success && result.data ? result.data : result;
             
             if (!data.room) {
               console.warn('Room code from URL returned no room data:', codeFromUrl);
@@ -284,7 +287,10 @@ function JoinRoomContent() {
         }
       }
       
-      const data = await response.json();
+      const result = await response.json();
+      
+      // Handle standardized API response format
+      const data = result.success && result.data ? result.data : result;
       
       if (!data.room) {
         console.error('No room found for code:', formattedCode);
