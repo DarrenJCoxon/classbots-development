@@ -13,9 +13,16 @@ const ListContainer = styled(Card)`
   margin-top: ${({ theme }) => theme.spacing.xl};
 `;
 
-const Title = styled.h3`
+const ListHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+`;
+
+const Title = styled.h3`
   color: ${({ theme }) => theme.colors.text};
+  margin: 0;
 `;
 
 const Table = styled.table`
@@ -537,10 +544,100 @@ export default function StudentList({ roomId }: StudentListProps) {
     }
   };
 
+  const downloadCSV = async () => {
+    setError(null);
+    
+    try {
+      // First, fetch PIN codes for all students who don't have them yet
+      const studentsNeedingPins = students.filter(s => !s.pin_code);
+      let studentsWithPins = [...students];
+      
+      if (studentsNeedingPins.length > 0) {
+        // Fetch pins for all students in parallel
+        const pinPromises = studentsNeedingPins.map(async (student) => {
+          try {
+            const response = await fetch(`/api/teacher/students/pin-code?studentId=${student.user_id}`);
+            if (response.ok) {
+              const data = await response.json();
+              return {
+                user_id: student.user_id,
+                pin_code: data.pin_code,
+                username: data.username
+              };
+            }
+          } catch (err) {
+            console.error(`Error fetching PIN for student ${student.user_id}:`, err);
+          }
+          return null;
+        });
+        
+        const pinResults = await Promise.all(pinPromises);
+        
+        // Update the local array with fetched PINs
+        pinResults.forEach(result => {
+          if (result) {
+            const index = studentsWithPins.findIndex(s => s.user_id === result.user_id);
+            if (index !== -1) {
+              studentsWithPins[index] = {
+                ...studentsWithPins[index],
+                pin_code: result.pin_code,
+                username: result.username
+              };
+            }
+          }
+        });
+      }
+      
+      // Generate CSV content
+      const csvHeader = 'Name,Username,PIN Code,Email,Joined Date\n';
+      const csvRows = studentsWithPins.map(student => {
+        const name = student.name || 'N/A';
+        const username = student.username || 'N/A';
+        const pin = student.pin_code || 'N/A';
+        const email = student.email || 'N/A';
+        const joinedDate = student.joined_at ? new Date(student.joined_at).toLocaleDateString() : 'N/A';
+        
+        // Escape values that might contain commas
+        const escapeCsvValue = (value: string) => {
+          if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        };
+        
+        return `${escapeCsvValue(name)},${escapeCsvValue(username)},${pin},${escapeCsvValue(email)},${joinedDate}`;
+      }).join('\n');
+      
+      const csvContent = csvHeader + csvRows;
+      
+      // Create and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      // Generate filename with room ID and current date
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `students_room_${roomId}_${date}.csv`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+      setError('Failed to download student data as CSV');
+    }
+  };
+
   if (loading) {
     return (
       <ListContainer>
-        <Title>Students</Title>
+        <ListHeader>
+          <Title>Students</Title>
+        </ListHeader>
         <LoadingState><LoadingSpinner size="small" /> Loading student data...</LoadingState>
       </ListContainer>
     );
@@ -550,7 +647,9 @@ export default function StudentList({ roomId }: StudentListProps) {
   if (error) {
     return (
       <ListContainer>
-        <Title>Students</Title>
+        <ListHeader>
+          <Title>Students</Title>
+        </ListHeader>
         <Alert variant="error">
           Error: {error}
           <ModernButton size="small" onClick={fetchStudents} style={{ marginLeft: '10px' }}>
@@ -564,7 +663,9 @@ export default function StudentList({ roomId }: StudentListProps) {
   if (students.length === 0) {
     return (
       <ListContainer>
-        <Title>Students</Title>
+        <ListHeader>
+          <Title>Students</Title>
+        </ListHeader>
         <EmptyState>
           <p>No students have joined this room yet, or data could not be loaded.</p>
           <ModernButton size="small" onClick={fetchStudents} style={{ marginTop: '10px' }}>
@@ -577,7 +678,16 @@ export default function StudentList({ roomId }: StudentListProps) {
 
   return (
     <ListContainer>
-      <Title>Students ({students.length})</Title>
+      <ListHeader>
+        <Title>Students ({students.length})</Title>
+        <ModernButton
+          onClick={downloadCSV}
+          variant="primary"
+          size="small"
+        >
+          Download CSV
+        </ModernButton>
+      </ListHeader>
       
       <Table>
         <thead>

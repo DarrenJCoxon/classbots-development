@@ -440,6 +440,7 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -521,6 +522,93 @@ export default function StudentsPage() {
     .reduce((sum, s, _, arr) => sum + (s.average_grade || 0) / arr.length, 0) || 0;
   const totalPendingConcerns = data?.students.reduce((sum, student) => sum + student.pending_concerns_count, 0) || 0;
 
+  const downloadCSV = async () => {
+    if (!data || downloadingCSV) return;
+    
+    setDownloadingCSV(true);
+    setError(null);
+    
+    try {
+      // Prepare CSV data
+      const csvHeader = 'Student Name,Username,PIN Code,Email,Room,Year Group,Average Grade,Assessments Count,Pending Concerns\n';
+      const csvRows = await Promise.all(
+        data.students.map(async (student) => {
+          // Fetch student PIN and username
+          let username = 'N/A';
+          let pin = 'N/A';
+          let email = 'N/A';
+          
+          try {
+            const response = await fetch(`/api/teacher/students/pin-code?studentId=${student.user_id}`);
+            if (response.ok) {
+              const pinData = await response.json();
+              username = pinData.username || 'N/A';
+              pin = pinData.pin_code || 'N/A';
+            }
+          } catch (err) {
+            console.error(`Error fetching PIN for student ${student.user_id}:`, err);
+          }
+          
+          // Try to fetch email from student profile
+          try {
+            const response = await fetch(`/api/teacher/students?roomId=${student.room_id}`);
+            if (response.ok) {
+              const students = await response.json();
+              const studentData = students.find((s: any) => s.user_id === student.user_id);
+              if (studentData) {
+                email = studentData.email || 'N/A';
+              }
+            }
+          } catch (err) {
+            console.error(`Error fetching email for student ${student.user_id}:`, err);
+          }
+          
+          const name = student.full_name || 'N/A';
+          const room = student.room_name || 'N/A';
+          const yearGroup = student.year_group || 'N/A';
+          const averageGrade = student.average_grade !== null ? `${Math.round(student.average_grade)}%` : 'N/A';
+          const assessmentsCount = student.assessments.length;
+          const pendingConcerns = student.pending_concerns_count;
+          
+          // Escape values that might contain commas
+          const escapeCsvValue = (value: string) => {
+            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          };
+          
+          return `${escapeCsvValue(name)},${escapeCsvValue(username)},${pin},${escapeCsvValue(email)},${escapeCsvValue(room)},${escapeCsvValue(yearGroup)},${averageGrade},${assessmentsCount},${pendingConcerns}`;
+        })
+      );
+      
+      const csvContent = csvHeader + csvRows.join('\n');
+      
+      // Create and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0];
+      const roomSuffix = selectedRoomId === 'all' ? 'all_rooms' : `room_${selectedRoomId}`;
+      const filename = `students_overview_${roomSuffix}_${date}.csv`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+      setError('Failed to download student data as CSV');
+    } finally {
+      setDownloadingCSV(false);
+    }
+  };
+
   if (loading) {
     return <FullPageLoader message="Loading students overview..." variant="dots" />;
   }
@@ -534,6 +622,22 @@ export default function StudentsPage() {
       <Container>
         <Header>
           <Title>Students Overview</Title>
+          {data && data.students.length > 0 && (
+            <ModernButton
+              onClick={downloadCSV}
+              variant="primary"
+              size="small"
+              disabled={downloadingCSV}
+            >
+              {downloadingCSV ? (
+                <>
+                  <LoadingSpinner size="small" /> Downloading...
+                </>
+              ) : (
+                'Download CSV'
+              )}
+            </ModernButton>
+          )}
         </Header>
 
         {error && (
