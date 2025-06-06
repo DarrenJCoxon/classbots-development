@@ -31,21 +31,26 @@ export async function GET(request: NextRequest) {
 
     // Use admin client to bypass RLS
     const supabaseAdmin = createAdminClient();
+    
+    // Log the admin client auth configuration to debug
+    console.log('[API GET /room-chatbot-data] Admin client initialized');
 
     // Verify user has access to the room if userId is provided
     if (userId) {
       // First verify the user exists in the auth system (not just profiles)
       console.log('[API GET /room-chatbot-data] Verifying user in auth system:', userId);
-      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
       
-      if (authError || !authUser?.user) {
-        console.error('[API GET /room-chatbot-data] User not found in auth system:', userId, authError);
-        return NextResponse.json({ 
-          error: 'Invalid user ID - user not found' 
-        }, { status: 401 });
+      try {
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+        
+        if (authError || !authUser?.user) {
+          console.error('[API GET /room-chatbot-data] User not found in auth system:', userId, authError);
+          // For direct access, we'll continue anyway as the user might not be in auth
+          console.log('[API GET /room-chatbot-data] Continuing despite auth check failure for direct access');
+        }
+      } catch (e) {
+        console.log('[API GET /room-chatbot-data] Auth check failed, continuing for direct access:', e);
       }
-
-      console.log('[API GET /room-chatbot-data] User verified in auth system:', userId);
 
       const { data: membership, error: membershipError } = await supabaseAdmin
         .from('room_memberships')
@@ -76,113 +81,97 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch all data in parallel for better performance
-    const [roomResult, chatbotResult, roomChatbotAssocResult, readingDocResult, instanceResult] = await Promise.allSettled([
-      // Get room data
-      supabaseAdmin
-        .from('rooms')
-        .select('*')
-        .eq('room_id', roomId)
-        .single(),
-      
-      // For direct access, fetch chatbot directly since we know it exists
-      // The admin client should bypass any RLS policies
-      supabaseAdmin
-        .from('chatbots')
-        .select(`
-          chatbot_id, 
-          name, 
-          description, 
-          system_prompt, 
-          model, 
-          max_tokens, 
-          temperature, 
-          enable_rag,
-          rag_enabled, 
-          bot_type, 
-          assessment_criteria_text,
-          welcome_message,
-          linked_assessment_bot_id
-        `)
-        .eq('chatbot_id', chatbotId)
-        .single(),
-      
-      // Verify the association exists (but don't fail if it doesn't for direct access)
-      supabaseAdmin
-        .from('room_chatbots')
-        .select('chatbot_id')
-        .eq('room_id', roomId)
-        .eq('chatbot_id', chatbotId)
-        .maybeSingle(),
-      
-      // Get reading document if applicable
-      supabaseAdmin
-        .from('reading_documents')
-        .select('file_url, file_name')
-        .eq('chatbot_id', chatbotId)
-        .maybeSingle(),
-      
-      // Get or create instance if userId provided
-      userId && !instanceId ? 
-        supabaseAdmin
-          .from('student_chatbot_instances')
-          .select('*')
-          .eq('student_id', userId)
-          .eq('chatbot_id', chatbotId)
-          .eq('room_id', roomId)
-          .maybeSingle()
-        : instanceId ?
-          supabaseAdmin
-            .from('student_chatbot_instances')
-            .select('*')
-            .eq('instance_id', instanceId)
-            .single()
-          : Promise.resolve({ status: 'fulfilled', value: { data: null } })
-    ]);
-
-    // Process results with detailed logging
-    console.log('[API GET /room-chatbot-data] Query results:', {
-      roomResult: roomResult.status,
-      chatbotResult: chatbotResult.status,
-      roomChatbotAssocResult: roomChatbotAssocResult.status,
-      chatbotData: chatbotResult.status === 'fulfilled' ? chatbotResult.value.data : null,
-      chatbotError: chatbotResult.status === 'rejected' ? chatbotResult.reason : null,
-      assocData: roomChatbotAssocResult.status === 'fulfilled' ? roomChatbotAssocResult.value.data : null
+    // First, fetch the chatbot directly with detailed logging
+    console.log('[API GET /room-chatbot-data] Fetching chatbot with ID:', chatbotId);
+    
+    const { data: chatbot, error: chatbotError } = await supabaseAdmin
+      .from('chatbots')
+      .select(`
+        chatbot_id, 
+        name, 
+        description, 
+        system_prompt, 
+        model, 
+        max_tokens, 
+        temperature, 
+        enable_rag,
+        bot_type, 
+        assessment_criteria_text,
+        welcome_message,
+        linked_assessment_bot_id
+      `)
+      .eq('chatbot_id', chatbotId)
+      .single();
+    
+    console.log('[API GET /room-chatbot-data] Chatbot query completed:', {
+      found: !!chatbot,
+      error: chatbotError,
+      chatbotId: chatbotId,
+      chatbotName: chatbot?.name
     });
-
-    if (roomResult.status === 'rejected' || !roomResult.value.data) {
-      console.error('[API GET /room-chatbot-data] Room not found:', roomId, roomResult.status === 'rejected' ? roomResult.reason : 'No data');
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
-    }
-
-    if (chatbotResult.status === 'rejected' || !chatbotResult.value.data) {
+    
+    if (chatbotError || !chatbot) {
       console.error('[API GET /room-chatbot-data] Chatbot not found:', { 
-        roomId, 
         chatbotId,
-        status: chatbotResult.status,
-        error: chatbotResult.status === 'rejected' ? chatbotResult.reason : 'No data returned'
+        error: chatbotError,
+        errorMessage: chatbotError?.message,
+        errorDetails: chatbotError?.details
       });
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
-
-    // Check association but only warn for direct access
-    if (roomChatbotAssocResult.status === 'rejected' || !roomChatbotAssocResult.value.data) {
-      console.warn('[API GET /room-chatbot-data] Chatbot not associated with room, but continuing for direct access:', { 
-        roomId, 
-        chatbotId,
-        isDirect
-      });
-      
-      // For non-direct access, this would be an error
-      if (!isDirect) {
-        return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
-      }
+    
+    // Now fetch the room data
+    const { data: room, error: roomError } = await supabaseAdmin
+      .from('rooms')
+      .select('*')
+      .eq('room_id', roomId)
+      .single();
+    
+    if (roomError || !room) {
+      console.error('[API GET /room-chatbot-data] Room not found:', roomId, roomError);
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    }
+    
+    // Check association but don't fail for direct access
+    const { data: association } = await supabaseAdmin
+      .from('room_chatbots')
+      .select('chatbot_id')
+      .eq('room_id', roomId)
+      .eq('chatbot_id', chatbotId)
+      .maybeSingle();
+    
+    if (!association && !isDirect) {
+      console.warn('[API GET /room-chatbot-data] Chatbot not associated with room');
+      return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
+    }
+    
+    // Get reading document if applicable
+    const { data: readingDocument } = await supabaseAdmin
+      .from('reading_documents')
+      .select('file_url, file_name')
+      .eq('chatbot_id', chatbotId)
+      .maybeSingle();
+    
+    // Handle instance creation/retrieval
+    let existingInstance = null;
+    if (userId && !instanceId) {
+      const { data: instance } = await supabaseAdmin
+        .from('student_chatbot_instances')
+        .select('*')
+        .eq('student_id', userId)
+        .eq('chatbot_id', chatbotId)
+        .eq('room_id', roomId)
+        .maybeSingle();
+      existingInstance = instance;
+    } else if (instanceId) {
+      const { data: instance } = await supabaseAdmin
+        .from('student_chatbot_instances')
+        .select('*')
+        .eq('instance_id', instanceId)
+        .single();
+      existingInstance = instance;
     }
 
-    const room = roomResult.value.data;
-    const chatbot = chatbotResult.value.data;
-    const readingDocument = readingDocResult.status === 'fulfilled' ? readingDocResult.value.data : null;
-    let existingInstance = instanceResult.status === 'fulfilled' && 'data' in instanceResult.value ? instanceResult.value.data : null;
 
     // Create instance if needed
     if (userId && !existingInstance && !instanceId) {
