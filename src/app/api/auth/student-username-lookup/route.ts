@@ -70,10 +70,10 @@ export async function POST(request: NextRequest) {
       
       if (allStudents && allStudents.length > 0) {
         console.log(`Searching among ${allStudents.length} student profiles`);
-        console.log('Available usernames:', allStudents.map(s => s.username));
+        console.log('Available usernames:', allStudents.map((s: any) => s.username));
         
         // Try fuzzy matching on name, email, or username
-        const matches = allStudents.filter(student => {
+        const matches = allStudents.filter((student: any) => {
           const name = (student.full_name || '').toLowerCase();
           const email = (student.email || '').toLowerCase();
           const username = (student.username || '').toLowerCase();
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         
         if (matches.length > 0) {
           console.log(`Found ${matches.length} fuzzy matches`);
-          console.log('Matched usernames:', matches.map(s => s.username));
+          console.log('Matched usernames:', matches.map((s: any) => s.username));
           profiles = matches;
         }
       }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Find the best match if we have multiple
-    const bestMatch = profiles[0]; // Default to first match
+    const bestMatch = profiles[0] as any; // Default to first match
     
     console.log(`Best match found: ${bestMatch.full_name} (${bestMatch.username})`);
     
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: 'student_found',
-      matches: profiles.map(p => ({
+      matches: profiles.map((p: any) => ({
         full_name: p.full_name,
         email: p.email,
         username: p.username
