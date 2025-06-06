@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all data in parallel for better performance
-    const [roomResult, chatbotResult, roomChatbotResult, readingDocResult, instanceResult] = await Promise.allSettled([
+    const [roomResult, roomChatbotResult, readingDocResult, instanceResult] = await Promise.allSettled([
       // Get room data
       supabaseAdmin
         .from('rooms')
@@ -85,31 +85,27 @@ export async function GET(request: NextRequest) {
         .eq('room_id', roomId)
         .single(),
       
-      // Get chatbot data with all fields
-      supabaseAdmin
-        .from('chatbots')
-        .select(`
-          chatbot_id, 
-          name, 
-          description, 
-          system_prompt, 
-          model, 
-          max_tokens, 
-          temperature, 
-          enable_rag,
-          rag_enabled, 
-          bot_type, 
-          assessment_criteria_text,
-          welcome_message,
-          linked_assessment_bot_id
-        `)
-        .eq('chatbot_id', chatbotId)
-        .single(),
-      
-      // Verify chatbot-room association
+      // Get chatbot data through room_chatbots join to avoid teacher_id filtering issues
       supabaseAdmin
         .from('room_chatbots')
-        .select('chatbot_id')
+        .select(`
+          chatbot_id,
+          chatbots (
+            chatbot_id, 
+            name, 
+            description, 
+            system_prompt, 
+            model, 
+            max_tokens, 
+            temperature, 
+            enable_rag,
+            rag_enabled, 
+            bot_type, 
+            assessment_criteria_text,
+            welcome_message,
+            linked_assessment_bot_id
+          )
+        `)
         .eq('room_id', roomId)
         .eq('chatbot_id', chatbotId)
         .single(),
@@ -145,25 +141,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    if (chatbotResult.status === 'rejected' || !chatbotResult.value.data) {
-      console.error('[API GET /room-chatbot-data] Chatbot not found:', chatbotId, chatbotResult.status === 'rejected' ? chatbotResult.reason : 'No data');
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+    if (roomChatbotResult.status === 'rejected' || !roomChatbotResult.value.data) {
+      console.error('[API GET /room-chatbot-data] Chatbot not found or not associated with room:', { roomId, chatbotId }, roomChatbotResult.status === 'rejected' ? roomChatbotResult.reason : 'No data');
+      return NextResponse.json({ error: 'Chatbot not found or not associated with this room' }, { status: 404 });
     }
 
-    if (roomChatbotResult.status === 'rejected' || !roomChatbotResult.value.data) {
-      console.error('[API GET /room-chatbot-data] Chatbot not associated with room:', { roomId, chatbotId }, roomChatbotResult.status === 'rejected' ? roomChatbotResult.reason : 'No data');
-      
-      // For direct access students, we might need to be more lenient
-      // Check if this is a valid chatbot even if not directly associated with the room
-      if (!isDirect) {
-        return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
-      }
-      
-      console.log('[API GET /room-chatbot-data] Direct access mode - allowing chatbot access despite no room association');
+    // Extract chatbot from the joined query result
+    const roomChatbotData = roomChatbotResult.value.data as any;
+    if (!roomChatbotData.chatbots) {
+      console.error('[API GET /room-chatbot-data] Chatbot data missing from join result');
+      return NextResponse.json({ error: 'Chatbot data not found' }, { status: 404 });
     }
 
     const room = roomResult.value.data;
-    const chatbot = chatbotResult.value.data;
+    const chatbot = roomChatbotData.chatbots as any;
     const readingDocument = readingDocResult.status === 'fulfilled' ? readingDocResult.value.data : null;
     let existingInstance = instanceResult.status === 'fulfilled' && 'data' in instanceResult.value ? instanceResult.value.data : null;
 

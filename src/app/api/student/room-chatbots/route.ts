@@ -155,19 +155,27 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Error creating student chatbot instances' }, { status: 500 });
       }
       
-      // Format the response to match the expected structure
-      const formattedChatbots = (newInstances || []).map(instance => {
-        const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
-        return {
-          instance_id: instance.instance_id,
-          chatbot_id: instance.chatbot_id,
-          name: chatbot?.name || 'Unknown Bot',
-          description: chatbot?.description || '',
-          model: chatbot?.model,
-          bot_type: chatbot?.bot_type,
-          welcome_message: chatbot?.welcome_message
-        };
-      });
+      // Format the response to match the expected structure - filter out orphaned instances
+      const formattedChatbots = (newInstances || [])
+        .filter(instance => instance.chatbots !== null) // Filter out instances where chatbot was deleted
+        .map(instance => {
+          const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
+          return {
+            instance_id: instance.instance_id,
+            chatbot_id: instance.chatbot_id,
+            name: chatbot.name,
+            description: chatbot.description || '',
+            model: chatbot.model,
+            bot_type: chatbot.bot_type,
+            welcome_message: chatbot.welcome_message
+          };
+        });
+      
+      // Log if any orphaned instances were found
+      const orphanedCount = (newInstances || []).length - formattedChatbots.length;
+      if (orphanedCount > 0) {
+        console.warn(`[API GET /student/room-chatbots] Found ${orphanedCount} orphaned chatbot instances for student ${studentId}`);
+      }
       
       return NextResponse.json({ 
         chatbots: formattedChatbots,
@@ -175,19 +183,27 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Format the response with instances
-    const formattedChatbots = chatbotInstances.map(instance => {
-      const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
-      return {
-        instance_id: instance.instance_id, 
-        chatbot_id: instance.chatbot_id,
-        name: chatbot?.name || 'Unknown Bot',
-        description: chatbot?.description || '',
-        model: chatbot?.model,
-        bot_type: chatbot?.bot_type,
-        welcome_message: chatbot?.welcome_message
-      };
-    });
+    // Format the response with instances - filter out orphaned instances
+    const formattedChatbots = chatbotInstances
+      .filter(instance => instance.chatbots !== null) // Filter out instances where chatbot was deleted
+      .map(instance => {
+        const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
+        return {
+          instance_id: instance.instance_id, 
+          chatbot_id: instance.chatbot_id,
+          name: chatbot.name,
+          description: chatbot.description || '',
+          model: chatbot.model,
+          bot_type: chatbot.bot_type,
+          welcome_message: chatbot.welcome_message
+        };
+      });
+    
+    // Log if any orphaned instances were found
+    const orphanedCount = chatbotInstances.length - formattedChatbots.length;
+    if (orphanedCount > 0) {
+      console.warn(`[API GET /student/room-chatbots] Found ${orphanedCount} orphaned chatbot instances for student ${studentId}`);
+    }
 
     return NextResponse.json({ 
       chatbots: formattedChatbots,

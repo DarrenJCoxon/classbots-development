@@ -125,19 +125,27 @@ export async function GET(request: NextRequest) {
           if (chatbotInstances && chatbotInstances.length > 0) {
             console.log(`[API GET /student/room-data] Found ${chatbotInstances.length} existing instances for student ${userId}`);
             
-            // Format the chatbots with instances
-            chatbots = chatbotInstances.map(instance => {
-              const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
-              return {
-                instance_id: instance.instance_id,
-                chatbot_id: instance.chatbot_id,
-                name: chatbot?.name || 'Unknown Bot',
-                description: chatbot?.description || '',
-                model: chatbot?.model,
-                bot_type: chatbot?.bot_type,
-                welcome_message: chatbot?.welcome_message
-              };
+            // Format the chatbots with instances - filter out orphaned instances
+            chatbots = chatbotInstances
+              .filter(instance => instance.chatbots !== null) // Filter out instances where chatbot was deleted
+              .map(instance => {
+                const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
+                return {
+                  instance_id: instance.instance_id,
+                  chatbot_id: instance.chatbot_id,
+                  name: chatbot.name,
+                  description: chatbot.description || '',
+                  model: chatbot.model,
+                  bot_type: chatbot.bot_type,
+                  welcome_message: chatbot.welcome_message
+                };
             });
+            
+            // Log if any orphaned instances were found
+            const orphanedCount = chatbotInstances.length - chatbots.length;
+            if (orphanedCount > 0) {
+              console.warn(`[API GET /student/room-data] Found ${orphanedCount} orphaned chatbot instances for student ${userId}`);
+            }
           } else {
             // Need to create instances
             console.log(`[API GET /student/room-data] No instances found, getting chatbot details and creating instances`);
@@ -183,19 +191,27 @@ export async function GET(request: NextRequest) {
               } else if (newInstances) {
                 console.log(`[API GET /student/room-data] Created ${newInstances.length} new instances for student ${userId}`);
                 
-                // Format the chatbots with instances
-                chatbots = newInstances.map(instance => {
-                  const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
-                  return {
-                    instance_id: instance.instance_id,
-                    chatbot_id: instance.chatbot_id,
-                    name: chatbot?.name || 'Unknown Bot',
-                    description: chatbot?.description || '',
-                    model: chatbot?.model,
-                    bot_type: chatbot?.bot_type,
-                    welcome_message: chatbot?.welcome_message
-                  };
-                });
+                // Format the chatbots with instances - filter out orphaned instances
+                chatbots = newInstances
+                  .filter(instance => instance.chatbots !== null) // Filter out instances where chatbot was deleted
+                  .map(instance => {
+                    const chatbot = instance.chatbots as any; // Type assertion to avoid TypeScript errors
+                    return {
+                      instance_id: instance.instance_id,
+                      chatbot_id: instance.chatbot_id,
+                      name: chatbot.name,
+                      description: chatbot.description || '',
+                      model: chatbot.model,
+                      bot_type: chatbot.bot_type,
+                      welcome_message: chatbot.welcome_message
+                    };
+                  });
+                
+                // Log if any orphaned instances were found
+                const orphanedCount = newInstances.length - chatbots.length;
+                if (orphanedCount > 0) {
+                  console.warn(`[API GET /student/room-data] Found ${orphanedCount} orphaned chatbot instances for student ${userId}`);
+                }
               }
             }
           }
