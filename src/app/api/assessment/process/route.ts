@@ -99,33 +99,38 @@ export async function POST(request: NextRequest) {
     console.log(`[API /assessment/process] [ReqID: ${requestId}] Processing assessment for student_id: ${userId}, chatbot_id: ${chatbot_id}, room_id: ${room_id}, messages: ${message_ids_to_assess.length}`);
 
     // 1. Fetch the Assessment Bot's configuration
-    const { data: assessmentBotConfig, error: botConfigError } = await adminSupabase
+    const assessmentBotResult = await adminSupabase
       .from('chatbots')
       .select('assessment_criteria_text, enable_rag, teacher_id, name, assessment_type, assessment_question_count')
-      .eq('chatbot_id', chatbot_id)
-      .eq('bot_type', 'assessment')
+      .eq('chatbot_id', chatbot_id as any)
+      .eq('bot_type', 'assessment' as any)
       .single();
 
-    if (botConfigError || !assessmentBotConfig) {
-      console.error(`[API /assessment/process] CRITICAL: Error fetching assessment bot ${chatbot_id} config:`, botConfigError?.message);
+    if (assessmentBotResult.error || !assessmentBotResult.data) {
+      console.error(`[API /assessment/process] CRITICAL: Error fetching assessment bot ${chatbot_id} config:`, assessmentBotResult.error?.message);
       return NextResponse.json({ error: 'Assessment bot configuration not found or not an assessment bot.' }, { status: 404 });
     }
-    if (!assessmentBotConfig.assessment_criteria_text) {
+    
+    const assessmentBotConfig = assessmentBotResult.data as any;
+    
+    if (!assessmentBotConfig?.assessment_criteria_text) {
       console.warn(`[API /assessment/process] CRITICAL: Assessment bot ${chatbot_id} has no assessment criteria defined.`);
         await adminSupabase.from('chat_messages').insert({
-            room_id: room_id, user_id: userId, role: 'system',
+            room_id: room_id, 
+            user_id: userId, 
+            role: 'system' as const,
             content: "This assessment bot doesn't have its criteria defined by the teacher yet. Please set the criteria in the chatbot configuration.",
             metadata: { chatbotId: chatbot_id, isAssessmentFeedback: true, error: "Missing assessment criteria" }
-        });
+        } as any);
         return NextResponse.json({ success: true, message: "Assessment criteria missing, user notified." });
     }
-    console.log(`[API /assessment/process] Fetched bot config. RAG enabled: ${assessmentBotConfig.enable_rag}`);
+    console.log(`[API /assessment/process] Fetched bot config. RAG enabled: ${assessmentBotConfig?.enable_rag}`);
 
     // 2. Fetch the conversation segment to be assessed
     const { data: conversationMessages, error: messagesError } = await adminSupabase
       .from('chat_messages')
       .select('role, content, user_id')
-      .in('message_id', message_ids_to_assess)
+      .in('message_id', message_ids_to_assess as any)
       .order('created_at', { ascending: true });
 
     if (messagesError || !conversationMessages || conversationMessages.length === 0) {
@@ -135,12 +140,12 @@ export async function POST(request: NextRequest) {
     console.log(`[API /assessment/process] Fetched ${conversationMessages.length} conversation messages.`);
 
     const conversationSegmentForPrompt = conversationMessages
-      .map(m => `${m.user_id === userId ? (isTestByTeacher ? 'Tester (Teacher)' : 'Student') : 'Quiz Bot'}: ${m.content}`)
+      .map((m: any) => `${m.user_id === userId ? (isTestByTeacher ? 'Tester (Teacher)' : 'Student') : 'Quiz Bot'}: ${m.content}`)
       .join('\n');
 
     // 3. Fetch the original passage/document text if this bot is RAG-enabled
     let originalPassageText = "No specific passage was used by the Quiz Bot for these questions, or it could not be retrieved for this assessment.";
-    if (assessmentBotConfig.enable_rag) {
+    if (assessmentBotConfig?.enable_rag) {
       console.log(`[API /assessment/process] Bot has RAG. Fetching primary document for passage context.`);
       
       // First check if this is a document we've processed recently and might have cached
@@ -156,41 +161,41 @@ export async function POST(request: NextRequest) {
         const { data: botDocument, error: docError } = await adminSupabase
           .from('documents')
           .select('file_path, file_type, extracted_text')
-          .eq('chatbot_id', chatbot_id)
+          .eq('chatbot_id', chatbot_id as any)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
         if (docError || !botDocument) {
           console.warn(`[API /assessment/process] No document found for RAG-enabled assessment bot ${chatbot_id}, or error:`, docError?.message);
-        } else if (botDocument.extracted_text) {
+        } else if ((botDocument as any).extracted_text) {
           // Use pre-extracted text if available (from vectorization process)
-          originalPassageText = botDocument.extracted_text;
+          originalPassageText = (botDocument as any).extracted_text;
           // Cache the result for future use
           global.documentCache[cacheKey] = originalPassageText;
           console.log(`[API /assessment/process] Using pre-extracted text from document (length: ${originalPassageText.length}).`);
         } else {
           try {
-            console.log(`[API /assessment/process] Downloading document: ${botDocument.file_path}`);
-            const { data: fileData, error: downloadError } = await adminSupabase.storage.from('documents').download(botDocument.file_path);
+            console.log(`[API /assessment/process] Downloading document: ${(botDocument as any).file_path}`);
+            const { data: fileData, error: downloadError } = await adminSupabase.storage.from('documents').download((botDocument as any).file_path);
             if (!downloadError && fileData) {
-              originalPassageText = await extractTextFromFile(Buffer.from(await fileData.arrayBuffer()), botDocument.file_type as DocumentType);
+              originalPassageText = await extractTextFromFile(Buffer.from(await fileData.arrayBuffer()), (botDocument as any).file_type as DocumentType);
               // Cache the result for future use
               global.documentCache[cacheKey] = originalPassageText;
               console.log(`[API /assessment/process] Extracted text from passage (length: ${originalPassageText.length}).`);
             } else { 
-              console.warn(`[API /assessment/process] Failed to download document ${botDocument.file_path}:`, downloadError?.message); 
+              console.warn(`[API /assessment/process] Failed to download document ${(botDocument as any).file_path}:`, downloadError?.message); 
             }
           } catch (extractionError) { 
-            console.warn(`[API /assessment/process] Error extracting text from document ${botDocument.file_path}:`, extractionError); 
+            console.warn(`[API /assessment/process] Error extracting text from document ${(botDocument as any).file_path}:`, extractionError); 
           }
         }
       }
     }
 
     // 4. Construct the detailed assessment prompt for the LLM
-    const questionCount = assessmentBotConfig.assessment_question_count || 10;
-    const assessmentType = assessmentBotConfig.assessment_type || 'multiple_choice';
+    const questionCount = assessmentBotConfig?.assessment_question_count || 10;
+    const assessmentType = assessmentBotConfig?.assessment_type || 'multiple_choice';
     
     const finalAssessmentPrompt = `
 You are an AI teaching assistant. Your task is to evaluate a student's (or tester's) interaction based on the teacher's criteria, the original passage (if provided), and the conversation history.
@@ -213,7 +218,7 @@ Example: If ${questionCount} questions were expected and student answered only 3
 
 Teacher's Assessment Criteria:
 --- TEACHER'S CRITERIA START ---
-${assessmentBotConfig.assessment_criteria_text}
+${assessmentBotConfig?.assessment_criteria_text}
 --- TEACHER'S CRITERIA END ---
 
 Original Passage Context (if applicable, MCQs should be based on this):
@@ -412,8 +417,8 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         chatbot_id: chatbot_id,
         room_id: room_id,
         assessed_message_ids: message_ids_to_assess,
-        teacher_id: assessmentBotConfig.teacher_id,
-        teacher_assessment_criteria_snapshot: assessmentBotConfig.assessment_criteria_text,
+        teacher_id: assessmentBotConfig?.teacher_id,
+        teacher_assessment_criteria_snapshot: assessmentBotConfig?.assessment_criteria_text,
         ai_feedback_student: llmOutput.student_feedback,
         ai_assessment_details_raw: aiAssessmentDetailsRaw,
         ai_grade_raw: llmOutput.grade,
@@ -424,14 +429,14 @@ Ensure all string values are properly escaped within the JSON. Do not include an
 
       // Add additional debugging information
       console.log(`[API /assessment/process] [ReqID: ${requestId}] Ready to save assessment to database with status: ${assessmentStatusToSave}`);
-      console.log(`[API /assessment/process] [ReqID: ${requestId}] Teacher ID from bot config: ${assessmentBotConfig.teacher_id}`);
+      console.log(`[API /assessment/process] [ReqID: ${requestId}] Teacher ID from bot config: ${assessmentBotConfig?.teacher_id}`);
 
       try {
         // First verify the chatbot exists and get the actual chatbot_id from the database
         const { data: chatbotCheck, error: chatbotCheckError } = await adminSupabase
           .from('chatbots')
           .select('chatbot_id, teacher_id')
-          .eq('chatbot_id', chatbot_id)
+          .eq('chatbot_id', chatbot_id as any)
           .single();
         
         if (chatbotCheckError || !chatbotCheck) {
@@ -444,14 +449,14 @@ Ensure all string values are properly escaped within the JSON. Do not include an
           await adminSupabase.from('chat_messages').insert({
             room_id: room_id,
             user_id: userId,
-            role: 'assistant',
+            role: 'assistant' as const,
             content: llmOutput.student_feedback,
             metadata: {
               chatbotId: chatbot_id,
               isAssessmentFeedback: true,
               error: 'chatbot_not_found'
             }
-          });
+          } as any);
           return NextResponse.json({ 
             success: true, 
             message: 'Assessment processed with warnings', 
@@ -464,7 +469,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         const { data: studentCheck, error: studentCheckError } = await adminSupabase
           .from('student_profiles')
           .select('user_id')
-          .eq('user_id', userId)
+          .eq('user_id', userId as any)
           .single();
         
         if (studentCheckError || !studentCheck) {
@@ -475,8 +480,8 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         // Update the insert payload with verified chatbot_id and teacher_id
         const verifiedInsertPayload = {
           ...insertPayload,
-          chatbot_id: chatbotCheck.chatbot_id, // Use the verified chatbot_id
-          teacher_id: chatbotCheck.teacher_id || assessmentBotConfig.teacher_id // Use teacher_id from chatbot if available
+          chatbot_id: (chatbotCheck as any).chatbot_id, // Use the verified chatbot_id
+          teacher_id: (chatbotCheck as any).teacher_id || assessmentBotConfig?.teacher_id // Use teacher_id from chatbot if available
         };
         
         // Insert with detailed error logging
@@ -484,7 +489,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         
         const { data: savedAssessmentData, error: assessmentSaveError } = await adminSupabase
           .from('student_assessments')
-          .insert(verifiedInsertPayload)
+          .insert(verifiedInsertPayload as any)
           .select('assessment_id').single();
 
         if (assessmentSaveError) {
@@ -502,7 +507,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
           // Try just inserting without returning data (simpler operation)
           const fallbackResult = await adminSupabase
             .from('student_assessments')
-            .insert(insertPayload);
+            .insert(insertPayload as any);
             
           if (fallbackResult.error) {
             console.error(`[API /assessment/process] [ReqID: ${requestId}] Alternative insert also failed:`, 
@@ -513,9 +518,9 @@ Ensure all string values are properly escaped within the JSON. Do not include an
             console.log(`[API /assessment/process] [ReqID: ${requestId}] Alternative insert succeeded, but no ID returned.`);
           }
         } else if (savedAssessmentData) {
-          savedAssessmentId = savedAssessmentData.assessment_id;
+          savedAssessmentId = (savedAssessmentData as any).assessment_id;
           console.log(`[API /assessment/process] [ReqID: ${requestId}] SUCCESSFULLY saved student assessment ${savedAssessmentId} with status: ${assessmentStatusToSave}.`);
-          console.log(`[API /assessment/process] [ReqID: ${requestId}] Assessment details: Student ID: ${userId}, Bot: ${assessmentBotConfig.name || chatbot_id}, Room: ${room_id}`);
+          console.log(`[API /assessment/process] [ReqID: ${requestId}] Assessment details: Student ID: ${userId}, Bot: ${assessmentBotConfig?.name || chatbot_id}, Room: ${room_id}`);
         } else {
           console.warn(`[API /assessment/process] [ReqID: ${requestId}] Student assessment insert COMPLETED but no data/ID returned, and no explicit error.`);
         }
@@ -534,7 +539,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         .insert({
             room_id: room_id, 
             user_id: userId,
-            role: 'assistant',
+            role: 'assistant' as const,
             content: llmOutput.student_feedback,
             metadata: {
                 chatbotId: chatbot_id, 
@@ -542,7 +547,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
                 assessmentId: savedAssessmentId,
                 processedWithStreaming: true // Flag to indicate this was processed with streaming
             }
-        })
+        } as any)
         .select('message_id')
         .single();
     
@@ -550,7 +555,7 @@ Ensure all string values are properly escaped within the JSON. Do not include an
         console.error(`[API /assessment/process] Error inserting feedback message for user ${userId}:`, 
             messageError.message, messageError.details, messageError.hint);
     } else if (messageData) {
-        console.log(`[API /assessment/process] Feedback message ${messageData.message_id} successfully inserted for user ${userId}.`);
+        console.log(`[API /assessment/process] Feedback message ${(messageData as any).message_id} successfully inserted for user ${userId}.`);
     } else {
         console.warn(`[API /assessment/process] Feedback message insert completed but no message ID returned.`);
     }

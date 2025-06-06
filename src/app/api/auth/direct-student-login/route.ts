@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
     
     // Verify PIN matches
-    if (profile.pin_code !== pin_code) {
+    if ((profile as any).pin_code !== pin_code) {
       return NextResponse.json({ 
         error: 'Incorrect PIN' 
       }, { status: 403 });
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         provider: 'pin',
       },
       user_metadata: {
-        full_name: profile.full_name,
+        full_name: (profile as any).full_name,
       },
     };
     
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       redirect_to: `/student/dashboard?_t=${Date.now()}&direct=1&user_id=${user_id}`, // Add timestamp, direct flag, and user_id
       user: {
         id: user_id,
-        name: profile.full_name,
+        name: (profile as any).full_name,
         role: 'student',
       }
     });

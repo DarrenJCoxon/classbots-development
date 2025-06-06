@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
     
     // Verify PIN matches
-    if (profile.pin_code !== pin_code) {
+    if ((profile as any).pin_code !== pin_code) {
       return NextResponse.json({ 
         error: 'Invalid username or PIN' 
       }, { status: 401 });
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       // If the error is that the user doesn't exist with this email format,
       // it might be an older user - try to find their actual email
       if (authError.message.includes('Invalid login credentials')) {
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.user_id);
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById((profile as any).user_id);
         
         if (!userError && userData?.user?.email) {
           // Try again with the actual email
@@ -66,8 +66,8 @@ export async function POST(request: Request) {
           if (!retryAuthError && retryAuthData.session) {
             return NextResponse.json({
               success: true,
-              user_id: profile.user_id,
-              student_name: profile.full_name || `${profile.first_name} ${profile.surname}`,
+              user_id: (profile as any).user_id,
+              student_name: (profile as any).full_name || `${(profile as any).first_name} ${(profile as any).surname}`,
               session: retryAuthData.session
             });
           }
@@ -88,8 +88,8 @@ export async function POST(request: Request) {
     // Return success with session
     return NextResponse.json({
       success: true,
-      user_id: profile.user_id,
-      student_name: profile.full_name || `${profile.first_name} ${profile.surname}`,
+      user_id: (profile as any).user_id,
+      student_name: (profile as any).full_name || `${(profile as any).first_name} ${(profile as any).surname}`,
       session: authData.session
     });
     
