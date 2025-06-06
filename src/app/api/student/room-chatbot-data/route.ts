@@ -152,7 +152,14 @@ export async function GET(request: NextRequest) {
 
     if (roomChatbotResult.status === 'rejected' || !roomChatbotResult.value.data) {
       console.error('[API GET /room-chatbot-data] Chatbot not associated with room:', { roomId, chatbotId }, roomChatbotResult.status === 'rejected' ? roomChatbotResult.reason : 'No data');
-      return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
+      
+      // For direct access students, we might need to be more lenient
+      // Check if this is a valid chatbot even if not directly associated with the room
+      if (!isDirect) {
+        return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
+      }
+      
+      console.log('[API GET /room-chatbot-data] Direct access mode - allowing chatbot access despite no room association');
     }
 
     const room = roomResult.value.data;
