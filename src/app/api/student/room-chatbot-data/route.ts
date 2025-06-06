@@ -12,6 +12,15 @@ export async function GET(request: NextRequest) {
     const chatbotId = searchParams.get('chatbotId');
     const userId = searchParams.get('userId');
     const instanceId = searchParams.get('instanceId');
+    const isDirect = searchParams.get('direct') === 'true';
+
+    console.log('[API GET /room-chatbot-data] Request params:', {
+      roomId,
+      chatbotId,
+      userId,
+      instanceId,
+      isDirect
+    });
 
     // Validate required parameters
     if (!roomId || !chatbotId) {
@@ -25,6 +34,19 @@ export async function GET(request: NextRequest) {
 
     // Verify user has access to the room if userId is provided
     if (userId) {
+      // First verify the user exists in the auth system (not just profiles)
+      console.log('[API GET /room-chatbot-data] Verifying user in auth system:', userId);
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+      
+      if (authError || !authUser?.user) {
+        console.error('[API GET /room-chatbot-data] User not found in auth system:', userId, authError);
+        return NextResponse.json({ 
+          error: 'Invalid user ID - user not found' 
+        }, { status: 401 });
+      }
+
+      console.log('[API GET /room-chatbot-data] User verified in auth system:', userId);
+
       const { data: membership, error: membershipError } = await supabaseAdmin
         .from('room_memberships')
         .select('room_id')
@@ -119,14 +141,17 @@ export async function GET(request: NextRequest) {
 
     // Process results
     if (roomResult.status === 'rejected' || !roomResult.value.data) {
+      console.error('[API GET /room-chatbot-data] Room not found:', roomId, roomResult.status === 'rejected' ? roomResult.reason : 'No data');
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
     if (chatbotResult.status === 'rejected' || !chatbotResult.value.data) {
+      console.error('[API GET /room-chatbot-data] Chatbot not found:', chatbotId, chatbotResult.status === 'rejected' ? chatbotResult.reason : 'No data');
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
     if (roomChatbotResult.status === 'rejected' || !roomChatbotResult.value.data) {
+      console.error('[API GET /room-chatbot-data] Chatbot not associated with room:', { roomId, chatbotId }, roomChatbotResult.status === 'rejected' ? roomChatbotResult.reason : 'No data');
       return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
     }
 
