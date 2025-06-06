@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
             const { data: studentProfile } = await supabaseAdmin
                 .from('student_profiles')
                 .select('user_id')
-                .eq('user_id', bypassUserId)
+                .eq('user_id', bypassUserId as any as any)
                 .maybeSingle();
                 
             if (studentProfile) {
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
                 const { data: teacherProfile } = await supabaseAdmin
                     .from('teacher_profiles')
                     .select('user_id')
-                    .eq('user_id', bypassUserId)
+                    .eq('user_id', bypassUserId as any as any)
                     .maybeSingle();
                     
                 if (teacherProfile) {
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
             const { data: studentProfile } = await supabaseAdmin
                 .from('student_profiles')
                 .select('user_id')
-                .eq('user_id', authUser.id)
+                .eq('user_id', authUser.id as any)
                 .single();
                 
             if (studentProfile) {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
                 const { data: teacherProfile } = await supabaseAdmin
                     .from('teacher_profiles')
                     .select('user_id')
-                    .eq('user_id', authUser.id)
+                    .eq('user_id', authUser.id as any)
                     .single();
                     
                 user = { ...authUser, role: teacherProfile ? 'teacher' : undefined };
@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
             const { data: roomMembership, error: membershipError } = await supabaseAdmin
                 .from('room_memberships')
                 .select('room_id')
-                .eq('room_id', roomId)
-                .eq('student_id', user.id)
+                .eq('room_id', roomId as any)
+                .eq('student_id', user.id as any)
                 .maybeSingle();
 
             if (membershipError) {
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
                 const { data: studentProfile } = await supabaseAdmin
                     .from('student_profiles')
                     .select('user_id')
-                    .eq('user_id', user.id)
+                    .eq('user_id', user.id as any)
                     .single();
                     
                 if (studentProfile) {
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
                     const { data: teacherProfile } = await supabaseAdmin
                         .from('teacher_profiles')
                         .select('user_id')
-                        .eq('user_id', user.id)
+                        .eq('user_id', user.id as any)
                         .single();
                         
                     userRole = teacherProfile ? 'teacher' : undefined;
@@ -142,8 +142,8 @@ export async function GET(request: NextRequest) {
             const { data: instance, error: instanceError } = await supabaseAdmin
                 .from('student_chatbot_instances')
                 .select('instance_id')
-                .eq('instance_id', instanceIdFilter)
-                .eq('student_id', user.id)
+                .eq('instance_id', instanceIdFilter as any)
+                .eq('student_id', user.id as any)
                 .single();
                 
             if (instanceError || !instance) {
@@ -155,8 +155,8 @@ export async function GET(request: NextRequest) {
             let query = supabaseAdmin
                 .from('chat_messages')
                 .select('*')
-                .eq('room_id', roomId)
-                .eq('instance_id', instanceIdFilter);
+                .eq('room_id', roomId as any)
+                .eq('instance_id', instanceIdFilter as any);
                 
             const { data: messages, error: messagesError } = await query.order('created_at', { ascending: true });
             
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
             let query = supabaseAdmin
                 .from('chat_messages')
                 .select('*')
-                .eq('room_id', roomId);
+                .eq('room_id', roomId as any);
                 
             if (isStudent && chatbotIdFilter) {
                 // For students, we need to isolate their messages by user_id and chatbot_id
@@ -180,16 +180,16 @@ export async function GET(request: NextRequest) {
                 const { data: instanceData, error: instanceError } = await supabaseAdmin
                     .from('student_chatbot_instances')
                     .select('instance_id')
-                    .eq('student_id', user.id)
-                    .eq('room_id', roomId)
-                    .eq('chatbot_id', chatbotIdFilter)
+                    .eq('student_id', user.id as any)
+                    .eq('room_id', roomId as any)
+                    .eq('chatbot_id', chatbotIdFilter as any)
                     .single();
                     
                 if (!instanceError && instanceData?.instance_id) {
                     console.log(`[API Chat GET] Using student instance ${instanceData.instance_id} for filtering`);
                     
                     // If we have an instance, use it for the most precise filtering
-                    query = query.eq('instance_id', instanceData.instance_id);
+                    query = query.eq('instance_id', instanceData.instance_id as any);
                 } else {
                     console.log(`[API Chat GET] No instance found, using fallback filtering for student ${user.id}`);
                     
@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
     const { data: studentProfile } = await supabaseAdmin
         .from('student_profiles')
         .select('user_id, country_code')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id as any)
         .single();
         
     if (studentProfile) {
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
         const { data: teacherProfile } = await supabaseAdmin
             .from('teacher_profiles')
             .select('user_id, country_code')
-            .eq('user_id', user.id)
+            .eq('user_id', user.id as any)
             .single();
             
         if (teacherProfile) {
@@ -449,9 +449,9 @@ export async function POST(request: NextRequest) {
       const { data: instanceData, error: instanceError } = await supabaseAdmin
         .from('student_chatbot_instances')
         .select('instance_id')
-        .eq('student_id', user.id)
-        .eq('chatbot_id', chatbot_id)
-        .eq('room_id', roomId)
+        .eq('student_id', user.id as any)
+        .eq('chatbot_id', chatbot_id as any)
+        .eq('room_id', roomId as any)
         .single();
         
       if (instanceError || !instanceData) {
@@ -485,7 +485,7 @@ export async function POST(request: NextRequest) {
     const { data: chatbotConfig, error: chatbotFetchError } = await supabaseAdmin
         .from('chatbots')
         .select('system_prompt, model, temperature, max_tokens, enable_rag, bot_type, assessment_criteria_text, welcome_message, teacher_id, name, assessment_type, assessment_question_count')
-        .eq('chatbot_id', chatbot_id)
+        .eq('chatbot_id', chatbot_id as any)
         .single();
 
     if (chatbotFetchError || !chatbotConfig) {
@@ -501,7 +501,7 @@ export async function POST(request: NextRequest) {
         const { data: roomData, error: roomFetchError } = await supabaseAdmin
             .from('rooms')
             .select('room_id, teacher_id, room_name, school_id')
-            .eq('room_id', roomId)
+            .eq('room_id', roomId as any)
             .single();
         if (roomFetchError || !roomData) {
             console.error("[API Chat POST] Room fetch error for non-test room:", roomFetchError);
@@ -517,7 +517,7 @@ export async function POST(request: NextRequest) {
             const { data: roomTeacherProfile, error: roomTeacherProfileError } = await supabaseAdmin
                 .from('teacher_profiles')
                 .select('country_code, email')
-                .eq('user_id', roomData.teacher_id)
+                .eq('user_id', roomData.teacher_id as any)
                 .single();
                 
             if (roomTeacherProfileError) {
@@ -569,7 +569,7 @@ export async function POST(request: NextRequest) {
         const { data: designatedTeacherProfile, error: designatedTeacherProfileError } = await supabaseAdmin
             .from('teacher_profiles')
             .select('country_code, email')
-            .eq('user_id', chatbotConfig.teacher_id)
+            .eq('user_id', chatbotConfig.teacher_id as any)
             .single();
             
         if (designatedTeacherProfileError) {
@@ -619,7 +619,7 @@ export async function POST(request: NextRequest) {
       const { data: existingMessage, error: fetchError } = await supabaseAdmin
         .from('chat_messages')
         .select('created_at')
-        .eq('message_id', provided_message_id)
+        .eq('message_id', provided_message_id as any)
         .single();
         
       if (fetchError || !existingMessage) {
@@ -676,7 +676,7 @@ export async function POST(request: NextRequest) {
         const { data: roomData } = await supabaseAdmin
             .from('rooms')
             .select('*')
-            .eq('room_id', roomId)
+            .eq('room_id', roomId as any)
             .single();
             
         if (roomData) {
@@ -745,8 +745,8 @@ export async function POST(request: NextRequest) {
         const { data: contextMessagesForAssessment, error: contextMsgsError } = await supabaseAdmin
             .from('chat_messages')
             .select('message_id')
-            .eq('room_id', roomId)
-            .eq('metadata->>chatbotId', chatbot_id)
+            .eq('room_id', roomId as any)
+            .eq('metadata->>chatbotId', chatbot_id as any)
             .lt('created_at', userMessageCreatedAt)
             .order('created_at', { ascending: false })
             .limit(ASSESSMENT_CONTEXT_MESSAGE_COUNT * 2 + 5);
@@ -835,7 +835,7 @@ export async function POST(request: NextRequest) {
     // Use admin client for context messages
     const { data: contextMessagesData, error: contextError } = await supabaseAdmin
       .from('chat_messages')
-      .select('role, content').eq('room_id', roomId).eq('user_id', user.id)
+      .select('role, content').eq('room_id', roomId as any).eq('user_id', user.id as any)
       .filter('metadata->>chatbotId', 'eq', chatbot_id)
       .neq('message_id', currentMessageId)
       .order('created_at', { ascending: false }).limit(5);
@@ -1358,7 +1358,7 @@ ACADEMIC INTEGRITY: NEVER write essays, homework, or assignments for students. W
                                     supabaseAdmin
                                         .from('chat_messages')
                                         .delete()
-                                        .eq('message_id', deepseekThinkingMessageId)
+                                        .eq('message_id', deepseekThinkingMessageId as any)
                                         .then(({ error }) => {
                                             if (error) {
                                                 console.error('[API Chat POST] Error deleting thinking message:', error);
@@ -1380,7 +1380,7 @@ ACADEMIC INTEGRITY: NEVER write essays, homework, or assignments for students. W
                                                         content: fullResponseContent,
                                                         updated_at: new Date().toISOString()
                                                     })
-                                                    .eq('message_id', assistantMessageId);
+                                                    .eq('message_id', assistantMessageId as any);
                                                     
                                                 if (error) {
                                                     console.warn('[API POST /chat/[roomId]] Stream interim update error:', error);
@@ -1447,7 +1447,7 @@ ACADEMIC INTEGRITY: NEVER write essays, homework, or assignments for students. W
                         const { error: updateError } = await supabaseAdmin
                             .from('chat_messages')
                             .update(updateData)
-                            .eq('message_id', assistantMessageId);
+                            .eq('message_id', assistantMessageId as any);
                             
                         if (updateError) {
                             console.error(`[API POST /chat/[roomId]] Error updating assistant message ${assistantMessageId}:`, updateError);
