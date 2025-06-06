@@ -84,6 +84,25 @@ export async function GET(request: NextRequest) {
     // First, fetch the chatbot directly with detailed logging
     console.log('[API GET /room-chatbot-data] Fetching chatbot with ID:', chatbotId);
     
+    // Validate that chatbotId is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(chatbotId)) {
+      console.error('[API GET /room-chatbot-data] Invalid chatbot ID format:', chatbotId);
+      return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400 });
+    }
+    
+    // DEBUG: Test if we can query chatbots table at all
+    const { data: testChatbots, error: testError } = await supabaseAdmin
+      .from('chatbots')
+      .select('chatbot_id, name')
+      .limit(1);
+    
+    console.log('[API GET /room-chatbot-data] Test query result:', {
+      canQueryChatbots: !testError,
+      testError,
+      foundRows: testChatbots?.length || 0
+    });
+    
     const { data: chatbot, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
       .select(`
