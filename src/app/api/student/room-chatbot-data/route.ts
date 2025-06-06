@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all data in parallel for better performance
-    const [roomResult, roomChatbotResult, readingDocResult, instanceResult] = await Promise.allSettled([
+    const [roomResult, chatbotResult, roomChatbotAssocResult, readingDocResult, instanceResult] = await Promise.allSettled([
       // Get room data
       supabaseAdmin
         .from('rooms')
@@ -85,30 +85,35 @@ export async function GET(request: NextRequest) {
         .eq('room_id', roomId)
         .single(),
       
-      // Get chatbot data through room_chatbots join to avoid teacher_id filtering issues
+      // For direct access, fetch chatbot directly since we know it exists
+      // The admin client should bypass any RLS policies
       supabaseAdmin
-        .from('room_chatbots')
+        .from('chatbots')
         .select(`
-          chatbot_id,
-          chatbots (
-            chatbot_id, 
-            name, 
-            description, 
-            system_prompt, 
-            model, 
-            max_tokens, 
-            temperature, 
-            enable_rag,
-            rag_enabled, 
-            bot_type, 
-            assessment_criteria_text,
-            welcome_message,
-            linked_assessment_bot_id
-          )
+          chatbot_id, 
+          name, 
+          description, 
+          system_prompt, 
+          model, 
+          max_tokens, 
+          temperature, 
+          enable_rag,
+          rag_enabled, 
+          bot_type, 
+          assessment_criteria_text,
+          welcome_message,
+          linked_assessment_bot_id
         `)
-        .eq('room_id', roomId)
         .eq('chatbot_id', chatbotId)
         .single(),
+      
+      // Verify the association exists (but don't fail if it doesn't for direct access)
+      supabaseAdmin
+        .from('room_chatbots')
+        .select('chatbot_id')
+        .eq('room_id', roomId)
+        .eq('chatbot_id', chatbotId)
+        .maybeSingle(),
       
       // Get reading document if applicable
       supabaseAdmin
@@ -135,26 +140,47 @@ export async function GET(request: NextRequest) {
           : Promise.resolve({ status: 'fulfilled', value: { data: null } })
     ]);
 
-    // Process results
+    // Process results with detailed logging
+    console.log('[API GET /room-chatbot-data] Query results:', {
+      roomResult: roomResult.status,
+      chatbotResult: chatbotResult.status,
+      roomChatbotAssocResult: roomChatbotAssocResult.status,
+      chatbotData: chatbotResult.status === 'fulfilled' ? chatbotResult.value.data : null,
+      chatbotError: chatbotResult.status === 'rejected' ? chatbotResult.reason : null,
+      assocData: roomChatbotAssocResult.status === 'fulfilled' ? roomChatbotAssocResult.value.data : null
+    });
+
     if (roomResult.status === 'rejected' || !roomResult.value.data) {
       console.error('[API GET /room-chatbot-data] Room not found:', roomId, roomResult.status === 'rejected' ? roomResult.reason : 'No data');
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    if (roomChatbotResult.status === 'rejected' || !roomChatbotResult.value.data) {
-      console.error('[API GET /room-chatbot-data] Chatbot not found or not associated with room:', { roomId, chatbotId }, roomChatbotResult.status === 'rejected' ? roomChatbotResult.reason : 'No data');
-      return NextResponse.json({ error: 'Chatbot not found or not associated with this room' }, { status: 404 });
+    if (chatbotResult.status === 'rejected' || !chatbotResult.value.data) {
+      console.error('[API GET /room-chatbot-data] Chatbot not found:', { 
+        roomId, 
+        chatbotId,
+        status: chatbotResult.status,
+        error: chatbotResult.status === 'rejected' ? chatbotResult.reason : 'No data returned'
+      });
+      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    // Extract chatbot from the joined query result
-    const roomChatbotData = roomChatbotResult.value.data as any;
-    if (!roomChatbotData.chatbots) {
-      console.error('[API GET /room-chatbot-data] Chatbot data missing from join result');
-      return NextResponse.json({ error: 'Chatbot data not found' }, { status: 404 });
+    // Check association but only warn for direct access
+    if (roomChatbotAssocResult.status === 'rejected' || !roomChatbotAssocResult.value.data) {
+      console.warn('[API GET /room-chatbot-data] Chatbot not associated with room, but continuing for direct access:', { 
+        roomId, 
+        chatbotId,
+        isDirect
+      });
+      
+      // For non-direct access, this would be an error
+      if (!isDirect) {
+        return NextResponse.json({ error: 'Chatbot is not associated with this room' }, { status: 404 });
+      }
     }
 
     const room = roomResult.value.data;
-    const chatbot = roomChatbotData.chatbots as any;
+    const chatbot = chatbotResult.value.data;
     const readingDocument = readingDocResult.status === 'fulfilled' ? readingDocResult.value.data : null;
     let existingInstance = instanceResult.status === 'fulfilled' && 'data' in instanceResult.value ? instanceResult.value.data : null;
 
