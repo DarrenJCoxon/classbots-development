@@ -30,13 +30,10 @@ export const createAdminClient = () => {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
+        detectSessionInUrl: false
       },
-      // These headers ensure the service role bypasses RLS
-      global: {
-        headers: {
-          'X-Client-Info': 'admin-supabase-js',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        }
+      db: {
+        schema: 'public'
       }
     }
   );

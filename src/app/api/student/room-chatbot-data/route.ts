@@ -130,13 +130,32 @@ export async function GET(request: NextRequest) {
     });
     
     if (chatbotError || !chatbot) {
-      console.error('[API GET /room-chatbot-data] Chatbot not found:', { 
-        chatbotId,
+      // Let's also check if ANY chatbot exists with a similar query
+      const { data: anyChatbot } = await supabaseAdmin
+        .from('chatbots')
+        .select('chatbot_id, name')
+        .limit(1)
+        .single();
+      
+      console.error('[API GET /room-chatbot-data] Chatbot not found. Debug info:', { 
+        requestedChatbotId: chatbotId,
         error: chatbotError,
         errorMessage: chatbotError?.message,
-        errorDetails: chatbotError?.details
+        errorDetails: chatbotError?.details,
+        errorCode: chatbotError?.code,
+        canQueryChatbotsTable: !!anyChatbot,
+        sampleChatbotFound: anyChatbot
       });
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      
+      // Return more detailed error for debugging
+      return NextResponse.json({ 
+        error: 'Chatbot not found',
+        debug: {
+          chatbotId: chatbotId,
+          errorMessage: chatbotError?.message,
+          canAccessTable: !!anyChatbot
+        }
+      }, { status: 404 });
     }
     
     // Now fetch the room data
